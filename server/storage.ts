@@ -19,6 +19,14 @@ import {
   type InsertProductTier,
   type Allocation,
   type InsertAllocation,
+  type PricingStrategy,
+  type InsertPricingStrategy,
+  type SubscriptionPlan,
+  type InsertSubscriptionPlan,
+  type Credit,
+  type InsertCredit,
+  type CreditTransaction,
+  type InsertCreditTransaction,
   users,
   subscriptions,
   leadBatches,
@@ -28,6 +36,10 @@ import {
   aiInsights,
   productTiers,
   allocations,
+  pricingStrategies,
+  subscriptionPlans,
+  credits,
+  creditTransactions,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -94,6 +106,42 @@ export interface IStorage {
   createAllocations(allocs: InsertAllocation[]): Promise<Allocation[]>;
   getUserLeadIds(userId: string): Promise<string[]>;
   getLeadsForPurchase(userId: string, leadCount: number, minQuality: number, maxQuality: number): Promise<Lead[]>;
+  
+  // Pricing strategy operations
+  getPricingStrategy(id: string): Promise<PricingStrategy | undefined>;
+  getActivePricingStrategy(): Promise<PricingStrategy | undefined>;
+  createPricingStrategy(strategy: InsertPricingStrategy): Promise<PricingStrategy>;
+  updatePricingStrategy(id: string, data: Partial<InsertPricingStrategy>): Promise<PricingStrategy | undefined>;
+  
+  // Subscription plan operations
+  getSubscriptionPlan(id: string): Promise<SubscriptionPlan | undefined>;
+  getSubscriptionPlanByTier(tier: string): Promise<SubscriptionPlan | undefined>;
+  getAllSubscriptionPlans(): Promise<SubscriptionPlan[]>;
+  getActiveSubscriptionPlans(): Promise<SubscriptionPlan[]>;
+  createSubscriptionPlan(plan: InsertSubscriptionPlan): Promise<SubscriptionPlan>;
+  updateSubscriptionPlan(id: string, data: Partial<InsertSubscriptionPlan>): Promise<SubscriptionPlan | undefined>;
+  
+  // Credit operations
+  getUserCredits(userId: string): Promise<Credit | undefined>;
+  createUserCredits(credit: InsertCredit): Promise<Credit>;
+  updateUserCredits(userId: string, data: Partial<InsertCredit>): Promise<Credit | undefined>;
+  createCreditTransaction(transaction: InsertCreditTransaction): Promise<CreditTransaction>;
+  getUserCreditTransactions(userId: string): Promise<CreditTransaction[]>;
+  
+  // Advanced lead queries
+  getFilteredLeads(filters: {
+    industry?: string;
+    minRevenue?: number;
+    maxRevenue?: number;
+    stateCode?: string;
+    minTimeInBusiness?: number;
+    minCreditScore?: number;
+    maxCreditScore?: number;
+    exclusivityStatus?: string;
+    previousMCAHistory?: string;
+    urgencyLevel?: string;
+    limit: number;
+  }): Promise<Lead[]>;
 }
 
 export class DbStorage implements IStorage {

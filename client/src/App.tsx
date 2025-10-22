@@ -12,6 +12,7 @@ import PricingPage from "@/pages/pricing";
 import DashboardPage from "@/pages/dashboard";
 import PurchasesPage from "@/pages/purchases";
 import PurchaseTierPage from "@/pages/purchase-tier";
+import PurchaseFlowPage from "@/pages/purchase-flow";
 import AdminDashboardPage from "@/pages/admin/admin-dashboard";
 import UploadLeadsPage from "@/pages/admin/upload-leads";
 import ManageLeadsPage from "@/pages/admin/manage-leads";
@@ -39,6 +40,7 @@ function AppSidebar() {
 
   const buyerMenuItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home },
+    { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
   ];
@@ -161,6 +163,7 @@ function Router() {
               <Route path="/" component={DashboardPage} />
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/pricing" component={PricingPage} />
+              <Route path="/purchase" component={PurchaseFlowPage} />
               <Route path="/purchases" component={PurchasesPage} />
               <Route path="/purchase/:tier" component={PurchaseTierPage} />
 

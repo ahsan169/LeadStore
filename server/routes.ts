@@ -33,6 +33,126 @@ const PRICING = {
   elite: { price: 0, leadsPerPurchase: 0 }, // Contact sales
 };
 
+// Enhanced MCA Lead Scoring Algorithm
+function calculateMCAQualityScore(lead: any): number {
+  let score = 0;
+  
+  // Revenue scoring (35 points max)
+  const revenue = parseInt(lead.annualRevenue) || 0;
+  if (revenue >= 250000 && revenue <= 2000000) score += 35; // Sweet spot
+  else if (revenue >= 100000 && revenue < 250000) score += 25;
+  else if (revenue > 2000000 && revenue <= 10000000) score += 20;
+  else if (revenue >= 50000 && revenue < 100000) score += 10;
+  
+  // Industry scoring (20 points max)
+  const highValueIndustries = ['restaurant', 'retail', 'trucking', 'construction', 'healthcare', 'hospitality'];
+  const mediumValueIndustries = ['wholesale', 'manufacturing', 'services'];
+  const industryLower = lead.industry?.toLowerCase() || '';
+  
+  if (highValueIndustries.some(ind => industryLower.includes(ind))) score += 20;
+  else if (mediumValueIndustries.some(ind => industryLower.includes(ind))) score += 12;
+  else if (lead.industry) score += 5;
+  
+  // Business age scoring (15 points max)
+  const timeInBusiness = parseInt(lead.timeInBusiness) || 0;
+  if (timeInBusiness >= 24) score += 15; // 2+ years
+  else if (timeInBusiness >= 12) score += 10;
+  else if (timeInBusiness >= 6) score += 5;
+  
+  // Credit score (15 points max)
+  const creditScore = parseInt(lead.creditScore) || 0;
+  if (creditScore >= 550 && creditScore <= 700) score += 15; // MCA sweet spot
+  else if (creditScore > 700 && creditScore <= 750) score += 10;
+  else if (creditScore >= 500 && creditScore < 550) score += 8;
+  
+  // Previous MCA History bonus (10 points max)
+  if (lead.previousMCAHistory === 'previous_paid') score += 10; // Renewals convert at 70%+
+  else if (lead.previousMCAHistory === 'current') score += 7;
+  else if (lead.previousMCAHistory === 'multiple') score += 8;
+  
+  // Funding urgency (5 points max)
+  const requestedAmount = parseInt(lead.requestedAmount) || 0;
+  if (requestedAmount >= 10000 && requestedAmount <= 500000) score += 5;
+  else if (requestedAmount > 0) score += 3;
+  
+  // Daily bank deposits bonus (5 points max)
+  if (lead.dailyBankDeposits) score += 5;
+  
+  // Urgency level bonus (5 points max)
+  if (lead.urgencyLevel === 'immediate') score += 5;
+  else if (lead.urgencyLevel === 'this_week') score += 4;
+  else if (lead.urgencyLevel === 'this_month') score += 2;
+  
+  // Contact quality (5 points max)
+  if (lead.email && lead.phone) score += 5;
+  else if (lead.email || lead.phone) score += 3;
+  
+  // State code bonus for high-value states (5 points max)
+  const highValueStates = ['CA', 'NY', 'TX', 'FL', 'PA', 'IL', 'OH', 'GA', 'NC', 'MI'];
+  if (highValueStates.includes(lead.stateCode)) score += 5;
+  else if (lead.stateCode) score += 2;
+  
+  return Math.min(100, score);
+}
+
+// Dynamic Pricing Calculator
+function calculateLeadPrice(lead: any, exclusivity: string = 'non_exclusive', volume: number = 1): number {
+  let basePrice = 25; // Base price per lead
+  
+  // Quality multiplier
+  const qualityScore = lead.qualityScore || 0;
+  if (qualityScore >= 90) basePrice *= 3;
+  else if (qualityScore >= 80) basePrice *= 2.5;
+  else if (qualityScore >= 70) basePrice *= 2;
+  else if (qualityScore >= 60) basePrice *= 1.5;
+  else if (qualityScore >= 50) basePrice *= 1.2;
+  
+  // Industry premium
+  const premiumIndustries = ['restaurant', 'healthcare', 'trucking'];
+  const industryLower = lead.industry?.toLowerCase() || '';
+  if (premiumIndustries.some(ind => industryLower.includes(ind))) {
+    basePrice *= 1.3;
+  }
+  
+  // Previous MCA premium (renewals are gold)
+  if (lead.previousMCAHistory === 'previous_paid') basePrice *= 1.5;
+  else if (lead.previousMCAHistory === 'current') basePrice *= 1.3;
+  else if (lead.previousMCAHistory === 'multiple') basePrice *= 1.4;
+  
+  // State premium
+  const premiumStates = ['CA', 'NY', 'TX', 'FL'];
+  if (premiumStates.includes(lead.stateCode)) {
+    basePrice *= 1.2;
+  }
+  
+  // Exclusivity multiplier
+  if (exclusivity === 'exclusive') basePrice *= 2.5;
+  else if (exclusivity === 'semi_exclusive') basePrice *= 1.5;
+  
+  // Volume discount
+  if (volume >= 1000) basePrice *= 0.7;
+  else if (volume >= 500) basePrice *= 0.8;
+  else if (volume >= 200) basePrice *= 0.9;
+  else if (volume >= 100) basePrice *= 0.95;
+  
+  // Lead age discount
+  const ageInDays = lead.leadAge || 0;
+  if (ageInDays > 90) basePrice *= 0.3;
+  else if (ageInDays > 60) basePrice *= 0.5;
+  else if (ageInDays > 30) basePrice *= 0.7;
+  else if (ageInDays > 14) basePrice *= 0.85;
+  else if (ageInDays > 7) basePrice *= 0.95;
+  
+  // Urgency premium
+  if (lead.urgencyLevel === 'immediate') basePrice *= 1.2;
+  else if (lead.urgencyLevel === 'this_week') basePrice *= 1.1;
+  
+  // Daily deposits premium
+  if (lead.dailyBankDeposits) basePrice *= 1.15;
+  
+  return Math.round(basePrice);
+}
+
 // Configure multer for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -238,6 +358,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount') normalizedRow.requestedAmount = row[key];
           else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business') normalizedRow.timeInBusiness = row[key];
           else if (lowerKey === 'creditscore' || lowerKey === 'credit score') normalizedRow.creditScore = row[key];
+          else if (lowerKey === 'dailybankdeposits' || lowerKey === 'daily bank deposits') normalizedRow.dailyBankDeposits = row[key]?.toLowerCase() === 'true' || row[key]?.toLowerCase() === 'yes';
+          else if (lowerKey === 'previousmcahistory' || lowerKey === 'previous mca history') normalizedRow.previousMCAHistory = row[key] || 'none';
+          else if (lowerKey === 'urgencylevel' || lowerKey === 'urgency level') normalizedRow.urgencyLevel = row[key] || 'exploring';
+          else if (lowerKey === 'statecode' || lowerKey === 'state code' || lowerKey === 'state') normalizedRow.stateCode = row[key];
+          else if (lowerKey === 'exclusivitystatus' || lowerKey === 'exclusivity status') normalizedRow.exclusivityStatus = row[key] || 'non_exclusive';
         }
 
         // Validate required fields
@@ -284,8 +409,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         leadHashes.add(leadHash);
 
-        // Calculate quality score
-        const qualityScore = calculateQualityScore(normalizedRow);
+        // Calculate MCA quality score
+        const qualityScore = calculateMCAQualityScore(normalizedRow);
+
+        // Calculate lead age (default to 0 for new leads)
+        const leadAge = 0;
+        normalizedRow.leadAge = leadAge;
 
         // Assign tier based on quality score
         const tier = assignTier(qualityScore);
@@ -338,6 +467,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         requestedAmount: lead.requestedAmount?.trim() || null,
         timeInBusiness: lead.timeInBusiness?.trim() || null,
         creditScore: lead.creditScore?.trim() || null,
+        dailyBankDeposits: lead.dailyBankDeposits || false,
+        previousMCAHistory: lead.previousMCAHistory || 'none',
+        urgencyLevel: lead.urgencyLevel || 'exploring',
+        stateCode: lead.stateCode?.trim() || null,
+        leadAge: lead.leadAge || 0,
+        exclusivityStatus: lead.exclusivityStatus || 'non_exclusive',
         qualityScore: lead.qualityScore,
         tier: lead.tier,
         sold: false,

@@ -54,6 +54,14 @@ export const leads = pgTable("leads", {
   timeInBusiness: text("time_in_business"),
   creditScore: text("credit_score"),
   
+  // MCA-specific fields
+  dailyBankDeposits: boolean("daily_bank_deposits").default(false),
+  previousMCAHistory: text("previous_mca_history").default("none"), // 'none', 'current', 'previous_paid', 'multiple'
+  urgencyLevel: text("urgency_level").default("exploring"), // 'immediate', 'this_week', 'this_month', 'exploring'
+  stateCode: text("state_code"), // For geographic pricing
+  leadAge: integer("lead_age").default(0), // Days since lead generated
+  exclusivityStatus: text("exclusivity_status").default("non_exclusive"), // 'exclusive', 'semi_exclusive', 'non_exclusive'
+  
   // Quality and assignment
   qualityScore: integer("quality_score").notNull().default(0), // 0-100
   tier: text("tier"), // 'gold', 'platinum', 'diamond', 'elite' - which tier can access this lead
@@ -133,6 +141,65 @@ export const allocations = pgTable("allocations", {
   purchaseId: varchar("purchase_id").references(() => purchases.id).notNull(),
   leadId: varchar("lead_id").references(() => leads.id).notNull(),
   leadHash: text("lead_hash").notNull(), // MD5 hash of email + phone for deduplication
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Pricing strategies for dynamic pricing
+export const pricingStrategies = pgTable("pricing_strategies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  basePrice: decimal("base_price", { precision: 10, scale: 2 }).notNull(), // Base price per lead
+  exclusiveMultiplier: decimal("exclusive_multiplier", { precision: 3, scale: 1 }).notNull().default("2.5"),
+  volumeDiscounts: jsonb("volume_discounts"), // Tiered volume discounts
+  industryPremiums: jsonb("industry_premiums"), // Industry-specific pricing
+  geographicPremiums: jsonb("geographic_premiums"), // State/city pricing
+  ageDiscounts: jsonb("age_discounts"), // Discounts for aged leads
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Subscription plans for recurring revenue
+export const subscriptionPlans = pgTable("subscription_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  tier: text("tier").notNull().unique(), // 'starter', 'professional', 'enterprise', 'custom'
+  monthlyPrice: integer("monthly_price").notNull(), // in cents
+  monthlyLeads: integer("monthly_leads").notNull(),
+  pricePerAdditionalLead: decimal("price_per_additional_lead", { precision: 10, scale: 2 }),
+  features: text("features").array().notNull(),
+  minQualityScore: integer("min_quality_score").notNull().default(60),
+  maxQualityScore: integer("max_quality_score").notNull().default(100),
+  active: boolean("active").notNull().default(true),
+  recommended: boolean("recommended").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Credits system for flexible purchasing
+export const credits = pgTable("credits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  balance: decimal("balance", { precision: 10, scale: 2 }).notNull().default("0"),
+  lifetimePurchased: decimal("lifetime_purchased", { precision: 10, scale: 2 }).notNull().default("0"),
+  lifetimeUsed: decimal("lifetime_used", { precision: 10, scale: 2 }).notNull().default("0"),
+  lastPurchaseAt: timestamp("last_purchase_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Credit transactions for audit trail
+export const creditTransactions = pgTable("credit_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  type: text("type").notNull(), // 'purchase', 'usage', 'refund', 'bonus'
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  balanceBefore: decimal("balance_before", { precision: 10, scale: 2 }).notNull(),
+  balanceAfter: decimal("balance_after", { precision: 10, scale: 2 }).notNull(),
+  description: text("description"),
+  referenceId: text("reference_id"), // purchaseId, leadId, etc.
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -225,6 +292,44 @@ export const insertContactSubmissionSchema = createInsertSchema(contactSubmissio
   status: z.enum(["new", "read", "responded"]).default("new"),
 });
 
+export const insertPricingStrategySchema = createInsertSchema(pricingStrategies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  basePrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  exclusiveMultiplier: z.string().regex(/^\d+(\.\d{1})?$/),
+});
+
+export const insertSubscriptionPlanSchema = createInsertSchema(subscriptionPlans).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  tier: z.string().min(1),
+  monthlyPrice: z.number().int().min(0),
+  monthlyLeads: z.number().int().min(0),
+  minQualityScore: z.number().int().min(0).max(100),
+  maxQualityScore: z.number().int().min(0).max(100),
+  features: z.array(z.string()),
+});
+
+export const insertCreditSchema = createInsertSchema(credits).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertCreditTransactionSchema = createInsertSchema(creditTransactions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  type: z.enum(["purchase", "usage", "refund", "bonus"]),
+  amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  balanceBefore: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  balanceAfter: z.string().regex(/^\d+(\.\d{1,2})?$/),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -255,3 +360,15 @@ export type Allocation = typeof allocations.$inferSelect;
 
 export type InsertContactSubmission = z.infer<typeof insertContactSubmissionSchema>;
 export type ContactSubmission = typeof contactSubmissions.$inferSelect;
+
+export type InsertPricingStrategy = z.infer<typeof insertPricingStrategySchema>;
+export type PricingStrategy = typeof pricingStrategies.$inferSelect;
+
+export type InsertSubscriptionPlan = z.infer<typeof insertSubscriptionPlanSchema>;
+export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
+
+export type InsertCredit = z.infer<typeof insertCreditSchema>;
+export type Credit = typeof credits.$inferSelect;
+
+export type InsertCreditTransaction = z.infer<typeof insertCreditTransactionSchema>;
+export type CreditTransaction = typeof creditTransactions.$inferSelect;

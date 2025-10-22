@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
@@ -13,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useState } from "react";
 import {
   Shield,
   Zap,
@@ -34,7 +37,11 @@ import {
   Droplets,
   Fish,
   Anchor,
+  Calculator,
+  PieChart,
 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
 
 const PRICING_TIERS = [
   {
@@ -210,6 +217,12 @@ const contactSchema = z.object({
 export default function Home() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  // ROI Calculator states
+  const [leadVolume, setLeadVolume] = useState(100);
+  const [leadQuality, setLeadQuality] = useState(70);
+  const [avgDealSize, setAvgDealSize] = useState(50000);
+  const [commissionRate, setCommissionRate] = useState(10);
 
   // Check if user is authenticated
   const { data: user } = useQuery({ queryKey: ["/api/auth/me"] });
@@ -569,6 +582,213 @@ export default function Home() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ROI Calculator Section */}
+      <section className="py-20 bg-muted/30 border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center space-y-4 mb-16">
+            <div className="flex justify-center mb-4">
+              <div className="p-4 rounded-full bg-primary/10">
+                <Calculator className="w-10 h-10 text-primary" />
+              </div>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-roi-calculator">
+              ROI Calculator
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Calculate your potential return on investment with MCA leads
+            </p>
+          </div>
+
+          <Card className="max-w-4xl mx-auto">
+            <CardHeader>
+              <CardTitle className="text-2xl flex items-center gap-2">
+                <PieChart className="w-6 h-6 text-primary" />
+                MCA Lead ROI Calculator
+              </CardTitle>
+              <CardDescription>
+                Adjust the sliders to see your potential returns based on industry averages
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Lead Volume */}
+                <div className="space-y-2">
+                  <Label htmlFor="lead-volume" className="text-sm font-medium">
+                    Lead Volume
+                  </Label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-bold text-primary">{leadVolume}</span>
+                    <span className="text-sm text-muted-foreground">leads/month</span>
+                  </div>
+                  <Slider
+                    id="lead-volume"
+                    value={[leadVolume]}
+                    onValueChange={([value]) => setLeadVolume(value)}
+                    min={10}
+                    max={1000}
+                    step={10}
+                    className="w-full"
+                    data-testid="slider-lead-volume"
+                  />
+                </div>
+
+                {/* Lead Quality */}
+                <div className="space-y-2">
+                  <Label htmlFor="lead-quality" className="text-sm font-medium">
+                    Average Lead Quality Score
+                  </Label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-bold text-primary">{leadQuality}</span>
+                    <span className="text-sm text-muted-foreground">quality score</span>
+                  </div>
+                  <Slider
+                    id="lead-quality"
+                    value={[leadQuality]}
+                    onValueChange={([value]) => setLeadQuality(value)}
+                    min={60}
+                    max={100}
+                    step={5}
+                    className="w-full"
+                    data-testid="slider-lead-quality"
+                  />
+                </div>
+
+                {/* Average Deal Size */}
+                <div className="space-y-2">
+                  <Label htmlFor="deal-size" className="text-sm font-medium">
+                    Average MCA Deal Size
+                  </Label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-bold text-primary">
+                      ${(avgDealSize / 1000).toFixed(0)}K
+                    </span>
+                    <span className="text-sm text-muted-foreground">per deal</span>
+                  </div>
+                  <Slider
+                    id="deal-size"
+                    value={[avgDealSize]}
+                    onValueChange={([value]) => setAvgDealSize(value)}
+                    min={10000}
+                    max={200000}
+                    step={5000}
+                    className="w-full"
+                    data-testid="slider-deal-size"
+                  />
+                </div>
+
+                {/* Commission Rate */}
+                <div className="space-y-2">
+                  <Label htmlFor="commission" className="text-sm font-medium">
+                    Commission Rate
+                  </Label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-bold text-primary">{commissionRate}%</span>
+                    <span className="text-sm text-muted-foreground">per deal</span>
+                  </div>
+                  <Slider
+                    id="commission"
+                    value={[commissionRate]}
+                    onValueChange={([value]) => setCommissionRate(value)}
+                    min={5}
+                    max={20}
+                    step={1}
+                    className="w-full"
+                    data-testid="slider-commission"
+                  />
+                </div>
+              </div>
+
+              <Separator className="my-6" />
+
+              {/* ROI Calculations */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Projected Results</h3>
+                
+                {(() => {
+                  // Calculate conversion rates based on quality score
+                  const conversionRate = leadQuality >= 90 ? 0.07 
+                    : leadQuality >= 80 ? 0.05 
+                    : leadQuality >= 70 ? 0.035 
+                    : 0.025;
+                  
+                  // Calculate cost per lead based on quality
+                  const costPerLead = leadQuality >= 90 ? 75 
+                    : leadQuality >= 80 ? 62.5 
+                    : leadQuality >= 70 ? 50 
+                    : 37.5;
+                  
+                  const totalLeadCost = leadVolume * costPerLead;
+                  const expectedDeals = Math.floor(leadVolume * conversionRate);
+                  const totalRevenue = expectedDeals * avgDealSize * (commissionRate / 100);
+                  const netProfit = totalRevenue - totalLeadCost;
+                  const roi = totalLeadCost > 0 ? ((netProfit / totalLeadCost) * 100) : 0;
+                  
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-sm text-muted-foreground">Lead Investment</div>
+                          <div className="text-2xl font-bold text-foreground">
+                            ${totalLeadCost.toLocaleString()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-sm text-muted-foreground">Expected Deals</div>
+                          <div className="text-2xl font-bold text-foreground">
+                            {expectedDeals}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {(conversionRate * 100).toFixed(1)}% conversion
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-sm text-muted-foreground">Total Revenue</div>
+                          <div className="text-2xl font-bold text-primary">
+                            ${totalRevenue.toLocaleString()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                      
+                      <Card className={netProfit > 0 ? "bg-green-50 dark:bg-green-950" : "bg-red-50 dark:bg-red-950"}>
+                        <CardContent className="pt-6">
+                          <div className="text-sm text-muted-foreground">ROI</div>
+                          <div className={`text-2xl font-bold ${netProfit > 0 ? "text-green-600" : "text-red-600"}`}>
+                            {roi.toFixed(0)}%
+                          </div>
+                          <div className={`text-xs ${netProfit > 0 ? "text-green-600" : "text-red-600"}`}>
+                            ${Math.abs(netProfit).toLocaleString()} {netProfit > 0 ? "profit" : "loss"}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              <Alert>
+                <TrendingUp className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Industry Insight:</strong> MCA renewals (previous clients) convert at 70%+ vs 3-5% for cold leads. 
+                  Prioritize high-quality leads with previous MCA history for maximum ROI.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+            <CardFooter className="flex justify-center">
+              <Button size="lg" onClick={() => setLocation(user ? "/purchase" : "/auth")}>
+                {user ? "Start Purchasing Leads" : "Sign Up to Get Started"}
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
       </section>
 
