@@ -1,0 +1,220 @@
+Title: Build an AI‑powered MCA lead storefront with multi‑tier pricing and automated insights
+
+Goal:
+Create a secure, production‑ready web app where customers can purchase high‑quality Merchant Cash Advance (MCA) leads across multiple pricing tiers. Include an admin workflow to import lead lists (CSV), validate/deduplicate them, and automatically generate AI insights (quality scoring, segmentation, summary). Include checkout, delivery, customer accounts, and a full admin dashboard.
+
+Preferred stack (ok to adjust if needed on Replit):
+
+Frontend: Next.js 14 (App Router) + TypeScript + Tailwind CSS, form validation with Zod/React‑Hook‑Form.
+
+Backend: Next.js server routes (or Express) with TypeScript.
+
+DB/ORM: PostgreSQL (Neon/Supabase) + Prisma.
+
+Auth: NextAuth (email + Google).
+
+Payments: Stripe (Checkout + Webhooks).
+
+Storage: Supabase Storage or S3‑compatible bucket (for CSVs, previews, and fulfilled downloads).
+
+AI: OpenAI (read OPENAI_API_KEY from env).
+
+Email: Resend or SendGrid for transactional messages.
+Use environment variables, never hardcode secrets.
+
+Core user flows
+
+Public buyer flow
+
+Landing page with value prop (“High‑quality MCA leads”), social proof, FAQs, compliance disclaimers.
+
+Pricing page with 3–4 high‑quality tiers (e.g., Gold, Platinum, Diamond, Elite).
+
+Each tier shows: # of leads delivered, price, verification level, data fields included, refund/replace policy.
+
+Checkout via Stripe Checkout.
+
+Order success page + email receipt.
+
+Customer account (order history, invoices, secure downloads, license/usage terms).
+
+Admin (seller) flow
+
+Upload CSV wizard (admin only):
+
+Step 1: Upload CSV (limit e.g., 50MB).
+
+Step 2: Header mapping (user maps CSV columns to schema).
+
+Step 3: Validation (required fields present, email/phone format, country/state normalization).
+
+Step 4: Deduplication by email+phone across the whole database (and within the batch).
+
+Step 5: “Dry‑run” preview & QC metrics.
+
+AI Insights generation (on the processed batch):
+
+Compute a reproducible Lead Quality Score (0–100) using deterministic heuristics (completeness, deliverability regex, fields present, consent flags, freshness, revenue ranges).
+
+Use OpenAI to produce:
+
+Executive summary of the batch.
+
+Segment recommendations (e.g., by industry, region, revenue band).
+
+Risk flags (e.g., missing consent source, many recent duplicates).
+
+Suggested outreach angles & 5 subject‑line ideas.
+
+Store raw metrics (non‑PII) + AI text outputs for later display; never send PII back to the client in prompts (use aggregate stats only).
+
+Package creation: Publish a batch into one or more high‑quality tiers; set price, quantity, exclusivity (exclusive/shared), and lead quality threshold (e.g., ≥80/100).
+
+Fulfillment rules: On purchase, allocate exactly N unique leads meeting the tier’s filters that haven’t been sold to that buyer before. Mark as sold and link to the order.
+
+Admin dashboard: Batches, products, orders, customers, payouts, AI reports, download logs.
+
+Data model (Prisma outline—implement actual schema)
+
+User: id, email, name, role (admin/buyer).
+
+LeadBatch: id, name, uploadedBy, createdAt, status, file references.
+
+Lead: id, batchId, firstName, lastName, email, phone, company, revenueRange, industry, state, country, creditScoreRange?, timeInBusiness?, optInTimestamp, consentSource, qualityScore, hash(email/phone) for dedupe.
+
+ProductTier: id, name, description, price, leadCount, minQualityScore, exclusive (bool), features[].
+
+Order: id, userId, tierId, total, status, stripeIds, createdAt.
+
+Allocation: id, orderId, leadId (tracks which lead was delivered to which order).
+
+Insight: id, batchId, metrics JSON, summary, segments JSON, recommendations.
+
+DownloadLink: id, orderId, url, expiresAt, timesUsed, signature.
+
+WebhookEvent: id, type, raw, processedAt.
+
+API routes (examples)
+
+POST /api/admin/batches/upload – CSV upload (multipart), returns batchId.
+
+POST /api/admin/batches/:id/map – column mapping and validation.
+
+POST /api/admin/batches/:id/process – dedupe + scoring + persist.
+
+POST /api/admin/batches/:id/insights – runs AI summarization on aggregated (non‑PII) stats.
+
+POST /api/admin/products – create/update product tiers.
+
+POST /api/checkout – Stripe session creation for a tier.
+
+POST /api/stripe/webhook – handle paid events; on success call fulfillment.
+
+POST /api/fulfill – allocate leads and generate a signed, expiring CSV for download.
+
+GET /api/orders/:id/download – verifies user + link expiry, streams CSV.
+
+AI requirements
+
+Read OPENAI_API_KEY from env; implement a small service wrapper.
+
+Never send raw PII to the LLM. Send only counts, percentages, histograms, and example patterns, not actual names/emails/phones.
+
+Generate:
+
+Batch summary (industry mix, geo, average revenue range, completeness).
+
+Risk flags & data quality notes.
+
+6–10 buyer personas/segments with suggested outreach angles.
+
+Short “insights” card for the Admin and a simplified version visible to buyers on the product page.
+
+Include a cost guardrail (token limit + truncation of aggregates if too large).
+
+Pricing tiers (all are “high quality”; adjust prices as constants)
+
+Gold – 100 leads, minQualityScore ≥ 80, shared up to 3x.
+
+Platinum – 500 leads, minQualityScore ≥ 85, shared up to 2x.
+
+Diamond – 1,000 leads, minQualityScore ≥ 90, shared up to 1x (near‑exclusive).
+
+Elite (custom) – Contact sales; exclusive, SLA on replacement if hard bounces found within 7 days.
+
+Show comparison table, feature bullets, and refund/replace policy summary.
+
+Validation, QC, and fulfillment
+
+Email regex + MX “assumed” check placeholder (no third‑party API call unless configured).
+
+Normalize phones to E.164; flag US numbers on national DNC if you integrate a service (optional placeholder).
+
+Dedupe within batch and against previously sold leads; maintain a global hash index for email+phone.
+
+On fulfillment, produce a clean CSV with mapped headers and watermark a small “sample preview” on product pages (e.g., mask emails/phones).
+
+Generate signed, one‑time, expiring download URLs (e.g., 24 hours).
+
+Security & compliance (must‑haves)
+
+HTTPS only; secure cookies; CSRF and rate limiting on auth & checkout endpoints.
+
+RBAC (admin vs buyer).
+
+Store PII only server‑side; encrypt at rest via DB + storage provider options.
+
+Clear Terms, Privacy, Refund/Replacement pages; last‑updated dates.
+
+Prominent notice: Only consent‑based leads; buyer responsible for lawful use; reference TCPA/CAN‑SPAM; provide opt‑out instructions in delivered CSV notes. (Not legal advice.)
+
+Stripe: confirm product is allowed under their Acceptable Use before going live.
+
+UI/UX
+
+Clean, modern design with Tailwind; responsive; dark mode optional.
+
+Pages: / (hero + proof), /pricing, /catalog (if you list multiple batches), /checkout, /success, /account, /account/orders/[id], /admin/*.
+
+Components: Pricing cards, Feature grid, AI Insights cards, CSV sample preview, Admin tables with filters & CSV export.
+
+DevOps & configuration
+
+Env vars: DATABASE_URL, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, NEXTAUTH_SECRET, OPENAI_API_KEY, STORAGE_BUCKET_KEY/SECRET, STORAGE_BUCKET_NAME, STORAGE_REGION.
+
+Seed script: create an admin user, demo batch, demo products.
+
+Tests: unit (Vitest/Jest) for scoring & allocation; e2e (Playwright) for checkout → fulfillment.
+
+README with setup, env, Stripe test cards, and deployment steps on Replit.
+
+Acceptance criteria (treat as a checklist)
+
+Buyers can view pricing, pay with Stripe test mode, and receive a working download with exactly the promised number of unique, qualified leads.
+
+Admin can upload CSV → map columns → validate/dedupe → score → generate AI insights → publish tiers.
+
+AI insights render for each batch and do not expose raw PII to the model.
+
+Download links are signed, expire, and are logged; re‑download after expiry requires regeneration.
+
+Comprehensive audit logs for uploads, allocations, and webhooks.
+
+Lighthouse 90+ for performance and best practices on marketing pages.
+
+Nice‑to‑have (optional if time permits)
+
+Coupons/discount codes; tiered subscriptions.
+
+Webhooks or API access for repeat buyers to pull leads programmatically.
+
+Basic CRM export formats (CSV headers for HubSpot/Salesforce).
+
+Simple fraud checks (velocity limits, disposable email blocklist, reCAPTCHA on checkout intent).
+
+Deliverables: Complete repo in Replit with working app, seeded demo data, tests, and README.
+
+What you’ll need to provide as secrets in Replit
+
+OPENAI_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, DATABASE_URL, storage bucket creds, NEXTAUTH_SECRET.
+(Run in Stripe test mode first.)
