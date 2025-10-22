@@ -126,6 +126,16 @@ export const productTiers = pgTable("product_tiers", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Allocations table - tracks which leads have been sold to which users
+export const allocations = pgTable("allocations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  purchaseId: varchar("purchase_id").references(() => purchases.id).notNull(),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  leadHash: text("lead_hash").notNull(), // MD5 hash of email + phone for deduplication
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -190,6 +200,11 @@ export const insertProductTierSchema = createInsertSchema(productTiers).omit({
   features: z.array(z.string()),
 });
 
+export const insertAllocationSchema = createInsertSchema(allocations).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -214,3 +229,6 @@ export type AiInsight = typeof aiInsights.$inferSelect;
 
 export type InsertProductTier = z.infer<typeof insertProductTierSchema>;
 export type ProductTier = typeof productTiers.$inferSelect;
+
+export type InsertAllocation = z.infer<typeof insertAllocationSchema>;
+export type Allocation = typeof allocations.$inferSelect;

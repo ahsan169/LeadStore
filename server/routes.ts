@@ -537,11 +537,18 @@ Format your response as JSON with the following structure:
 
       // Skip lead availability check for custom tiers (leadCount = 0)
       if (tierConfig.leadCount > 0) {
-        // Check if enough leads available
-        const availableLeads = await storage.getAvailableLeadsByTier(tier, requestedLeads);
+        // Check if enough leads available using enhanced algorithm
+        // This checks for leads not already purchased by this user
+        const availableLeads = await storage.getLeadsForPurchase(
+          req.user!.id,
+          requestedLeads,
+          tierConfig.minQuality,
+          tierConfig.maxQuality
+        );
+        
         if (availableLeads.length < requestedLeads) {
           return res.status(400).json({ 
-            error: `Not enough leads available. Only ${availableLeads.length} leads available.` 
+            error: `Not enough leads available for your tier. Only ${availableLeads.length} unique leads available (excluding leads you've already purchased).` 
           });
         }
       }
@@ -673,15 +680,45 @@ Format your response as JSON with the following structure:
         const purchase = allPurchases.find(p => p.stripePaymentIntentId === paymentIntent.id);
 
         if (purchase) {
-          // Get leads for this tier
-          const selectedLeads = await storage.getAvailableLeadsByTier(tier, parseInt(leadCount));
+          // Get tier configuration to determine quality thresholds
+          const tierConfig = await storage.getProductTierByTier(tier);
+          if (!tierConfig) {
+            console.error(`Tier configuration not found for tier: ${tier}`);
+            return res.status(400).json({ error: "Tier configuration not found" });
+          }
+
+          // Get leads for this purchase using enhanced algorithm
+          const selectedLeads = await storage.getLeadsForPurchase(
+            userId,
+            parseInt(leadCount),
+            tierConfig.minQuality,
+            tierConfig.maxQuality
+          );
+
+          if (selectedLeads.length < parseInt(leadCount)) {
+            console.error(`Not enough leads available. Requested: ${leadCount}, Available: ${selectedLeads.length}`);
+            // Could handle partial fulfillment or refund here
+          }
+
           const leadIds = selectedLeads.map(l => l.id);
 
           // Mark leads as sold
           await storage.markLeadsAsSold(leadIds, userId);
 
-          // Generate CSV and upload to object storage
-          const csvContent = generateLeadsCsv(selectedLeads);
+          // Create allocation records with MD5 hashes
+          const allocationsToCreate = selectedLeads.map(lead => ({
+            userId,
+            purchaseId: purchase.id,
+            leadId: lead.id,
+            leadHash: createLeadHash(lead.email, lead.phone),
+          }));
+          await storage.createAllocations(allocationsToCreate);
+
+          // Get user info for CSV watermark
+          const user = await storage.getUser(userId);
+          
+          // Generate CSV with watermark and upload to object storage
+          const csvContent = generateLeadsCsv(selectedLeads, user);
           const key = `purchases/${purchase.id}/leads.csv`;
 
           await s3Client.send(new PutObjectCommand({
@@ -956,7 +993,7 @@ function createLeadHash(email: string, phone: string): string {
 }
 
 // Helper function to generate CSV from leads
-function generateLeadsCsv(leads: any[]): string {
+function generateLeadsCsv(leads: any[], user?: any): string {
   const headers = [
     "Business Name",
     "Owner Name",
@@ -987,6 +1024,17 @@ function generateLeadsCsv(leads: any[]): string {
     headers.join(","),
     ...rows.map(row => row.map(cell => `"${cell}"`).join(",")),
   ];
+
+  // Add watermark footer if user is provided
+  if (user) {
+    const date = new Date().toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    csvLines.push("");
+    csvLines.push(`"Generated for ${user.email} on ${date}"`);
+  }
 
   return csvLines.join("\n");
 }

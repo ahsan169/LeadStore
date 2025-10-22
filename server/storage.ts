@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, inArray, notInArray, gte, lte } from "drizzle-orm";
 import { db } from "./db";
 import {
   type User,
@@ -17,6 +17,8 @@ import {
   type InsertAiInsight,
   type ProductTier,
   type InsertProductTier,
+  type Allocation,
+  type InsertAllocation,
   users,
   subscriptions,
   leadBatches,
@@ -25,6 +27,7 @@ import {
   downloadHistory,
   aiInsights,
   productTiers,
+  allocations,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -85,6 +88,12 @@ export interface IStorage {
   createProductTier(tier: InsertProductTier): Promise<ProductTier>;
   updateProductTier(id: string, data: Partial<InsertProductTier>): Promise<ProductTier | undefined>;
   deleteProductTier(id: string): Promise<void>;
+  
+  // Allocation operations
+  createAllocation(allocation: InsertAllocation): Promise<Allocation>;
+  createAllocations(allocs: InsertAllocation[]): Promise<Allocation[]>;
+  getUserLeadIds(userId: string): Promise<string[]>;
+  getLeadsForPurchase(userId: string, leadCount: number, minQuality: number, maxQuality: number): Promise<Lead[]>;
 }
 
 export class DbStorage implements IStorage {
@@ -323,6 +332,56 @@ export class DbStorage implements IStorage {
     await db.update(productTiers)
       .set({ active: false, updatedAt: new Date() })
       .where(eq(productTiers.id, id));
+  }
+
+  // Allocation operations
+  async createAllocation(allocation: InsertAllocation): Promise<Allocation> {
+    const result = await db.insert(allocations).values(allocation).returning();
+    return result[0];
+  }
+
+  async createAllocations(allocs: InsertAllocation[]): Promise<Allocation[]> {
+    if (allocs.length === 0) return [];
+    const result = await db.insert(allocations).values(allocs).returning();
+    return result;
+  }
+
+  async getUserLeadIds(userId: string): Promise<string[]> {
+    const result = await db.select({ leadId: allocations.leadId })
+      .from(allocations)
+      .where(eq(allocations.userId, userId));
+    return result.map(r => r.leadId);
+  }
+
+  async getLeadsForPurchase(
+    userId: string,
+    leadCount: number,
+    minQuality: number,
+    maxQuality: number
+  ): Promise<Lead[]> {
+    // Get lead IDs already purchased by this user
+    const userLeadIds = await this.getUserLeadIds(userId);
+
+    // Build query conditions
+    const conditions = [
+      eq(leads.sold, false),
+      gte(leads.qualityScore, minQuality),
+      lte(leads.qualityScore, maxQuality),
+    ];
+
+    // Exclude leads already purchased by this user
+    if (userLeadIds.length > 0) {
+      conditions.push(notInArray(leads.id, userLeadIds));
+    }
+
+    // Query for available leads
+    const availableLeads = await db.select()
+      .from(leads)
+      .where(and(...conditions))
+      .orderBy(desc(leads.qualityScore))
+      .limit(leadCount);
+
+    return availableLeads;
   }
 }
 
