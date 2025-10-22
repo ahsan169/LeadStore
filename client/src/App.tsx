@@ -7,6 +7,7 @@ import { SidebarProvider, Sidebar, SidebarContent, SidebarGroup, SidebarGroupCon
 import { Button } from "@/components/ui/button";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
+import HomePage from "@/pages/home";
 import PricingPage from "@/pages/pricing";
 import DashboardPage from "@/pages/dashboard";
 import PurchasesPage from "@/pages/purchases";
@@ -131,9 +132,9 @@ function Router() {
   if (!user) {
     return (
       <Switch>
+        <Route path="/" component={HomePage} />
         <Route path="/auth" component={AuthPage} />
-        <Route path="/" component={AuthPage} />
-        <Route component={AuthPage} />
+        <Route component={HomePage} />
       </Switch>
     );
   }
