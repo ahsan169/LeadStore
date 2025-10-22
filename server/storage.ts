@@ -27,6 +27,8 @@ import {
   type InsertCredit,
   type CreditTransaction,
   type InsertCreditTransaction,
+  type ContactSubmission,
+  type InsertContactSubmission,
   users,
   subscriptions,
   leadBatches,
@@ -40,6 +42,7 @@ import {
   subscriptionPlans,
   credits,
   creditTransactions,
+  contactSubmissions,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -142,6 +145,11 @@ export interface IStorage {
     urgencyLevel?: string;
     limit: number;
   }): Promise<Lead[]>;
+  
+  // Contact submission operations
+  createContactSubmission(submission: InsertContactSubmission): Promise<ContactSubmission>;
+  getContactSubmissions(): Promise<ContactSubmission[]>;
+  updateContactSubmissionStatus(id: string, status: string): Promise<ContactSubmission | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -430,6 +438,24 @@ export class DbStorage implements IStorage {
       .limit(leadCount);
 
     return availableLeads;
+  }
+
+  // Contact submission operations
+  async createContactSubmission(submission: InsertContactSubmission): Promise<ContactSubmission> {
+    const result = await db.insert(contactSubmissions).values(submission).returning();
+    return result[0];
+  }
+
+  async getContactSubmissions(): Promise<ContactSubmission[]> {
+    return db.select().from(contactSubmissions).orderBy(desc(contactSubmissions.createdAt));
+  }
+
+  async updateContactSubmissionStatus(id: string, status: string): Promise<ContactSubmission | undefined> {
+    const result = await db.update(contactSubmissions)
+      .set({ status })
+      .where(eq(contactSubmissions.id, id))
+      .returning();
+    return result[0];
   }
 }
 

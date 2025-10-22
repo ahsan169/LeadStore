@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertUserSchema, insertLeadBatchSchema, insertPurchaseSchema, type InsertLead } from "@shared/schema";
+import { insertUserSchema, insertLeadBatchSchema, insertPurchaseSchema, insertContactSubmissionSchema, type InsertLead } from "@shared/schema";
 import bcrypt from "bcrypt";
 import Stripe from "stripe";
 import OpenAI from "openai";
@@ -12,6 +12,12 @@ import { s3Client } from "./object-storage";
 import multer from "multer";
 import Papa from "papaparse";
 import crypto from "crypto";
+import { 
+  sendOrderConfirmation, 
+  sendDownloadReady, 
+  sendAdminAlert, 
+  sendContactFormNotification 
+} from "./email";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -788,6 +794,17 @@ Format your response as JSON with the following structure:
         ipAddress: req.ip,
       });
 
+      // Send download ready email
+      const user = await storage.getUser(req.user!.id);
+      if (user) {
+        await sendDownloadReady(user.email, downloadUrl, {
+          tier: purchase.tier,
+          leadCount: purchase.leadCount,
+          minQuality: 60, // Default values - you may want to get these from tier config
+          maxQuality: 100,
+        });
+      }
+
       res.json({ downloadUrl, expiry });
     } catch (error) {
       console.error("Download URL generation error:", error);
@@ -869,6 +886,22 @@ Format your response as JSON with the following structure:
             stripeChargeId: paymentIntent.latest_charge as string,
             leadIds,
           });
+
+          // Send order confirmation email
+          if (user) {
+            await sendOrderConfirmation(user.email, {
+              id: purchase.id,
+              tier: purchase.tier,
+              leadCount: purchase.leadCount,
+              totalAmount: Number(purchase.totalAmount),
+            });
+            
+            // Send admin alert
+            await sendAdminAlert(
+              'New Purchase Completed',
+              `User ${user.email} purchased ${purchase.leadCount} ${purchase.tier} leads for $${Number(purchase.totalAmount)/100}`
+            );
+          }
         }
       }
 
@@ -1061,6 +1094,98 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
       res.json(buyers);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch customers" });
+    }
+  });
+
+  // Contact form submission routes
+  app.post('/api/contact', async (req, res) => {
+    try {
+      const { name, email, phone, company, message } = req.body;
+      
+      // Validate required fields
+      if (!name || !email || !message) {
+        return res.status(400).json({ error: 'Name, email, and message are required' });
+      }
+      
+      // Save to database
+      const submission = await storage.createContactSubmission({
+        name, 
+        email, 
+        phone: phone || null,
+        company: company || null, 
+        message, 
+        status: 'new'
+      });
+      
+      // Send admin notification
+      await sendContactFormNotification({
+        name, email, phone, company, message
+      });
+      
+      // Send auto-reply to submitter
+      try {
+        const { Resend } = await import('resend');
+        const resend = new Resend(process.env.RESEND_API_KEY || 'test_key');
+        await resend.emails.send({
+          from: 'Lakefront Leadworks <noreply@lakefrontleadworks.com>',
+          to: email,
+          subject: 'Thank you for contacting Lakefront Leadworks',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #1976d2;">Thank You for Contacting Us!</h2>
+              <p>Hi ${name},</p>
+              <p>Thank you for your interest in Lakefront Leadworks. We've received your message and our team will get back to you within 24-48 business hours.</p>
+              <p>In the meantime, feel free to explore our lead packages and see how we can help grow your business.</p>
+              <p>Best regards,<br>The Lakefront Leadworks Team</p>
+            </div>
+          `
+        });
+      } catch (emailError) {
+        console.error('Failed to send auto-reply:', emailError);
+        // Continue even if auto-reply fails
+      }
+      
+      res.json({ success: true, message: 'Contact form submitted successfully' });
+    } catch (error) {
+      console.error('Contact form submission error:', error);
+      res.status(500).json({ error: 'Failed to submit contact form' });
+    }
+  });
+
+  // Get contact submissions (admin only)
+  app.get('/api/admin/contact-submissions', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const submissions = await storage.getContactSubmissions();
+      res.json(submissions);
+    } catch (error) {
+      console.error('Failed to fetch contact submissions:', error);
+      res.status(500).json({ error: 'Failed to fetch contact submissions' });
+    }
+  });
+
+  // Update contact submission status (admin only)
+  app.patch('/api/admin/contact-submissions/:id', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { status } = req.body;
+      const updated = await storage.updateContactSubmissionStatus(req.params.id, status);
+      if (!updated) {
+        return res.status(404).json({ error: 'Contact submission not found' });
+      }
+      res.json(updated);
+    } catch (error) {
+      console.error('Failed to update contact submission:', error);
+      res.status(500).json({ error: 'Failed to update contact submission' });
+    }
+  });
+
+  // Test email route (admin only)
+  app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      await sendAdminAlert('Test Email', 'This is a test email from Lakefront Leadworks');
+      res.json({ success: true, message: 'Test email sent successfully' });
+    } catch (error) {
+      console.error('Test email failed:', error);
+      res.status(500).json({ error: 'Failed to send test email' });
     }
   });
 

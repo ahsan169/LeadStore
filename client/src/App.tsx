@@ -18,7 +18,8 @@ import UploadLeadsPage from "@/pages/admin/upload-leads";
 import ManageLeadsPage from "@/pages/admin/manage-leads";
 import CustomersPage from "@/pages/admin/customers";
 import TiersPage from "@/pages/admin/tiers";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags } from "lucide-react";
+import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -51,6 +52,7 @@ function AppSidebar() {
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
     { title: "Pricing Tiers", url: "/admin/tiers", icon: Tags },
     { title: "Customers", url: "/admin/customers", icon: Users },
+    { title: "Contact Forms", url: "/admin/contact-submissions", icon: MessageSquare },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : buyerMenuItems;
@@ -175,6 +177,7 @@ function Router() {
                   <Route path="/admin/leads" component={ManageLeadsPage} />
                   <Route path="/admin/tiers" component={TiersPage} />
                   <Route path="/admin/customers" component={CustomersPage} />
+                  <Route path="/admin/contact-submissions" component={ContactSubmissionsPage} />
                 </>
               )}
 
