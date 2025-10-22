@@ -22,10 +22,11 @@ import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
 import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import type { User } from "@/../../shared/schema";
 
 function AppSidebar() {
   const [location, setLocation] = useLocation();
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<User>({
     queryKey: ["/api/auth/me"],
   });
 
@@ -122,7 +123,7 @@ function AppSidebar() {
 }
 
 function Router() {
-  const { data: user, isLoading } = useQuery({
+  const { data: user, isLoading } = useQuery<User>({
     queryKey: ["/api/auth/me"],
   });
 
