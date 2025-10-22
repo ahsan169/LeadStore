@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { LeadStatsCard } from "@/components/LeadStatsCard";
+import { InsightsCard } from "@/components/InsightsCard";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Package, DollarSign, Users, TrendingUp } from "lucide-react";
+import { Package, DollarSign, Users, TrendingUp, Sparkles } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import type { AiInsight } from "@shared/schema";
 
 export default function AdminDashboardPage() {
   const { data: leadStats } = useQuery({
@@ -19,6 +21,13 @@ export default function AdminDashboardPage() {
 
   const { data: batches } = useQuery({
     queryKey: ["/api/batches"],
+  });
+
+  const mostRecentBatchId = batches?.[0]?.id;
+
+  const { data: recentInsights } = useQuery<AiInsight>({
+    queryKey: ["/api/insights/batch", mostRecentBatchId],
+    enabled: !!mostRecentBatchId,
   });
 
   const totalRevenue = purchases?.reduce((sum: number, p: any) => 
@@ -135,6 +144,20 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Insights for Most Recent Batch */}
+      {recentInsights && batches?.[0] && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-5 h-5 text-primary" />
+            <h2 className="text-xl font-semibold">Latest Batch Insights</h2>
+            <span className="text-sm text-muted-foreground">
+              for {batches[0].filename}
+            </span>
+          </div>
+          <InsightsCard insight={recentInsights} />
+        </div>
+      )}
     </div>
   );
 }

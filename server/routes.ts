@@ -387,6 +387,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI Insights routes
+  app.post("/api/insights/generate/:batchId", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { batchId } = req.params;
+
+      // Check if insights already exist
+      const existing = await storage.getAiInsightByBatchId(batchId);
+      if (existing) {
+        return res.json(existing);
+      }
+
+      // Fetch batch and leads
+      const batch = await storage.getLeadBatch(batchId);
+      if (!batch) {
+        return res.status(404).json({ error: "Batch not found" });
+      }
+
+      const leads = await storage.getLeadsByBatchId(batchId);
+      if (leads.length === 0) {
+        return res.status(400).json({ error: "No leads in batch" });
+      }
+
+      // Calculate aggregated statistics (no PII)
+      const aggregatedStats = {
+        totalLeads: leads.length,
+        averageQualityScore: leads.reduce((sum, l) => sum + l.qualityScore, 0) / leads.length,
+        qualityDistribution: {
+          high: leads.filter(l => l.qualityScore >= 80).length,
+          medium: leads.filter(l => l.qualityScore >= 50 && l.qualityScore < 80).length,
+          low: leads.filter(l => l.qualityScore < 50).length,
+        },
+        industryBreakdown: leads.reduce((acc: Record<string, number>, l) => {
+          const industry = l.industry || "Unknown";
+          acc[industry] = (acc[industry] || 0) + 1;
+          return acc;
+        }, {}),
+        revenueDistribution: leads.reduce((acc: Record<string, number>, l) => {
+          const revenue = l.annualRevenue || "Not specified";
+          acc[revenue] = (acc[revenue] || 0) + 1;
+          return acc;
+        }, {}),
+        creditScoreDistribution: leads.reduce((acc: Record<string, number>, l) => {
+          const score = l.creditScore || "Not specified";
+          acc[score] = (acc[score] || 0) + 1;
+          return acc;
+        }, {}),
+      };
+
+      // Create AI prompt
+      const prompt = `Analyze this MCA (Merchant Cash Advance) lead batch with the following aggregated statistics:
+
+Total Leads: ${aggregatedStats.totalLeads}
+Average Quality Score: ${aggregatedStats.averageQualityScore.toFixed(1)}/100
+
+Quality Distribution:
+- High (80-100): ${aggregatedStats.qualityDistribution.high} leads
+- Medium (50-79): ${aggregatedStats.qualityDistribution.medium} leads
+- Low (0-49): ${aggregatedStats.qualityDistribution.low} leads
+
+Industry Breakdown:
+${Object.entries(aggregatedStats.industryBreakdown).map(([industry, count]) => `- ${industry}: ${count} leads`).join('\n')}
+
+Revenue Distribution:
+${Object.entries(aggregatedStats.revenueDistribution).map(([revenue, count]) => `- ${revenue}: ${count} leads`).join('\n')}
+
+Credit Score Distribution:
+${Object.entries(aggregatedStats.creditScoreDistribution).map(([score, count]) => `- ${score}: ${count} leads`).join('\n')}
+
+Please provide:
+1. Executive summary (2-3 sentences about the overall quality and potential of this batch)
+2. Best performing segments (which industries, revenue ranges, or credit scores show the most promise)
+3. Risk flags (any concerning patterns or data quality issues)
+4. Outreach recommendations (suggested messaging angles and targeting strategies)
+
+Format your response as JSON with the following structure:
+{
+  "summary": "string",
+  "segments": ["segment1", "segment2", ...],
+  "risks": ["risk1", "risk2", ...],
+  "outreach": ["angle1", "angle2", ...]
+}`;
+
+      // Call OpenAI API
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert MCA lead analyst. Provide actionable insights based on aggregated lead data. Always respond with valid JSON only."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+
+      const responseContent = completion.choices[0].message.content || "{}";
+      const aiResponse = JSON.parse(responseContent);
+
+      // Store insights in database
+      const insight = await storage.createAiInsight({
+        batchId,
+        executiveSummary: aiResponse.summary || "",
+        segments: aiResponse.segments || [],
+        riskFlags: aiResponse.risks || [],
+        outreachAngles: aiResponse.outreach || [],
+        generatedBy: "openai",
+      });
+
+      res.json(insight);
+    } catch (error) {
+      console.error("AI insights generation error:", error);
+      res.status(500).json({ error: "Failed to generate AI insights" });
+    }
+  });
+
+  app.get("/api/insights/batch/:batchId", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { batchId } = req.params;
+      const insight = await storage.getAiInsightByBatchId(batchId);
+      
+      if (!insight) {
+        return res.status(404).json({ error: "No insights found for this batch" });
+      }
+
+      res.json(insight);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch insights" });
+    }
+  });
+
   // Purchase routes
   app.post("/api/purchases", requireAuth, async (req, res) => {
     try {
