@@ -2,13 +2,16 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertUserSchema, insertLeadBatchSchema, insertPurchaseSchema } from "@shared/schema";
+import { insertUserSchema, insertLeadBatchSchema, insertPurchaseSchema, type InsertLead } from "@shared/schema";
 import bcrypt from "bcrypt";
 import Stripe from "stripe";
 import OpenAI from "openai";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3Client } from "./object-storage";
+import multer from "multer";
+import Papa from "papaparse";
+import crypto from "crypto";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -29,6 +32,21 @@ const PRICING = {
   diamond: { price: 4000, leadsPerPurchase: 600 },
   elite: { price: 0, leadsPerPurchase: 0 }, // Contact sales
 };
+
+// Configure multer for memory storage
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  },
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -149,6 +167,204 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(batch);
     } catch (error) {
       res.status(500).json({ error: "Failed to publish batch" });
+    }
+  });
+
+  // CSV Upload route
+  app.post("/api/batches/upload", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      const csvContent = file.buffer.toString('utf-8');
+
+      // Parse CSV
+      const parseResult = Papa.parse(csvContent, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: (header: string) => header.trim(),
+      });
+
+      if (parseResult.errors.length > 0) {
+        return res.status(400).json({ 
+          error: "CSV parsing failed", 
+          details: parseResult.errors.map(e => e.message) 
+        });
+      }
+
+      const rows = parseResult.data as any[];
+
+      // Validate required columns
+      const requiredColumns = ['businessName', 'ownerName', 'email', 'phone'];
+      const headers = parseResult.meta.fields || [];
+      const missingColumns = requiredColumns.filter(col => 
+        !headers.some(h => h.toLowerCase() === col.toLowerCase())
+      );
+
+      if (missingColumns.length > 0) {
+        return res.status(400).json({ 
+          error: "Missing required columns", 
+          missingColumns 
+        });
+      }
+
+      // Process and validate leads
+      const validationResults = {
+        total: rows.length,
+        valid: 0,
+        errors: [] as any[],
+        warnings: [] as any[],
+      };
+
+      const validLeads: any[] = [];
+      const leadHashes = new Set<string>();
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rowNum = i + 2; // +2 for header and 0-index
+
+        // Normalize column names (case-insensitive)
+        const normalizedRow: any = {};
+        for (const key in row) {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey === 'businessname' || lowerKey === 'business name') normalizedRow.businessName = row[key];
+          else if (lowerKey === 'ownername' || lowerKey === 'owner name') normalizedRow.ownerName = row[key];
+          else if (lowerKey === 'email') normalizedRow.email = row[key];
+          else if (lowerKey === 'phone') normalizedRow.phone = row[key];
+          else if (lowerKey === 'industry') normalizedRow.industry = row[key];
+          else if (lowerKey === 'annualrevenue' || lowerKey === 'annual revenue') normalizedRow.annualRevenue = row[key];
+          else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount') normalizedRow.requestedAmount = row[key];
+          else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business') normalizedRow.timeInBusiness = row[key];
+          else if (lowerKey === 'creditscore' || lowerKey === 'credit score') normalizedRow.creditScore = row[key];
+        }
+
+        // Validate required fields
+        if (!normalizedRow.businessName || !normalizedRow.ownerName || !normalizedRow.email || !normalizedRow.phone) {
+          validationResults.errors.push({
+            row: rowNum,
+            error: "Missing required fields",
+            data: normalizedRow,
+          });
+          continue;
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(normalizedRow.email)) {
+          validationResults.errors.push({
+            row: rowNum,
+            error: "Invalid email format",
+            data: normalizedRow,
+          });
+          continue;
+        }
+
+        // Validate phone format (at least 10 digits)
+        const phoneDigits = normalizedRow.phone.replace(/\D/g, '');
+        if (phoneDigits.length < 10) {
+          validationResults.errors.push({
+            row: rowNum,
+            error: "Invalid phone format (minimum 10 digits required)",
+            data: normalizedRow,
+          });
+          continue;
+        }
+
+        // Check for duplicates
+        const leadHash = createLeadHash(normalizedRow.email, normalizedRow.phone);
+        if (leadHashes.has(leadHash)) {
+          validationResults.warnings.push({
+            row: rowNum,
+            warning: "Duplicate lead (same email and phone)",
+            data: normalizedRow,
+          });
+          continue;
+        }
+        leadHashes.add(leadHash);
+
+        // Calculate quality score
+        const qualityScore = calculateQualityScore(normalizedRow);
+
+        // Assign tier based on quality score
+        const tier = assignTier(qualityScore);
+
+        validLeads.push({
+          ...normalizedRow,
+          qualityScore,
+          tier,
+        });
+
+        validationResults.valid++;
+      }
+
+      if (validLeads.length === 0) {
+        return res.status(400).json({ 
+          error: "No valid leads found in CSV",
+          validationResults,
+        });
+      }
+
+      // Upload original CSV to object storage
+      const storageKey = `batches/${Date.now()}_${file.originalname}`;
+      await s3Client.send(new PutObjectCommand({
+        Bucket: BUCKET_NAME,
+        Key: storageKey,
+        Body: file.buffer,
+        ContentType: 'text/csv',
+      }));
+
+      // Create lead batch
+      const avgQualityScore = validLeads.reduce((sum, l) => sum + l.qualityScore, 0) / validLeads.length;
+      const batch = await storage.createLeadBatch({
+        uploadedBy: req.user!.id,
+        filename: file.originalname,
+        storageKey,
+        totalLeads: validLeads.length,
+        averageQualityScore: avgQualityScore.toFixed(2),
+        status: "ready",
+      });
+
+      // Insert leads into database
+      const leadsToInsert: InsertLead[] = validLeads.map(lead => ({
+        batchId: batch.id,
+        businessName: lead.businessName?.trim(),
+        ownerName: lead.ownerName?.trim(),
+        email: lead.email?.trim().toLowerCase(),
+        phone: lead.phone?.trim(),
+        industry: lead.industry?.trim() || null,
+        annualRevenue: lead.annualRevenue?.trim() || null,
+        requestedAmount: lead.requestedAmount?.trim() || null,
+        timeInBusiness: lead.timeInBusiness?.trim() || null,
+        creditScore: lead.creditScore?.trim() || null,
+        qualityScore: lead.qualityScore,
+        tier: lead.tier,
+        sold: false,
+      }));
+
+      await storage.createLeads(leadsToInsert);
+
+      // Calculate tier distribution
+      const tierDistribution = {
+        gold: validLeads.filter(l => l.tier === 'gold').length,
+        platinum: validLeads.filter(l => l.tier === 'platinum').length,
+        diamond: validLeads.filter(l => l.tier === 'diamond').length,
+      };
+
+      res.json({
+        success: true,
+        batchId: batch.id,
+        summary: {
+          totalLeads: validLeads.length,
+          averageQualityScore: avgQualityScore,
+          tierDistribution,
+          validationResults,
+        },
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      res.status(500).json({ error: "Failed to process CSV upload" });
     }
   });
 
@@ -445,6 +661,65 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Helper function to calculate quality score
+function calculateQualityScore(lead: any): number {
+  let score = 0;
+
+  // Data completeness: +20 points for all required fields filled
+  if (lead.businessName && lead.ownerName && lead.email && lead.phone) {
+    score += 20;
+  }
+
+  // Optional fields: +5 points each (max +25)
+  if (lead.industry) score += 5;
+  if (lead.annualRevenue) score += 5;
+  if (lead.requestedAmount) score += 5;
+  if (lead.timeInBusiness) score += 5;
+  if (lead.creditScore) score += 5;
+
+  // Email format validity: +15 points
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (lead.email && emailRegex.test(lead.email)) {
+    score += 15;
+  }
+
+  // Phone format validity (10+ digits): +15 points
+  if (lead.phone) {
+    const phoneDigits = lead.phone.replace(/\D/g, '');
+    if (phoneDigits.length >= 10) {
+      score += 15;
+    }
+  }
+
+  // Annual revenue presence: +10 points
+  if (lead.annualRevenue) {
+    score += 10;
+  }
+
+  // Credit score presence: +15 points
+  if (lead.creditScore) {
+    score += 15;
+  }
+
+  return Math.min(score, 100);
+}
+
+// Helper function to assign tier based on quality score
+// 60-69 = gold, 70-79 = platinum, 80-100 = diamond
+function assignTier(qualityScore: number): string {
+  if (qualityScore >= 80) return 'diamond';
+  if (qualityScore >= 70) return 'platinum';
+  if (qualityScore >= 60) return 'gold';
+  return 'gold'; // Default to gold for scores below 60
+}
+
+// Helper function to create lead hash for deduplication
+function createLeadHash(email: string, phone: string): string {
+  const normalizedEmail = email.toLowerCase().trim();
+  const normalizedPhone = phone.replace(/\D/g, '');
+  return crypto.createHash('md5').update(normalizedEmail + normalizedPhone).digest('hex');
 }
 
 // Helper function to generate CSV from leads
