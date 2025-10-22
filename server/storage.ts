@@ -15,6 +15,8 @@ import {
   type InsertDownloadHistory,
   type AiInsight,
   type InsertAiInsight,
+  type ProductTier,
+  type InsertProductTier,
   users,
   subscriptions,
   leadBatches,
@@ -22,6 +24,7 @@ import {
   purchases,
   downloadHistory,
   aiInsights,
+  productTiers,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -73,6 +76,15 @@ export interface IStorage {
   getAiInsight(id: string): Promise<AiInsight | undefined>;
   getAiInsightByBatchId(batchId: string): Promise<AiInsight | undefined>;
   createAiInsight(insight: InsertAiInsight): Promise<AiInsight>;
+  
+  // Product tier operations
+  getProductTier(id: string): Promise<ProductTier | undefined>;
+  getProductTierByTier(tier: string): Promise<ProductTier | undefined>;
+  getAllProductTiers(): Promise<ProductTier[]>;
+  getActiveProductTiers(): Promise<ProductTier[]>;
+  createProductTier(tier: InsertProductTier): Promise<ProductTier>;
+  updateProductTier(id: string, data: Partial<InsertProductTier>): Promise<ProductTier | undefined>;
+  deleteProductTier(id: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -271,6 +283,46 @@ export class DbStorage implements IStorage {
   async createAiInsight(insight: InsertAiInsight): Promise<AiInsight> {
     const result = await db.insert(aiInsights).values(insight).returning();
     return result[0];
+  }
+
+  // Product tier operations
+  async getProductTier(id: string): Promise<ProductTier | undefined> {
+    const result = await db.select().from(productTiers).where(eq(productTiers.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getProductTierByTier(tier: string): Promise<ProductTier | undefined> {
+    const result = await db.select().from(productTiers).where(eq(productTiers.tier, tier)).limit(1);
+    return result[0];
+  }
+
+  async getAllProductTiers(): Promise<ProductTier[]> {
+    return db.select().from(productTiers).orderBy(productTiers.price);
+  }
+
+  async getActiveProductTiers(): Promise<ProductTier[]> {
+    return db.select().from(productTiers)
+      .where(eq(productTiers.active, true))
+      .orderBy(productTiers.price);
+  }
+
+  async createProductTier(tier: InsertProductTier): Promise<ProductTier> {
+    const result = await db.insert(productTiers).values(tier).returning();
+    return result[0];
+  }
+
+  async updateProductTier(id: string, data: Partial<InsertProductTier>): Promise<ProductTier | undefined> {
+    const result = await db.update(productTiers)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(productTiers.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteProductTier(id: string): Promise<void> {
+    await db.update(productTiers)
+      .set({ active: false, updatedAt: new Date() })
+      .where(eq(productTiers.id, id));
   }
 }
 

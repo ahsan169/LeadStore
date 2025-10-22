@@ -16,7 +16,8 @@ import AdminDashboardPage from "@/pages/admin/admin-dashboard";
 import UploadLeadsPage from "@/pages/admin/upload-leads";
 import ManageLeadsPage from "@/pages/admin/manage-leads";
 import CustomersPage from "@/pages/admin/customers";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut } from "lucide-react";
+import TiersPage from "@/pages/admin/tiers";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -46,6 +47,7 @@ function AppSidebar() {
     { title: "Dashboard", url: "/admin/dashboard", icon: BarChart },
     { title: "Upload Leads", url: "/admin/upload", icon: Upload },
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
+    { title: "Pricing Tiers", url: "/admin/tiers", icon: Tags },
     { title: "Customers", url: "/admin/customers", icon: Users },
   ];
 
@@ -168,6 +170,7 @@ function Router() {
                   <Route path="/admin/dashboard" component={AdminDashboardPage} />
                   <Route path="/admin/upload" component={UploadLeadsPage} />
                   <Route path="/admin/leads" component={ManageLeadsPage} />
+                  <Route path="/admin/tiers" component={TiersPage} />
                   <Route path="/admin/customers" component={CustomersPage} />
                 </>
               )}

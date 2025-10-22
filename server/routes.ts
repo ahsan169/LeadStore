@@ -526,25 +526,29 @@ Format your response as JSON with the following structure:
     try {
       const { tier, leadCount } = req.body;
 
-      if (!['gold', 'platinum', 'diamond'].includes(tier)) {
-        return res.status(400).json({ error: "Invalid tier" });
+      // Get tier configuration from database
+      const tierConfig = await storage.getProductTierByTier(tier);
+      if (!tierConfig || !tierConfig.active) {
+        return res.status(400).json({ error: "Invalid or inactive tier" });
       }
 
-      const pricing = PRICING[tier as keyof typeof PRICING];
-      const totalAmount = pricing.price;
-      const requestedLeads = leadCount || pricing.leadsPerPurchase;
+      const totalAmount = tierConfig.price;
+      const requestedLeads = leadCount || tierConfig.leadCount;
 
-      // Check if enough leads available
-      const availableLeads = await storage.getAvailableLeadsByTier(tier, requestedLeads);
-      if (availableLeads.length < requestedLeads) {
-        return res.status(400).json({ 
-          error: `Not enough leads available. Only ${availableLeads.length} leads available.` 
-        });
+      // Skip lead availability check for custom tiers (leadCount = 0)
+      if (tierConfig.leadCount > 0) {
+        // Check if enough leads available
+        const availableLeads = await storage.getAvailableLeadsByTier(tier, requestedLeads);
+        if (availableLeads.length < requestedLeads) {
+          return res.status(400).json({ 
+            error: `Not enough leads available. Only ${availableLeads.length} leads available.` 
+          });
+        }
       }
 
       // Create Stripe payment intent
       const paymentIntent = await stripe.paymentIntents.create({
-        amount: Math.round(totalAmount * 100), // Convert to cents
+        amount: totalAmount, // Already in cents from database
         currency: "usd",
         metadata: {
           userId: req.user!.id,
@@ -558,7 +562,7 @@ Format your response as JSON with the following structure:
         userId: req.user!.id,
         tier,
         leadCount: requestedLeads,
-        totalAmount: totalAmount.toString(),
+        totalAmount: (totalAmount / 100).toString(), // Store in dollars
         stripePaymentIntentId: paymentIntent.id,
         paymentStatus: "pending",
         leadIds: [], // Will be filled after payment
@@ -780,6 +784,101 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
     } catch (error) {
       console.error("AI insight generation error:", error);
       res.status(500).json({ error: "Failed to generate insights" });
+    }
+  });
+
+  // Product Tier routes
+  // Public route - Get all active tiers for pricing page
+  app.get("/api/tiers", async (req, res) => {
+    try {
+      const tiers = await storage.getActiveProductTiers();
+      res.json(tiers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tiers" });
+    }
+  });
+
+  // Admin routes - Manage tiers
+  app.get("/api/admin/tiers", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const tiers = await storage.getAllProductTiers();
+      res.json(tiers);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tiers" });
+    }
+  });
+
+  app.post("/api/admin/tiers", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { name, tier, price, leadCount, minQuality, maxQuality, features, active, recommended } = req.body;
+      
+      // Validate required fields
+      if (!name || !tier || price === undefined || leadCount === undefined || 
+          minQuality === undefined || maxQuality === undefined || !features) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Check if tier already exists
+      const existing = await storage.getProductTierByTier(tier);
+      if (existing) {
+        return res.status(400).json({ error: "Tier with this identifier already exists" });
+      }
+
+      const newTier = await storage.createProductTier({
+        name,
+        tier,
+        price,
+        leadCount,
+        minQuality,
+        maxQuality,
+        features: Array.isArray(features) ? features : features.split('\n').map((f: string) => f.trim()).filter(Boolean),
+        active: active !== undefined ? active : true,
+        recommended: recommended || false,
+      });
+
+      res.json(newTier);
+    } catch (error) {
+      console.error("Create tier error:", error);
+      res.status(500).json({ error: "Failed to create tier" });
+    }
+  });
+
+  app.patch("/api/admin/tiers/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { name, tier, price, leadCount, minQuality, maxQuality, features, active, recommended } = req.body;
+      
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (tier !== undefined) updateData.tier = tier;
+      if (price !== undefined) updateData.price = price;
+      if (leadCount !== undefined) updateData.leadCount = leadCount;
+      if (minQuality !== undefined) updateData.minQuality = minQuality;
+      if (maxQuality !== undefined) updateData.maxQuality = maxQuality;
+      if (features !== undefined) {
+        updateData.features = Array.isArray(features) ? features : features.split('\n').map((f: string) => f.trim()).filter(Boolean);
+      }
+      if (active !== undefined) updateData.active = active;
+      if (recommended !== undefined) updateData.recommended = recommended;
+
+      const updatedTier = await storage.updateProductTier(req.params.id, updateData);
+      
+      if (!updatedTier) {
+        return res.status(404).json({ error: "Tier not found" });
+      }
+
+      res.json(updatedTier);
+    } catch (error) {
+      console.error("Update tier error:", error);
+      res.status(500).json({ error: "Failed to update tier" });
+    }
+  });
+
+  app.delete("/api/admin/tiers/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      await storage.deleteProductTier(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete tier" });
     }
   });
 

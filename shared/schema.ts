@@ -110,6 +110,22 @@ export const aiInsights = pgTable("ai_insights", {
   generatedAt: timestamp("generated_at").notNull().defaultNow(),
 });
 
+// Product tiers for dynamic pricing management
+export const productTiers = pgTable("product_tiers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // "Gold", "Platinum", etc.
+  tier: text("tier").notNull().unique(), // "gold", "platinum" for internal reference
+  price: integer("price").notNull(), // price in cents
+  leadCount: integer("lead_count").notNull(), // number of leads per purchase
+  minQuality: integer("min_quality").notNull(), // minimum quality score threshold
+  maxQuality: integer("max_quality").notNull(), // maximum quality score threshold
+  features: text("features").array().notNull(), // list of features
+  active: boolean("active").notNull().default(true), // whether tier is active/published
+  recommended: boolean("recommended").notNull().default(false), // whether to show "Most Popular" badge
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -161,6 +177,19 @@ export const insertAiInsightSchema = createInsertSchema(aiInsights).omit({
   generatedAt: true,
 });
 
+export const insertProductTierSchema = createInsertSchema(productTiers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  tier: z.string().min(1),
+  price: z.number().int().min(0),
+  leadCount: z.number().int().min(0),
+  minQuality: z.number().int().min(0).max(100),
+  maxQuality: z.number().int().min(0).max(100),
+  features: z.array(z.string()),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -182,3 +211,6 @@ export type DownloadHistory = typeof downloadHistory.$inferSelect;
 
 export type InsertAiInsight = z.infer<typeof insertAiInsightSchema>;
 export type AiInsight = typeof aiInsights.$inferSelect;
+
+export type InsertProductTier = z.infer<typeof insertProductTierSchema>;
+export type ProductTier = typeof productTiers.$inferSelect;

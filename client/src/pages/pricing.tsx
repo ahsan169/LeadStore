@@ -1,78 +1,15 @@
 import { PricingCard } from "@/components/PricingCard";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Shield, Clock, Award, FileCheck } from "lucide-react";
-
-const PRICING_TIERS = [
-  {
-    tier: "gold",
-    name: "Gold",
-    price: 500,
-    leadCount: 50,
-    minQuality: 60,
-    maxQuality: 79,
-    features: [
-      "50 verified MCA leads",
-      "Quality scores 60-79",
-      "Basic deduplication",
-      "24-hour delivery",
-      "Email support",
-    ],
-  },
-  {
-    tier: "platinum",
-    name: "Platinum",
-    price: 1500,
-    leadCount: 200,
-    minQuality: 70,
-    maxQuality: 89,
-    recommended: true,
-    features: [
-      "200 verified MCA leads",
-      "Quality scores 70-89",
-      "Advanced deduplication",
-      "Instant delivery",
-      "Priority support",
-      "Industry segmentation",
-    ],
-  },
-  {
-    tier: "diamond",
-    name: "Diamond",
-    price: 4000,
-    leadCount: 600,
-    minQuality: 80,
-    maxQuality: 100,
-    features: [
-      "600 premium MCA leads",
-      "Quality scores 80-100",
-      "Advanced deduplication",
-      "Instant delivery",
-      "Priority support",
-      "AI insights included",
-      "Replace guarantee",
-    ],
-  },
-  {
-    tier: "elite",
-    name: "Elite",
-    price: 0,
-    leadCount: 0,
-    minQuality: 85,
-    maxQuality: 100,
-    features: [
-      "Custom lead volume",
-      "Highest quality scores (85-100)",
-      "Dedicated account manager",
-      "Custom industry targeting",
-      "API access",
-      "White-label options",
-      "Custom SLA",
-    ],
-  },
-];
+import type { ProductTier } from "@shared/schema";
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
+  
+  const { data: tiers = [], isLoading } = useQuery<ProductTier[]>({
+    queryKey: ["/api/tiers"],
+  });
 
   const handleSelectTier = (tier: string) => {
     if (tier === "elite") {
@@ -129,15 +66,32 @@ export default function PricingPage() {
 
       {/* Pricing Cards */}
       <div className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {PRICING_TIERS.map((tier) => (
-            <PricingCard
-              key={tier.tier}
-              {...tier}
-              onSelect={() => handleSelectTier(tier.tier)}
-            />
-          ))}
-        </div>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-lg text-muted-foreground">Loading pricing tiers...</div>
+          </div>
+        ) : tiers.length === 0 ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-lg text-muted-foreground">No pricing tiers available at this time.</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {tiers.map((tier) => (
+              <PricingCard
+                key={tier.tier}
+                tier={tier.tier}
+                name={tier.name}
+                price={tier.price / 100}
+                leadCount={tier.leadCount}
+                minQuality={tier.minQuality}
+                maxQuality={tier.maxQuality}
+                features={tier.features}
+                recommended={tier.recommended}
+                onSelect={() => handleSelectTier(tier.tier)}
+              />
+            ))}
+          </div>
+        )}
 
         {/* Compliance Notice */}
         <div className="mt-16 max-w-4xl mx-auto bg-muted/50 rounded-lg p-6">
