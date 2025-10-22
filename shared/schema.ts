@@ -136,6 +136,18 @@ export const allocations = pgTable("allocations", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Contact form submissions
+export const contactSubmissions = pgTable("contact_submissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  company: text("company"),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("new"), // 'new', 'read', 'responded'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -205,6 +217,14 @@ export const insertAllocationSchema = createInsertSchema(allocations).omit({
   createdAt: true,
 });
 
+export const insertContactSubmissionSchema = createInsertSchema(contactSubmissions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  email: z.string().email(),
+  status: z.enum(["new", "read", "responded"]).default("new"),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -232,3 +252,6 @@ export type ProductTier = typeof productTiers.$inferSelect;
 
 export type InsertAllocation = z.infer<typeof insertAllocationSchema>;
 export type Allocation = typeof allocations.$inferSelect;
+
+export type InsertContactSubmission = z.infer<typeof insertContactSubmissionSchema>;
+export type ContactSubmission = typeof contactSubmissions.$inferSelect;

@@ -2,7 +2,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Shield,
   Zap,
@@ -20,6 +30,10 @@ import {
   Target,
   Users,
   BarChart3,
+  Waves,
+  Droplets,
+  Fish,
+  Anchor,
 } from "lucide-react";
 
 const PRICING_TIERS = [
@@ -59,34 +73,34 @@ const PRICING_TIERS = [
 
 const FEATURES = [
   {
-    icon: Brain,
-    title: "AI Quality Scoring",
-    description: "Every lead is scored 0-100 using our proprietary AI algorithm, ensuring you get the best conversion potential.",
+    icon: Waves,
+    title: "Crystal Clear Quality Scoring",
+    description: "Every lead flows through our proprietary AI algorithm for transparent 0-100 quality scoring.",
   },
   {
     icon: Shield,
-    title: "TCPA Compliant Leads",
+    title: "TCPA Compliant Lead Stream",
     description: "100% compliant with TCPA regulations. All leads have provided express written consent for MCA contact.",
   },
   {
-    icon: Download,
-    title: "Instant CSV Delivery",
-    description: "Download your leads immediately after purchase. No waiting, no delays - start calling right away.",
+    icon: Droplets,
+    title: "Instant Lead Delivery",
+    description: "Your leads flow to you immediately after purchase. No waiting, start making waves right away.",
   },
   {
-    icon: CheckCircle2,
-    title: "No Duplicate Leads",
-    description: "Advanced deduplication ensures you never pay for the same lead twice. Each lead is unique to you.",
+    icon: Fish,
+    title: "Pure, Filtered Leads",
+    description: "Advanced deduplication ensures each lead is fresh and unique - never pay for the same lead twice.",
   },
   {
     icon: Clock,
-    title: "24-Hour Download Access",
-    description: "Secure download links remain active for 24 hours, giving you flexibility to access your leads anytime.",
+    title: "24-Hour Download Harbor",
+    description: "Secure download links remain anchored for 24 hours, giving you flexibility to access your leads.",
   },
   {
-    icon: TrendingUp,
-    title: "Tier-Based Pricing",
-    description: "Choose the tier that matches your needs. Scale from 50 to 600+ leads with transparent pricing.",
+    icon: Anchor,
+    title: "Deep Data Lake",
+    description: "Choose from our tiered depths - from 50 to 600+ leads with transparent, tide-like pricing.",
   },
 ];
 
@@ -164,83 +178,325 @@ const FAQS = [
     answer: "Due to the digital nature of our product and instant delivery, all sales are final. However, if you encounter any technical issues or quality concerns, please contact our support team within 48 hours and we'll work to resolve the issue.",
   },
   {
-    question: "Do you offer custom packages?",
-    answer: "Yes! Our Elite tier offers fully customized solutions including custom lead volumes, dedicated account management, API access, and white-label options. Contact our sales team to discuss your specific needs.",
-  },
-  {
-    question: "What information is included in each lead?",
-    answer: "Each lead includes business name, contact person, phone number, email, business address, industry classification, estimated revenue, years in business, and our proprietary AI quality score.",
-  },
-  {
-    question: "How fresh are the leads?",
-    answer: "All leads are verified within 30 days of delivery. We continuously update our database and remove outdated information to ensure you receive the most current and accurate data available.",
+    question: "How are leads distributed?",
+    answer: "Leads are allocated based on tier and quality score. Gold tier gets 60-79 scores, Platinum 70-89, Diamond 80-100, and Elite gets premium 85-100 scores. Each tier ensures you get the quality level you're paying for.",
   },
 ];
 
-export default function HomePage() {
+// Form schemas
+const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const signupSchema = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+const contactSchema = z.object({
+  name: z.string().min(2, "Name is required"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string().optional(),
+  company: z.string().optional(),
+  message: z.string().min(10, "Message must be at least 10 characters"),
+});
+
+export default function Home() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  // Check if user is authenticated
+  const { data: user } = useQuery({ queryKey: ["/api/auth/me"] });
+
+  // Login form
+  const loginForm = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
+
+  // Signup form
+  const signupForm = useForm<z.infer<typeof signupSchema>>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
+
+  // Contact form
+  const contactForm = useForm<z.infer<typeof contactSchema>>({
+    resolver: zodResolver(contactSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
+      company: "",
+      message: "",
+    },
+  });
+
+  // Login mutation
+  const loginMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof loginSchema>) => {
+      return await apiRequest("/api/auth/login", {
+        method: "POST",
+        body: values,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
+      });
+      setLocation("/dashboard");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid credentials",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Signup mutation
+  const signupMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof signupSchema>) => {
+      const { confirmPassword, ...signupData } = values;
+      return await apiRequest("/api/auth/register", {
+        method: "POST",
+        body: signupData,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      toast({
+        title: "Account created!",
+        description: "Welcome to Lakefront Leadworks.",
+      });
+      setLocation("/dashboard");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Signup failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Contact form mutation
+  const contactMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof contactSchema>) => {
+      return await apiRequest("/api/contact", {
+        method: "POST",
+        body: values,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Message sent!",
+        description: "We'll get back to you within 24 hours.",
+      });
+      contactForm.reset();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to send message",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
 
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-br from-primary/20 via-primary/10 to-background border-b">
-        <div className="max-w-7xl mx-auto px-4 py-24 sm:px-6 lg:px-8">
-          <div className="text-center space-y-8">
-            <div className="space-y-4">
-              <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-foreground tracking-tight" data-testid="heading-hero">
-                Premium MCA Leads <br />
-                <span className="text-primary">That Convert</span>
-              </h1>
-              <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto">
-                Access quality-scored Merchant Cash Advance leads powered by AI insights. 
-                TCPA compliant, instantly delivered, guaranteed unique.
-              </p>
+      <section className="relative bg-gradient-to-b from-primary/10 via-accent/5 to-background border-b">
+        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+          <div className="text-center space-y-8 mb-12">
+            <div className="flex justify-center mb-6">
+              <Waves className="w-20 h-20 text-primary" />
             </div>
-
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <Button 
-                size="lg" 
-                className="text-lg px-8"
-                onClick={() => setLocation("/pricing")}
-                data-testid="button-view-pricing"
-              >
-                View Pricing
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline"
-                className="text-lg px-8 bg-background/50 backdrop-blur-sm"
-                onClick={() => setLocation("/auth")}
-                data-testid="button-get-started"
-              >
-                Get Started
-              </Button>
-            </div>
+            <h1 className="text-5xl md:text-7xl font-bold text-foreground tracking-tight" data-testid="heading-hero">
+              Lakefront Leadworks
+            </h1>
+            <p className="text-2xl md:text-3xl text-primary font-semibold">
+              Where Quality MCA Leads Flow to You
+            </p>
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+              Dive into our crystal-clear pool of AI-scored Merchant Cash Advance leads. 
+              TCPA compliant, instant delivery, and waves of conversion opportunities.
+            </p>
           </div>
-        </div>
-      </section>
 
-      {/* Trust Badges */}
-      <section className="border-b bg-muted/30">
-        <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {/* Trust Badges */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
             {TRUST_BADGES.map((badge, index) => (
-              <div 
-                key={index}
-                className="flex flex-col items-center gap-3 text-center p-4"
-                data-testid={`badge-${badge.title.toLowerCase().replace(/\s+/g, '-')}`}
-              >
-                <div className="p-4 rounded-full bg-primary/10">
-                  <badge.icon className="w-8 h-8 text-primary" />
-                </div>
-                <div>
-                  <div className="font-semibold text-foreground">{badge.title}</div>
-                  <div className="text-sm text-muted-foreground">{badge.description}</div>
-                </div>
-              </div>
+              <Card key={index} className="text-center" data-testid={`trust-badge-${index}`}>
+                <CardContent className="pt-6 pb-4">
+                  <badge.icon className="w-8 h-8 mx-auto mb-2 text-primary" />
+                  <div className="font-semibold text-sm">{badge.title}</div>
+                  <div className="text-xs text-muted-foreground">{badge.description}</div>
+                </CardContent>
+              </Card>
             ))}
           </div>
+
+          {/* Auth Forms */}
+          {!user && (
+            <Card className="max-w-md mx-auto">
+              <CardHeader>
+                <CardTitle>Get Started with Lakefront Leadworks</CardTitle>
+                <CardDescription>
+                  Sign up or log in to start accessing premium MCA leads
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="login" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
+                    <TabsTrigger value="signup" data-testid="tab-signup">Sign Up</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="login">
+                    <Form {...loginForm}>
+                      <form onSubmit={loginForm.handleSubmit((data) => loginMutation.mutate(data))} className="space-y-4">
+                        <FormField
+                          control={loginForm.control}
+                          name="username"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Username</FormLabel>
+                              <FormControl>
+                                <Input {...field} data-testid="input-login-username" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={loginForm.control}
+                          name="password"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Password</FormLabel>
+                              <FormControl>
+                                <Input type="password" {...field} data-testid="input-login-password" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button 
+                          type="submit" 
+                          className="w-full"
+                          disabled={loginMutation.isPending}
+                          data-testid="button-login-submit"
+                        >
+                          {loginMutation.isPending ? "Logging in..." : "Login"}
+                        </Button>
+                      </form>
+                    </Form>
+                  </TabsContent>
+
+                  <TabsContent value="signup">
+                    <Form {...signupForm}>
+                      <form onSubmit={signupForm.handleSubmit((data) => signupMutation.mutate(data))} className="space-y-4">
+                        <FormField
+                          control={signupForm.control}
+                          name="username"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Username</FormLabel>
+                              <FormControl>
+                                <Input {...field} data-testid="input-signup-username" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={signupForm.control}
+                          name="email"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Email</FormLabel>
+                              <FormControl>
+                                <Input type="email" {...field} data-testid="input-signup-email" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={signupForm.control}
+                          name="password"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Password</FormLabel>
+                              <FormControl>
+                                <Input type="password" {...field} data-testid="input-signup-password" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={signupForm.control}
+                          name="confirmPassword"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Confirm Password</FormLabel>
+                              <FormControl>
+                                <Input type="password" {...field} data-testid="input-signup-confirm-password" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button 
+                          type="submit" 
+                          className="w-full"
+                          disabled={signupMutation.isPending}
+                          data-testid="button-signup-submit"
+                        >
+                          {signupMutation.isPending ? "Creating account..." : "Sign Up"}
+                        </Button>
+                      </form>
+                    </Form>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* CTA for logged in users */}
+          {user && (
+            <div className="text-center space-y-4">
+              <Button 
+                size="lg"
+                onClick={() => setLocation("/dashboard")}
+                data-testid="button-go-to-dashboard"
+              >
+                Go to Dashboard
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -249,9 +505,9 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-features">
-              Why Choose Our Leads?
+              Navigate the Lead Ocean with Confidence
             </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
               Industry-leading features designed to maximize your conversion rates
             </p>
           </div>
@@ -410,6 +666,120 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Contact Form Section */}
+      <section className="py-20 border-b">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center space-y-4 mb-12">
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-contact">
+              Get in Touch with Lakefront Leadworks
+            </h2>
+            <p className="text-xl text-muted-foreground">
+              Have questions? We're here to help you navigate the waters
+            </p>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Contact Us</CardTitle>
+              <CardDescription>
+                Fill out the form below and we'll get back to you within 24 hours
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form {...contactForm}>
+                <form onSubmit={contactForm.handleSubmit((data) => contactMutation.mutate(data))} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={contactForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name *</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="John Doe" data-testid="input-contact-name" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={contactForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email *</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="email" placeholder="john@example.com" data-testid="input-contact-email" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={contactForm.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Phone</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="(555) 123-4567" data-testid="input-contact-phone" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={contactForm.control}
+                      name="company"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Company</FormLabel>
+                          <FormControl>
+                            <Input {...field} placeholder="Your Company Inc." data-testid="input-contact-company" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={contactForm.control}
+                    name="message"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Message *</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            {...field} 
+                            placeholder="Tell us how we can help you..." 
+                            className="min-h-[120px]"
+                            data-testid="input-contact-message"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button 
+                    type="submit" 
+                    className="w-full"
+                    disabled={contactMutation.isPending}
+                    data-testid="button-contact-submit"
+                  >
+                    {contactMutation.isPending ? "Sending..." : "Send Message"}
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
       {/* Compliance & Footer */}
       <section className="py-16 border-b bg-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -463,7 +833,7 @@ export default function HomePage() {
           <div className="border-t pt-8">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="text-sm text-muted-foreground">
-                © 2025 MCA Lead Marketplace. All rights reserved.
+                © 2025 Lakefront Leadworks. All rights reserved.
               </div>
               <div className="flex flex-wrap items-center gap-6 text-sm">
                 <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

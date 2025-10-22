@@ -1,0 +1,359 @@
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY || 'test_key');
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@lakefrontleadworks.com';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@lakefrontleadworks.com';
+
+export async function sendOrderConfirmation(to: string, orderData: any) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `Lakefront Leadworks <${FROM_EMAIL}>`,
+      to: [to],
+      subject: `Order Confirmation - ${orderData.tier} Tier Package`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #1976d2; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background: #f5f5f5; }
+              .footer { padding: 20px; text-align: center; color: #666; }
+              .button { 
+                display: inline-block; 
+                padding: 12px 24px; 
+                background: #1976d2; 
+                color: white; 
+                text-decoration: none; 
+                border-radius: 5px;
+                margin: 10px 0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🌊 Lakefront Leadworks</h1>
+                <p>Your Order Has Been Confirmed!</p>
+              </div>
+              <div class="content">
+                <h2>Order Details</h2>
+                <p><strong>Package:</strong> ${orderData.tier.toUpperCase()} Tier</p>
+                <p><strong>Lead Count:</strong> ${orderData.leadCount} leads</p>
+                <p><strong>Total Amount:</strong> $${orderData.totalAmount}</p>
+                <p><strong>Order ID:</strong> ${orderData.id}</p>
+                
+                <h3>What's Next?</h3>
+                <p>Your leads are being prepared and will be available for download shortly. You'll receive another email with your download link once they're ready.</p>
+                
+                <p>The download link will be valid for 24 hours from the time it's generated.</p>
+                
+                <a href="${process.env.VITE_SITE_URL || 'http://localhost:5000'}/purchases" class="button">
+                  View Your Purchases
+                </a>
+              </div>
+              <div class="footer">
+                <p>© 2025 Lakefront Leadworks. All rights reserved.</p>
+                <p>Questions? Contact us at support@lakefrontleadworks.com</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error('Failed to send order confirmation:', error);
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error sending order confirmation:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function sendDownloadReady(to: string, downloadUrl: string, orderData: any) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `Lakefront Leadworks <${FROM_EMAIL}>`,
+      to: [to],
+      subject: `Your Leads Are Ready for Download`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #1976d2; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background: #f5f5f5; }
+              .footer { padding: 20px; text-align: center; color: #666; }
+              .button { 
+                display: inline-block; 
+                padding: 12px 24px; 
+                background: #4caf50; 
+                color: white; 
+                text-decoration: none; 
+                border-radius: 5px;
+                margin: 10px 0;
+              }
+              .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin: 10px 0; border-radius: 5px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🌊 Lakefront Leadworks</h1>
+                <p>Your Leads Are Ready!</p>
+              </div>
+              <div class="content">
+                <h2>Download Your ${orderData.tier.toUpperCase()} Tier Leads</h2>
+                <p>Great news! Your ${orderData.leadCount} leads are ready for download.</p>
+                
+                <a href="${downloadUrl}" class="button">
+                  Download Leads (CSV)
+                </a>
+                
+                <div class="warning">
+                  <strong>⚠️ Important:</strong> This download link will expire in 24 hours. Please download your leads as soon as possible.
+                </div>
+                
+                <h3>What's Included:</h3>
+                <ul>
+                  <li>Business Name & Owner Information</li>
+                  <li>Contact Details (Email & Phone)</li>
+                  <li>Industry & Revenue Information</li>
+                  <li>AI Quality Score (${orderData.minQuality}-${orderData.maxQuality} range)</li>
+                </ul>
+                
+                <p><strong>Need help?</strong> Visit our dashboard or contact support.</p>
+              </div>
+              <div class="footer">
+                <p>© 2025 Lakefront Leadworks. All rights reserved.</p>
+                <p>Questions? Contact us at support@lakefrontleadworks.com</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error('Failed to send download ready email:', error);
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error sending download ready email:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function sendAdminAlert(subject: string, message: string, details?: any) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `Lakefront Leadworks System <${FROM_EMAIL}>`,
+      to: [ADMIN_EMAIL],
+      subject: `[Admin Alert] ${subject}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #dc3545; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background: #f5f5f5; }
+              .footer { padding: 20px; text-align: center; color: #666; }
+              .details { background: white; padding: 15px; border-radius: 5px; margin: 10px 0; }
+              pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🚨 Admin Alert</h1>
+                <p>${subject}</p>
+              </div>
+              <div class="content">
+                <p>${message}</p>
+                
+                ${details ? `
+                  <div class="details">
+                    <h3>Details:</h3>
+                    <pre>${JSON.stringify(details, null, 2)}</pre>
+                  </div>
+                ` : ''}
+                
+                <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+              </div>
+              <div class="footer">
+                <p>This is an automated admin notification from Lakefront Leadworks.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error('Failed to send admin alert:', error);
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error sending admin alert:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function sendContactFormNotification(contactData: any) {
+  try {
+    // Send notification to admin
+    const adminResult = await resend.emails.send({
+      from: `Lakefront Leadworks Contact <${FROM_EMAIL}>`,
+      to: [ADMIN_EMAIL],
+      replyTo: contactData.email,
+      subject: `New Contact Form Submission from ${contactData.name}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #17a2b8; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background: #f5f5f5; }
+              .footer { padding: 20px; text-align: center; color: #666; }
+              .field { margin: 10px 0; }
+              .field strong { display: inline-block; width: 100px; }
+              .message-box { background: white; padding: 15px; border-radius: 5px; margin: 15px 0; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>📧 New Contact Form Submission</h1>
+              </div>
+              <div class="content">
+                <h2>Contact Details</h2>
+                <div class="field"><strong>Name:</strong> ${contactData.name}</div>
+                <div class="field"><strong>Email:</strong> ${contactData.email}</div>
+                <div class="field"><strong>Phone:</strong> ${contactData.phone || 'Not provided'}</div>
+                <div class="field"><strong>Company:</strong> ${contactData.company || 'Not provided'}</div>
+                
+                <h2>Message</h2>
+                <div class="message-box">
+                  ${contactData.message}
+                </div>
+                
+                <p><strong>Submitted at:</strong> ${new Date().toLocaleString()}</p>
+              </div>
+              <div class="footer">
+                <p>Reply directly to this email to respond to the customer.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    // Send auto-reply to submitter
+    const autoReplyResult = await resend.emails.send({
+      from: `Lakefront Leadworks <${FROM_EMAIL}>`,
+      to: [contactData.email],
+      subject: `We've Received Your Message - Lakefront Leadworks`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #1976d2; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; background: #f5f5f5; }
+              .footer { padding: 20px; text-align: center; color: #666; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🌊 Lakefront Leadworks</h1>
+                <p>Thank You for Contacting Us!</p>
+              </div>
+              <div class="content">
+                <p>Hi ${contactData.name},</p>
+                
+                <p>Thank you for reaching out to Lakefront Leadworks. We've received your message and one of our team members will get back to you within 24 hours.</p>
+                
+                <h3>Your Message:</h3>
+                <div style="background: white; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                  ${contactData.message}
+                </div>
+                
+                <p>In the meantime, feel free to explore our website to learn more about our MCA lead packages and pricing tiers.</p>
+                
+                <p>Best regards,<br>The Lakefront Leadworks Team</p>
+              </div>
+              <div class="footer">
+                <p>© 2025 Lakefront Leadworks. All rights reserved.</p>
+                <p>This is an automated response. A team member will follow up shortly.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    if (adminResult.error || autoReplyResult.error) {
+      console.error('Email sending errors:', { adminResult, autoReplyResult });
+      return { 
+        success: false, 
+        error: adminResult.error || autoReplyResult.error 
+      };
+    }
+
+    return { success: true, data: { adminResult, autoReplyResult } };
+  } catch (err) {
+    console.error('Error sending contact form notifications:', err);
+    return { success: false, error: err };
+  }
+}
+
+export async function sendPurchaseNotification(purchaseData: any) {
+  const { user, tier, leadCount, totalAmount } = purchaseData;
+  
+  // Send confirmation to buyer
+  await sendOrderConfirmation(user.email, {
+    id: purchaseData.id,
+    tier,
+    leadCount,
+    totalAmount,
+  });
+  
+  // Send alert to admin
+  await sendAdminAlert(
+    'New Purchase Completed',
+    `${user.username} (${user.email}) has purchased the ${tier} tier package.`,
+    {
+      purchaseId: purchaseData.id,
+      user: user.username,
+      email: user.email,
+      tier,
+      leadCount,
+      amount: `$${totalAmount}`,
+      timestamp: new Date().toISOString(),
+    }
+  );
+}
