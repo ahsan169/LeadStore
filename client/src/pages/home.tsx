@@ -341,16 +341,16 @@ export default function Home() {
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="text-center space-y-8 mb-12">
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-6 animate-fade-in">
               <Waves className="w-20 h-20 text-primary" />
             </div>
-            <h1 className="text-5xl md:text-7xl font-bold text-foreground tracking-tight" data-testid="heading-hero">
+            <h1 className="text-5xl md:text-7xl font-bold text-foreground tracking-tight animate-slide-down" data-testid="heading-hero">
               Lakefront Leadworks
             </h1>
-            <p className="text-2xl md:text-3xl text-primary font-semibold">
+            <p className="text-2xl md:text-3xl text-primary font-semibold animate-slide-down animate-delay-100">
               Where Quality MCA Leads Flow to You
             </p>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto animate-slide-up animate-delay-200">
               Dive into our crystal-clear pool of AI-scored Merchant Cash Advance leads. 
               TCPA compliant, instant delivery, and waves of conversion opportunities.
             </p>
@@ -359,7 +359,7 @@ export default function Home() {
           {/* Trust Badges */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
             {TRUST_BADGES.map((badge, index) => (
-              <Card key={index} className="text-center" data-testid={`trust-badge-${index}`}>
+              <Card key={index} className={`text-center animate-scale-in ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`} data-testid={`trust-badge-${index}`}>
                 <CardContent className="pt-6 pb-4">
                   <badge.icon className="w-8 h-8 mx-auto mb-2 text-primary" />
                   <div className="font-semibold text-sm">{badge.title}</div>
@@ -371,7 +371,7 @@ export default function Home() {
 
           {/* Auth Forms */}
           {!user && (
-            <Card className="max-w-md mx-auto">
+            <Card className="max-w-md mx-auto animate-scale-in animate-delay-500">
               <CardHeader>
                 <CardTitle>Get Started with Lakefront Leadworks</CardTitle>
                 <CardDescription>
@@ -516,7 +516,7 @@ export default function Home() {
       {/* Features Section */}
       <section className="py-20 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-16">
+          <div className="text-center space-y-4 mb-16 animate-fade-in">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-features">
               Navigate the Lead Ocean with Confidence
             </h2>
@@ -527,7 +527,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {FEATURES.map((feature, index) => (
-              <Card key={index} className="hover-elevate" data-testid={`feature-${index}`}>
+              <Card key={index} className={`hover-elevate transition-smooth animate-slide-up ${index < 3 ? `animate-delay-${(index + 1) * 100}` : index < 5 ? 'animate-delay-400' : 'animate-delay-500'}`} data-testid={`feature-${index}`}>
                 <CardHeader>
                   <div className="p-3 rounded-lg bg-primary/10 w-fit mb-2">
                     <feature.icon className="w-6 h-6 text-primary" />
@@ -546,7 +546,7 @@ export default function Home() {
       {/* How It Works */}
       <section className="py-20 bg-muted/30 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-16">
+          <div className="text-center space-y-4 mb-16 animate-fade-in">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-how-it-works">
               How It Works
             </h2>
@@ -557,8 +557,8 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
             {HOW_IT_WORKS.map((step, index) => (
-              <div key={index} className="relative" data-testid={`step-${step.step}`}>
-                <Card className="h-full">
+              <div key={index} className={`relative animate-scale-in ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : 'animate-delay-300'}`} data-testid={`step-${step.step}`}>
+                <Card className="h-full transition-smooth hover-elevate">
                   <CardHeader>
                     <div className="flex items-center gap-4 mb-4">
                       <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground font-bold text-xl">
@@ -588,7 +588,7 @@ export default function Home() {
       {/* ROI Calculator Section */}
       <section className="py-20 bg-muted/30 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-16">
+          <div className="text-center space-y-4 mb-16 animate-fade-in">
             <div className="flex justify-center mb-4">
               <div className="p-4 rounded-full bg-primary/10">
                 <Calculator className="w-10 h-10 text-primary" />
@@ -602,7 +602,7 @@ export default function Home() {
             </p>
           </div>
 
-          <Card className="max-w-4xl mx-auto">
+          <Card className="max-w-4xl mx-auto animate-slide-up animate-delay-200">
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-2">
                 <PieChart className="w-6 h-6 text-primary" />
@@ -795,7 +795,7 @@ export default function Home() {
       {/* Pricing Preview */}
       <section className="py-20 border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-16">
+          <div className="text-center space-y-4 mb-16 animate-fade-in">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-pricing-preview">
               Simple, Transparent Pricing
             </h2>
@@ -808,7 +808,7 @@ export default function Home() {
             {PRICING_TIERS.map((tier, index) => (
               <Card 
                 key={index} 
-                className={`relative hover-elevate ${tier.popular ? 'border-primary' : ''}`}
+                className={`relative hover-elevate transition-smooth animate-scale-in ${tier.popular ? 'border-primary' : ''} ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`}
                 data-testid={`pricing-tier-${tier.tier}`}
               >
                 {tier.popular && (
@@ -857,7 +857,7 @@ export default function Home() {
       {/* FAQ Section */}
       <section className="py-20 bg-muted/30 border-b">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-16">
+          <div className="text-center space-y-4 mb-16 animate-fade-in">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-faq">
               Frequently Asked Questions
             </h2>
@@ -866,12 +866,12 @@ export default function Home() {
             </p>
           </div>
 
-          <Accordion type="single" collapsible className="space-y-4">
+          <Accordion type="single" collapsible className="space-y-4 animate-slide-up animate-delay-100">
             {FAQS.map((faq, index) => (
               <AccordionItem 
                 key={index} 
                 value={`item-${index}`}
-                className="bg-background border rounded-lg px-6"
+                className="bg-background border rounded-lg px-6 transition-smooth hover-elevate"
                 data-testid={`faq-${index}`}
               >
                 <AccordionTrigger className="text-left font-semibold hover:no-underline">
