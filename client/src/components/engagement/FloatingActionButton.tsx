@@ -3,6 +3,9 @@ import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Calculator, MessageSquare, Calendar, X, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { QuickQuoteCalculator } from '@/components/modals/QuickQuoteCalculator';
+import { ContactModal } from '@/components/modals/ContactModal';
+import { ScheduleDemoModal } from '@/components/modals/ScheduleDemoModal';
 
 interface FabOption {
   icon: React.ComponentType<{ className?: string }>;
@@ -15,6 +18,11 @@ export function FloatingActionButton() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isPulsing, setIsPulsing] = useState(false);
+  
+  // Modal states
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [showContact, setShowContact] = useState(false);
+  const [showDemo, setShowDemo] = useState(false);
 
   useEffect(() => {
     // Show FAB after a short delay
@@ -39,7 +47,7 @@ export function FloatingActionButton() {
       icon: Calculator,
       label: 'Quick Quote',
       onClick: () => {
-        console.log('Opening quick quote calculator');
+        setShowCalculator(true);
         setIsExpanded(false);
       },
       color: 'from-primary/20 to-primary/10',
@@ -48,7 +56,7 @@ export function FloatingActionButton() {
       icon: MessageSquare,
       label: 'Contact Sales',
       onClick: () => {
-        console.log('Opening contact form');
+        setShowContact(true);
         setIsExpanded(false);
       },
       color: 'from-secondary/20 to-secondary/10',
@@ -57,7 +65,7 @@ export function FloatingActionButton() {
       icon: Calendar,
       label: 'Schedule Demo',
       onClick: () => {
-        console.log('Opening demo scheduler');
+        setShowDemo(true);
         setIsExpanded(false);
       },
       color: 'from-accent/20 to-accent/10',
@@ -65,6 +73,7 @@ export function FloatingActionButton() {
   ];
 
   return (
+    <>
     <AnimatePresence>
       {isVisible && (
         <motion.div
@@ -152,5 +161,20 @@ export function FloatingActionButton() {
         </motion.div>
       )}
     </AnimatePresence>
+    
+    {/* Modals */}
+    <QuickQuoteCalculator 
+      isOpen={showCalculator} 
+      onClose={() => setShowCalculator(false)} 
+    />
+    <ContactModal 
+      isOpen={showContact} 
+      onClose={() => setShowContact(false)} 
+    />
+    <ScheduleDemoModal 
+      isOpen={showDemo} 
+      onClose={() => setShowDemo(false)} 
+    />
+    </>
   );
 }

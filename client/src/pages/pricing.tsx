@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PricingCard } from "@/components/PricingCard";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -6,9 +7,11 @@ import type { ProductTier } from "@shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 import { InteractiveTooltip, DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
 import { VisitorCounter, StockIndicator } from "@/components/engagement/TrustIndicators";
+import { ContactModal } from "@/components/modals/ContactModal";
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
+  const [showContactModal, setShowContactModal] = useState(false);
   
   const { data: tiers = [], isLoading } = useQuery<ProductTier[]>({
     queryKey: ["/api/tiers"],
@@ -16,8 +19,8 @@ export default function PricingPage() {
 
   const handleSelectTier = (tier: string) => {
     if (tier === "elite") {
-      // For Elite tier, could open a contact form or email
-      window.location.href = "mailto:sales@example.com?subject=Elite Tier Inquiry";
+      // For Elite tier, open contact sales modal
+      setShowContactModal(true);
     } else {
       setLocation(`/purchase/${tier}`);
     }
@@ -138,6 +141,12 @@ export default function PricingPage() {
           </p>
         </div>
       </div>
+      
+      {/* Contact Modal for Elite tier */}
+      <ContactModal
+        isOpen={showContactModal}
+        onClose={() => setShowContactModal(false)}
+      />
     </div>
   );
 }

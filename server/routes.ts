@@ -1387,6 +1387,107 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
     }
   });
 
+  // Newsletter signup endpoint
+  app.post('/api/newsletter', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'Invalid email address' });
+      }
+
+      // Store as a contact submission with newsletter type
+      const submission = await storage.createContactSubmission({
+        name: 'Newsletter Subscriber',
+        email,
+        phone: null,
+        company: null,
+        message: 'Newsletter signup - Wants to receive weekly MCA reports and 50 free lead samples',
+        status: 'new'
+      });
+
+      // Send admin notification
+      await sendAdminAlert('New Newsletter Signup', `Email: ${email}`);
+
+      res.json({ success: true, message: 'Successfully subscribed to newsletter' });
+    } catch (error) {
+      console.error('Newsletter signup failed:', error);
+      res.status(500).json({ error: 'Failed to subscribe to newsletter' });
+    }
+  });
+
+  // Demo scheduling endpoint
+  app.post('/api/demo', async (req, res) => {
+    try {
+      const { name, email, phone, company, preferredDate, preferredTime, message } = req.body;
+      
+      if (!name || !email || !preferredDate) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
+      // Store as a contact submission with demo request type
+      const demoMessage = `Demo Request
+Preferred Date: ${preferredDate}
+Preferred Time: ${preferredTime || 'Any time'}
+Additional Notes: ${message || 'None'}`;
+
+      const submission = await storage.createContactSubmission({
+        name,
+        email,
+        phone: phone || null,
+        company: company || null,
+        message: demoMessage,
+        status: 'new'
+      });
+
+      // Send admin notification
+      await sendAdminAlert('New Demo Request', 
+        `Name: ${name}
+Email: ${email}
+Company: ${company || 'Not provided'}
+Date: ${preferredDate}
+Time: ${preferredTime || 'Any time'}`);
+
+      res.json({ success: true, message: 'Demo scheduled successfully' });
+    } catch (error) {
+      console.error('Demo scheduling failed:', error);
+      res.status(500).json({ error: 'Failed to schedule demo' });
+    }
+  });
+
+  // Exit-intent email capture (similar to newsletter but with discount offer)
+  app.post('/api/exit-intent', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ error: 'Invalid email address' });
+      }
+
+      // Store as a contact submission with exit-intent type
+      const submission = await storage.createContactSubmission({
+        name: 'Exit Intent Subscriber',
+        email,
+        phone: null,
+        company: null,
+        message: 'Exit-intent popup signup - 20% discount claimed + 50 free samples',
+        status: 'new'
+      });
+
+      // Send admin notification
+      await sendAdminAlert('Exit Intent Signup', `Email: ${email} - Send discount code!`);
+
+      res.json({ 
+        success: true, 
+        message: 'Discount code sent', 
+        discountCode: 'SAVE20NOW' 
+      });
+    } catch (error) {
+      console.error('Exit intent signup failed:', error);
+      res.status(500).json({ error: 'Failed to process signup' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

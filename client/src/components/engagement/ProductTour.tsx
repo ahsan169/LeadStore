@@ -15,28 +15,40 @@ interface TourStep {
 
 const tourSteps: TourStep[] = [
   {
-    target: '[data-tour="pricing-tiers"]',
-    title: "Choose Your Lead Package",
-    content: "Select from Gold, Platinum, Diamond, or Elite tiers based on your needs",
+    target: '[data-testid="heading-hero"]',
+    title: "Welcome to Lakefront Leadworks",
+    content: "Your premier source for high-quality, human-sourced MCA leads enhanced with AI intelligence",
     position: 'bottom',
   },
   {
-    target: '[data-tour="quality-score"]',
-    title: "AI-Enhanced Quality Scores",
-    content: "Every lead is scored 0-100 using 50+ data points for maximum transparency",
+    target: '[data-testid="fab-main"]',
+    title: "Quick Access Tools",
+    content: "Use our floating action button for instant access to calculators, chat, and demo scheduling",
     position: 'left',
   },
   {
-    target: '[data-tour="instant-download"]',
-    title: "Instant Lead Delivery",
-    content: "Get your leads immediately after purchase in CSV format",
+    target: '[data-testid="button-get-started"]',
+    title: "Get Started Quickly",
+    content: "Click here to view our pricing and choose the perfect lead package for your needs",
+    position: 'bottom',
+  },
+  {
+    target: '[data-testid="input-newsletter-email"]',
+    title: "Free Lead Samples",
+    content: "Subscribe to our newsletter to receive 50 free lead samples and weekly MCA market reports",
     position: 'top',
   },
   {
-    target: '[data-tour="compliance"]',
-    title: "100% TCPA Compliant",
-    content: "All leads have provided express written consent for MCA contact",
-    position: 'right',
+    target: '[data-testid="link-pricing"]',
+    title: "Transparent Pricing",
+    content: "View our four-tier pricing system with quality scores from 60-100",
+    position: 'bottom',
+  },
+  {
+    target: '[data-testid="link-login"]',
+    title: "Your Dashboard",
+    content: "Login to access your purchased leads, analytics, and download history",
+    position: 'bottom',
   },
 ];
 

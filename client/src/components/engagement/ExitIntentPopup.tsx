@@ -10,6 +10,8 @@ import { X, Sparkles, Clock, Gift } from 'lucide-react';
 import { useExitIntent, useLocalStorage, usePageVisibility } from '@/hooks/use-engagement';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useMutation } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 
 const exitIntentSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -17,6 +19,8 @@ const exitIntentSchema = z.object({
 
 export function ExitIntentPopup() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [discountCode, setDiscountCode] = useState('');
   const [hasShownToday, setHasShownToday] = useLocalStorage('exitIntentShown', {
     date: '',
     shown: false,
@@ -28,6 +32,34 @@ export function ExitIntentPopup() {
     resolver: zodResolver(exitIntentSchema),
     defaultValues: {
       email: '',
+    },
+  });
+  
+  // Exit-intent mutation
+  const exitIntentMutation = useMutation({
+    mutationFn: async (data: { email: string }) => {
+      return await apiRequest('POST', '/api/exit-intent', data);
+    },
+    onSuccess: (response: any) => {
+      const code = response.discountCode || 'SAVE20NOW';
+      setDiscountCode(code);
+      toast({
+        title: "Welcome to Lakefront Leadworks!",
+        description: `Your discount code ${code} has been sent to your email. Plus you'll receive 50 free lead samples!`,
+      });
+      setTimeout(() => {
+        setIsOpen(false);
+      }, 3000);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Signup failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setIsSubmitting(false);
     },
   });
 
@@ -58,13 +90,9 @@ export function ExitIntentPopup() {
   );
 
   const handleSubmit = (values: z.infer<typeof exitIntentSchema>) => {
-    toast({
-      title: "Welcome to Lakefront Leadworks!",
-      description: "Check your email for your 20% discount code and free lead samples.",
-    });
-    setIsOpen(false);
-    // In a real app, you'd send this to your email service
-    console.log('Exit intent email captured:', values.email);
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    exitIntentMutation.mutate(values);
   };
 
   return (
@@ -149,10 +177,22 @@ export function ExitIntentPopup() {
                       <Button 
                         type="submit" 
                         className="w-full"
+                        disabled={isSubmitting || !!discountCode}
                         data-testid="button-exit-intent-submit"
                       >
-                        <Gift className="w-4 h-4 mr-2" />
-                        Claim My 20% Discount
+                        {isSubmitting ? (
+                          "Processing..."
+                        ) : discountCode ? (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            Code: {discountCode}
+                          </>
+                        ) : (
+                          <>
+                            <Gift className="w-4 h-4 mr-2" />
+                            Claim My 20% Discount
+                          </>
+                        )}
                       </Button>
                       <Button 
                         type="button"

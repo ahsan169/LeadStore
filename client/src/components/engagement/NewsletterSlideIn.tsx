@@ -7,10 +7,13 @@ import { useScrollProgress, useLocalStorage, usePageVisibility } from '@/hooks/u
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
+import { useMutation } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 
 export function NewsletterSlideIn() {
   const [isOpen, setIsOpen] = useState(false);
   const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { progress } = useScrollProgress();
   const { timeOnPage } = usePageVisibility();
   const [location] = useLocation();
@@ -18,6 +21,32 @@ export function NewsletterSlideIn() {
   
   const [dismissedUntil, setDismissedUntil] = useLocalStorage('newsletterDismissedUntil', 0);
   const [hasSubscribed, setHasSubscribed] = useLocalStorage('newsletterSubscribed', false);
+  
+  // Newsletter mutation
+  const newsletterMutation = useMutation({
+    mutationFn: async (data: { email: string }) => {
+      return await apiRequest('POST', '/api/newsletter', data);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Welcome to our newsletter!",
+        description: "Check your email for weekly MCA reports and 50 free lead samples.",
+      });
+      setHasSubscribed(true);
+      setIsOpen(false);
+      setEmail('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Signup failed",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+    onSettled: () => {
+      setIsSubmitting(false);
+    },
+  });
 
   useEffect(() => {
     // Don't show if already subscribed or recently dismissed
@@ -44,16 +73,10 @@ export function NewsletterSlideIn() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-
-    toast({
-      title: "Welcome to our newsletter!",
-      description: "Check your email for weekly MCA reports and 50 free lead samples.",
-    });
+    if (!email || isSubmitting) return;
     
-    setHasSubscribed(true);
-    setIsOpen(false);
-    console.log('Newsletter subscription:', email);
+    setIsSubmitting(true);
+    newsletterMutation.mutate({ email });
   };
 
   const handleDismiss = () => {
@@ -124,10 +147,17 @@ export function NewsletterSlideIn() {
                   <Button 
                     type="submit" 
                     className="w-full"
+                    disabled={isSubmitting}
                     data-testid="button-newsletter-subscribe"
                   >
-                    <Gift className="w-4 h-4 mr-2" />
-                    Get Free Samples
+                    {isSubmitting ? (
+                      "Subscribing..."
+                    ) : (
+                      <>
+                        <Gift className="w-4 h-4 mr-2" />
+                        Get Free Samples
+                      </>
+                    )}
                   </Button>
                 </form>
 
