@@ -80,57 +80,57 @@ const PRICING_TIERS = [
 
 const FEATURES = [
   {
-    icon: Waves,
-    title: "Crystal Clear Quality Scoring",
-    description: "Every lead flows through our proprietary AI algorithm for transparent 0-100 quality scoring.",
+    icon: Users,
+    title: "Human-Sourced & Verified",
+    description: "Every lead is sourced by our expert team, not scraped or auto-generated. Real businesses manually verified for authenticity.",
+  },
+  {
+    icon: Brain,
+    title: "Hand-Selected + AI Enhanced",
+    description: "Our team hand-picks quality leads, then AI analyzes 50+ data points to provide transparent 0-100 quality scores.",
   },
   {
     icon: Shield,
-    title: "TCPA Compliant Lead Stream",
-    description: "100% compliant with TCPA regulations. All leads have provided express written consent for MCA contact.",
+    title: "100% TCPA Compliant",
+    description: "All leads have provided express written consent for MCA contact. Full compliance documentation available.",
   },
   {
-    icon: Droplets,
-    title: "Instant Lead Delivery",
-    description: "Your leads flow to you immediately after purchase. No waiting, start making waves right away.",
+    icon: FileCheck,
+    title: "Expert Quality Control",
+    description: "Human reviewers validate every batch before release. Advanced deduplication ensures you never buy the same lead twice.",
   },
   {
-    icon: Fish,
-    title: "Pure, Filtered Leads",
-    description: "Advanced deduplication ensures each lead is fresh and unique - never pay for the same lead twice.",
+    icon: Zap,
+    title: "Instant Secure Delivery",
+    description: "Download your hand-selected leads immediately after purchase. Secure links remain active for 24 hours.",
   },
   {
-    icon: Clock,
-    title: "24-Hour Download Harbor",
-    description: "Secure download links remain anchored for 24 hours, giving you flexibility to access your leads.",
-  },
-  {
-    icon: Anchor,
-    title: "Deep Data Lake",
-    description: "Choose from our tiered depths - from 50 to 600+ leads with transparent, tide-like pricing.",
+    icon: Target,
+    title: "Curated for Conversion",
+    description: "Our team focuses on businesses with genuine funding needs, not just contact lists. Quality over quantity.",
   },
 ];
 
 const TRUST_BADGES = [
+  {
+    icon: Users,
+    title: "Human-Sourced",
+    description: "Expert Team",
+  },
   {
     icon: Shield,
     title: "TCPA Compliant",
     description: "100% Verified",
   },
   {
-    icon: Mail,
-    title: "CAN-SPAM Certified",
-    description: "Fully Compliant",
+    icon: Brain,
+    title: "AI-Enhanced",
+    description: "Smart Scoring",
   },
   {
     icon: Lock,
     title: "Secure Payments",
-    description: "Powered by Stripe",
-  },
-  {
-    icon: Brain,
-    title: "AI-Powered Quality",
-    description: "Smart Scoring",
+    description: "Stripe Powered",
   },
 ];
 
@@ -157,8 +157,12 @@ const HOW_IT_WORKS = [
 
 const FAQS = [
   {
+    question: "How are your leads sourced?",
+    answer: "All our leads are human-sourced by our expert team of MCA specialists. We manually identify and verify real businesses with genuine funding needs. Once hand-selected, each lead is enhanced with our AI scoring system that analyzes 50+ data points to provide a transparent 0-100 quality score.",
+  },
+  {
     question: "What is the quality score?",
-    answer: "Our AI quality score ranges from 0-100 and evaluates each lead based on multiple factors including business age, revenue indicators, credit signals, and engagement history. Higher scores indicate leads with better conversion potential.",
+    answer: "After our team hand-selects each lead, our AI enhancement system evaluates them based on 50+ factors including business age, revenue indicators, credit signals, and funding history. The 0-100 score helps you prioritize leads, but remember - every lead has been pre-qualified by human experts first.",
   },
   {
     question: "Are leads TCPA compliant?",
@@ -339,11 +343,11 @@ export default function Home() {
               Lakefront Leadworks
             </h1>
             <p className="text-2xl md:text-3xl text-primary font-semibold animate-slide-down animate-delay-100">
-              Where Quality MCA Leads Flow
+              Human-Sourced Leads Enhanced with AI Intelligence
             </p>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto animate-slide-up animate-delay-200">
-              Dive into our crystal-clear pool of AI-scored Merchant Cash Advance leads. 
-              TCPA compliant, instant delivery, and waves of conversion opportunities.
+              Premium human-sourced MCA leads, hand-selected by our expert team and enhanced with AI scoring. 
+              Real businesses, verified data, TCPA compliant, and ready to convert.
             </p>
           </div>
 
@@ -509,10 +513,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-features">
-              Navigate the Lead Ocean with Confidence
+              Human Expertise Meets AI Intelligence
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Industry-leading features designed to maximize your conversion rates
+              Every lead is hand-selected by MCA experts, then enhanced with advanced AI scoring
             </p>
           </div>
 
