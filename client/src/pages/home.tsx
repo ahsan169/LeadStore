@@ -262,10 +262,7 @@ export default function Home() {
   // Login mutation
   const loginMutation = useMutation({
     mutationFn: async (values: z.infer<typeof loginSchema>) => {
-      return await apiRequest("/api/auth/login", {
-        method: "POST",
-        body: values,
-      });
+      return await apiRequest("POST", "/api/auth/login", values);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -288,10 +285,7 @@ export default function Home() {
   const signupMutation = useMutation({
     mutationFn: async (values: z.infer<typeof signupSchema>) => {
       const { confirmPassword, ...signupData } = values;
-      return await apiRequest("/api/auth/register", {
-        method: "POST",
-        body: signupData,
-      });
+      return await apiRequest("POST", "/api/auth/register", signupData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
@@ -313,10 +307,7 @@ export default function Home() {
   // Contact form mutation
   const contactMutation = useMutation({
     mutationFn: async (values: z.infer<typeof contactSchema>) => {
-      return await apiRequest("/api/contact", {
-        method: "POST",
-        body: values,
-      });
+      return await apiRequest("POST", "/api/contact", values);
     },
     onSuccess: () => {
       toast({
