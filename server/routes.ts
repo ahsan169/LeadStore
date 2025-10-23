@@ -234,7 +234,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/auth/me", (req, res) => {
     if (req.user) {
-      const { password, ...userWithoutPassword } = req.user;
+      // req.user already has password field excluded from the session
+      // but TypeScript doesn't know that, so we cast it
+      const user = req.user as any;
+      const { password, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } else {
       res.status(401).json({ error: "Not authenticated" });
@@ -938,7 +941,7 @@ Format your response as JSON with the following structure:
       const stats = {
         totalLeads: leads.length,
         avgQualityScore: leads.reduce((sum, l) => sum + l.qualityScore, 0) / leads.length,
-        industries: [...new Set(leads.map(l => l.industry).filter(Boolean))],
+        industries: Array.from(new Set(leads.map(l => l.industry).filter(Boolean))),
         qualityDistribution: {
           excellent: leads.filter(l => l.qualityScore >= 90).length,
           good: leads.filter(l => l.qualityScore >= 80 && l.qualityScore < 90).length,
