@@ -8,7 +8,7 @@ import Stripe from "stripe";
 import OpenAI from "openai";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { s3Client } from "./object-storage.js";
+import { s3Client, isObjectStorageConfigured } from "./object-storage.js";
 import multer from "multer";
 import Papa from "papaparse";
 import crypto from "crypto";
@@ -444,14 +444,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Upload original CSV to object storage
-      const storageKey = `batches/${Date.now()}_${file.originalname}`;
-      await s3Client.send(new PutObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: storageKey,
-        Body: file.buffer,
-        ContentType: 'text/csv',
-      }));
+      // Upload original CSV to object storage (if configured)
+      let storageKey = `batches/${Date.now()}_${file.originalname}`;
+      if (isObjectStorageConfigured() && s3Client) {
+        await s3Client.send(new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: storageKey,
+          Body: file.buffer,
+          ContentType: 'text/csv',
+        }));
+      } else {
+        // If object storage not configured, just use a placeholder key
+        storageKey = `local_${storageKey}`;
+      }
 
       // Create lead batch
       const avgQualityScore = validLeads.reduce((sum, l) => sum + l.qualityScore, 0) / validLeads.length;
@@ -774,14 +779,19 @@ Format your response as JSON with the following structure:
         return res.status(400).json({ error: "Payment not completed" });
       }
 
-      // Generate presigned URL (24 hour expiry)
-      const key = `purchases/${purchase.id}/leads.csv`;
-      const command = new GetObjectCommand({
-        Bucket: BUCKET_NAME,
-        Key: key,
-      });
-
-      const downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: 86400 }); // 24 hours
+      // Generate presigned URL (24 hour expiry) if object storage is configured
+      let downloadUrl = "";
+      if (isObjectStorageConfigured() && s3Client) {
+        const key = `purchases/${purchase.id}/leads.csv`;
+        const command = new GetObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: key,
+        });
+        downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: 86400 }); // 24 hours
+      } else {
+        // If object storage not configured, return a placeholder URL
+        downloadUrl = `/api/purchases/${purchase.id}/download-local`;
+      }
       const expiry = new Date(Date.now() + 86400 * 1000);
 
       // Update purchase with download URL

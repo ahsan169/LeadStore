@@ -336,7 +336,7 @@ export default function Home() {
             <div className="flex justify-center mb-6 animate-fade-in">
               <Waves className="w-20 h-20 text-primary" />
             </div>
-            <h1 className="text-5xl md:text-7xl font-bold text-foreground tracking-tight animate-slide-down" data-testid="heading-hero">
+            <h1 className="text-5xl md:text-7xl font-bold text-foreground tracking-tight bubbly-logo" data-testid="heading-hero">
               Lakefront Leadworks
             </h1>
             <p className="text-2xl md:text-3xl text-primary font-semibold animate-slide-down animate-delay-100">
