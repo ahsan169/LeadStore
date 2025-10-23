@@ -19,10 +19,11 @@ import ManageLeadsPage from "@/pages/admin/manage-leads";
 import CustomersPage from "@/pages/admin/customers";
 import TiersPage from "@/pages/admin/tiers";
 import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare } from "lucide-react";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
+import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 
 function AppSidebar() {
   const [location, setLocation] = useLocation();
@@ -61,13 +62,19 @@ function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <Shield className="w-6 h-6 text-primary" />
-          <div>
-            <h2 className="font-bold text-lg">MCA Leads</h2>
+      <SidebarHeader className="p-4 border-b">
+        <div className="flex items-center gap-3">
+          <img 
+            src={logoUrl} 
+            alt="Lakefront Leadworks" 
+            className="w-12 h-12 rounded-lg shadow-md"
+          />
+          <div className="flex-1">
+            <h2 className="font-bold text-lg bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+              Lakefront Leadworks
+            </h2>
             <p className="text-xs text-muted-foreground">
-              {isAdmin ? "Admin Portal" : "Lead Marketplace"}
+              {isAdmin ? "Admin Portal" : "Premium MCA Leads"}
             </p>
           </div>
         </div>

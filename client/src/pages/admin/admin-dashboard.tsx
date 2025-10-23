@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LeadStatsCard } from "@/components/LeadStatsCard";
 import { InsightsCard } from "@/components/InsightsCard";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Package, DollarSign, Users, TrendingUp, Sparkles } from "lucide-react";
+import { Package, DollarSign, Users, TrendingUp, Sparkles, Waves, Activity, BarChart3 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { AiInsight } from "@shared/schema";
 
@@ -35,16 +35,19 @@ export default function AdminDashboardPage() {
   ) || 0;
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="heading-admin-dashboard">
-          Admin Dashboard
-        </h1>
-        <p className="text-muted-foreground">Manage your MCA lead marketplace</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/5 to-background">
+      <div className="p-6 lg:p-8 space-y-8">
+        {/* Header Section */}
+        <div className="space-y-2 animate-fade-in">
+          <h1 className="text-4xl font-bold flex items-center gap-3" data-testid="heading-admin-dashboard">
+            <span className="text-gradient">Admin Dashboard</span>
+            <BarChart3 className="w-8 h-8 text-primary/50" />
+          </h1>
+          <p className="text-lg text-muted-foreground">Manage your MCA lead marketplace</p>
+        </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
         <LeadStatsCard
           title="Total Leads"
           value={leadStats?.total || 0}
@@ -158,6 +161,7 @@ export default function AdminDashboardPage() {
           <InsightsCard insight={recentInsights} />
         </div>
       )}
+      </div>
     </div>
   );
 }

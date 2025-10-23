@@ -40,6 +40,7 @@ import {
   Calculator,
   PieChart,
 } from "lucide-react";
+import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 
@@ -332,20 +333,45 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <section className="relative bg-gradient-to-b from-primary/10 via-accent/5 to-background border-b">
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+      <section className="relative overflow-hidden">
+        {/* Professional gradient background */}
+        <div className="absolute inset-0 gradient-hero"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-secondary/3 to-accent/2"></div>
+        
+        {/* Wave pattern overlay */}
+        <div className="absolute bottom-0 left-0 right-0 h-64 opacity-10">
+          <svg viewBox="0 0 1440 320" className="w-full h-full">
+            <path fill="currentColor" className="text-primary" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,138.7C960,139,1056,117,1152,106.7C1248,96,1344,96,1392,96L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+          </svg>
+        </div>
+        
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
           <div className="text-center space-y-8 mb-12">
-            <div className="flex justify-center mb-6 animate-fade-in">
-              <Waves className="w-20 h-20 text-primary" />
+            {/* Logo and brand */}
+            <div className="flex justify-center mb-8 animate-fade-in">
+              <img 
+                src={logoUrl} 
+                alt="Lakefront Leadworks"
+                className="w-24 h-24 md:w-32 md:h-32 rounded-2xl shadow-2xl hover-lift"
+              />
             </div>
-            <h1 className="text-5xl md:text-7xl font-bold text-foreground tracking-tight" data-testid="heading-hero">
-              Lakefront Leadworks
-            </h1>
-            <p className="text-2xl md:text-3xl text-primary font-semibold animate-slide-down animate-delay-100">
+            
+            <div className="space-y-4">
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight animate-fade-in" data-testid="heading-hero">
+                <span className="text-gradient">Lakefront Leadworks</span>
+              </h1>
+              <div className="flex items-center justify-center gap-3 text-primary/80">
+                <Waves className="w-6 h-6" />
+                <span className="text-lg font-medium">Premium MCA Lead Marketplace</span>
+                <Waves className="w-6 h-6" />
+              </div>
+            </div>
+            
+            <p className="text-2xl md:text-3xl font-semibold text-foreground animate-slide-down animate-delay-100">
               Human-Sourced Leads Enhanced with AI Intelligence
             </p>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto animate-slide-up animate-delay-200">
+            
+            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed animate-slide-up animate-delay-200">
               Premium human-sourced MCA leads, hand-selected by our expert team and enhanced with AI scoring. 
               Real businesses, verified data, TCPA compliant, and ready to convert.
             </p>
@@ -354,9 +380,11 @@ export default function Home() {
           {/* Trust Badges */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
             {TRUST_BADGES.map((badge, index) => (
-              <Card key={index} className={`text-center animate-scale-in ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`} data-testid={`trust-badge-${index}`}>
+              <Card key={index} className={`text-center glass border-primary/10 hover-lift animate-scale-in ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`} data-testid={`trust-badge-${index}`}>
                 <CardContent className="pt-6 pb-4">
-                  <badge.icon className="w-8 h-8 mx-auto mb-2 text-primary" />
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
+                    <badge.icon className="w-6 h-6 text-primary" />
+                  </div>
                   <div className="font-semibold text-sm">{badge.title}</div>
                   <div className="text-xs text-muted-foreground">{badge.description}</div>
                 </CardContent>
@@ -509,28 +537,33 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 border-b">
+      <section className="py-24 bg-gradient-to-b from-background via-muted/20 to-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-features">
-              Human Expertise Meets AI Intelligence
+            <h2 className="text-4xl md:text-5xl font-bold" data-testid="heading-features">
+              <span className="text-gradient">Human Expertise</span> Meets <span className="text-gradient">AI Intelligence</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
               Every lead is hand-selected by MCA experts, then enhanced with advanced AI scoring
             </p>
+            <div className="flex items-center justify-center gap-2 text-primary/60 pt-2">
+              <div className="h-px bg-primary/20 w-16"></div>
+              <Waves className="w-5 h-5" />
+              <div className="h-px bg-primary/20 w-16"></div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {FEATURES.map((feature, index) => (
-              <Card key={index} className={`hover-elevate transition-smooth animate-slide-up ${index < 3 ? `animate-delay-${(index + 1) * 100}` : index < 5 ? 'animate-delay-400' : 'animate-delay-500'}`} data-testid={`feature-${index}`}>
-                <CardHeader>
-                  <div className="p-3 rounded-lg bg-primary/10 w-fit mb-2">
-                    <feature.icon className="w-6 h-6 text-primary" />
+              <Card key={index} className={`group card-hover border-primary/10 shadow-lg transition-all duration-300 animate-slide-up ${index < 3 ? `animate-delay-${(index + 1) * 100}` : index < 5 ? 'animate-delay-400' : 'animate-delay-500'}`} data-testid={`feature-${index}`}>
+                <CardHeader className="pb-4">
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <feature.icon className="w-7 h-7 text-primary" />
                   </div>
-                  <CardTitle className="text-xl">{feature.title}</CardTitle>
+                  <CardTitle className="text-xl font-semibold">{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">{feature.description}</p>
+                  <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -539,39 +572,47 @@ export default function Home() {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 bg-muted/30 border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-24 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5"></div>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-how-it-works">
-              How It Works
+            <h2 className="text-4xl md:text-5xl font-bold" data-testid="heading-how-it-works">
+              How It <span className="text-gradient">Works</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Get started in three simple steps
+              Get started with premium leads in three simple steps
             </p>
+            <div className="flex items-center justify-center gap-2 text-secondary/60 pt-2">
+              <div className="h-px bg-secondary/20 w-16"></div>
+              <Droplets className="w-5 h-5" />
+              <div className="h-px bg-secondary/20 w-16"></div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
             {HOW_IT_WORKS.map((step, index) => (
               <div key={index} className={`relative animate-scale-in ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : 'animate-delay-300'}`} data-testid={`step-${step.step}`}>
-                <Card className="h-full transition-smooth hover-elevate">
+                <Card className="h-full hover-lift border-0 shadow-xl bg-gradient-to-br from-card via-card to-card/80">
                   <CardHeader>
                     <div className="flex items-center gap-4 mb-4">
-                      <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary text-primary-foreground font-bold text-xl">
+                      <div className="flex items-center justify-center w-14 h-14 rounded-2xl gradient-primary text-primary-foreground font-bold text-xl shadow-lg">
                         {step.step}
                       </div>
-                      <div className="p-3 rounded-lg bg-primary/10">
+                      <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10">
                         <step.icon className="w-6 h-6 text-primary" />
                       </div>
                     </div>
-                    <CardTitle className="text-xl">{step.title}</CardTitle>
+                    <CardTitle className="text-xl font-semibold">{step.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-muted-foreground">{step.description}</p>
+                    <p className="text-muted-foreground leading-relaxed">{step.description}</p>
                   </CardContent>
                 </Card>
                 {index < HOW_IT_WORKS.length - 1 && (
                   <div className="hidden md:block absolute top-1/2 -right-4 transform -translate-y-1/2 z-10">
-                    <ArrowRight className="w-8 h-8 text-primary" />
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <ArrowRight className="w-5 h-5 text-primary" />
+                    </div>
                   </div>
                 )}
               </div>

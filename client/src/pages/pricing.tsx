@@ -1,8 +1,9 @@
 import { PricingCard } from "@/components/PricingCard";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Shield, Clock, Award, FileCheck } from "lucide-react";
+import { Shield, Clock, Award, FileCheck, Waves, Droplets, CheckCircle2 } from "lucide-react";
 import type { ProductTier } from "@shared/schema";
+import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
@@ -21,44 +22,69 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/5 to-background">
       {/* Hero Section */}
-      <div className="bg-gradient-to-b from-primary/10 to-background border-b">
-        <div className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4">
-            <h1 className="text-5xl font-black text-foreground" data-testid="heading-pricing">
-              Choose Your <span className="text-primary">Plan</span>
+      <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-secondary/5 to-accent/5">
+        <div className="absolute inset-0 gradient-hero"></div>
+        
+        {/* Wave pattern */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 opacity-10">
+          <svg viewBox="0 0 1440 320" className="w-full h-full">
+            <path fill="currentColor" className="text-primary" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,122.7C672,117,768,139,864,138.7C960,139,1056,117,1152,106.7C1248,96,1344,96,1392,96L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+          </svg>
+        </div>
+        
+        <div className="relative max-w-7xl mx-auto px-4 py-20 sm:px-6 lg:px-8">
+          <div className="text-center space-y-6 animate-fade-in">
+            <div className="flex justify-center mb-6">
+              <img 
+                src={logoUrl} 
+                alt="Lakefront Leadworks"
+                className="w-16 h-16 rounded-xl shadow-xl"
+              />
+            </div>
+            <h1 className="text-5xl md:text-6xl font-bold" data-testid="heading-pricing">
+              Choose Your <span className="text-gradient">Plan</span>
             </h1>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
+            <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
               Access verified, high-quality MCA leads with transparent pricing and guaranteed delivery
             </p>
+            <div className="flex items-center justify-center gap-2 text-primary/60 pt-2">
+              <div className="h-px bg-primary/20 w-16"></div>
+              <Droplets className="w-5 h-5" />
+              <div className="h-px bg-primary/20 w-16"></div>
+            </div>
           </div>
 
           {/* Trust Badges */}
-          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="p-3 rounded-full bg-primary/10">
+          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto animate-slide-up animate-delay-100">
+            <div className="flex flex-col items-center gap-2 text-center glass p-4 rounded-xl">
+              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
                 <Shield className="w-6 h-6 text-primary" />
               </div>
-              <span className="text-sm font-medium">TCPA Compliant</span>
+              <span className="text-sm font-semibold">TCPA Compliant</span>
+              <span className="text-xs text-muted-foreground">100% Verified</span>
             </div>
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="p-3 rounded-full bg-primary/10">
+            <div className="flex flex-col items-center gap-2 text-center glass p-4 rounded-xl">
+              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
                 <Award className="w-6 h-6 text-primary" />
               </div>
-              <span className="text-sm font-medium">Quality Guaranteed</span>
+              <span className="text-sm font-semibold">Quality Guaranteed</span>
+              <span className="text-xs text-muted-foreground">Hand-Selected</span>
             </div>
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="p-3 rounded-full bg-primary/10">
+            <div className="flex flex-col items-center gap-2 text-center glass p-4 rounded-xl">
+              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
                 <Clock className="w-6 h-6 text-primary" />
               </div>
-              <span className="text-sm font-medium">Instant Delivery</span>
+              <span className="text-sm font-semibold">Instant Delivery</span>
+              <span className="text-xs text-muted-foreground">Download Now</span>
             </div>
-            <div className="flex flex-col items-center gap-2 text-center">
-              <div className="p-3 rounded-full bg-primary/10">
+            <div className="flex flex-col items-center gap-2 text-center glass p-4 rounded-xl">
+              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
                 <FileCheck className="w-6 h-6 text-primary" />
               </div>
-              <span className="text-sm font-medium">Verified Sources</span>
+              <span className="text-sm font-semibold">Verified Sources</span>
+              <span className="text-xs text-muted-foreground">Expert Team</span>
             </div>
           </div>
         </div>

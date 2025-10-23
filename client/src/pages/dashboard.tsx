@@ -3,7 +3,8 @@ import { LeadStatsCard } from "@/components/LeadStatsCard";
 import { QualityScoreBadge } from "@/components/QualityScoreBadge";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Package, Download, TrendingUp, DollarSign } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Package, Download, TrendingUp, DollarSign, ArrowUpRight, Activity, Users, Waves } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 
@@ -26,47 +27,53 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg text-muted-foreground">Loading...</div>
+        <div className="space-y-4">
+          <Waves className="w-12 h-12 text-primary mx-auto animate-pulse" />
+          <div className="text-lg text-muted-foreground">Loading dashboard...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="heading-dashboard">
-          Welcome back{user?.username ? `, ${user.username}` : ""}!
-        </h1>
-        <p className="text-muted-foreground">Here's your lead marketplace overview</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/5 to-background">
+      <div className="p-6 lg:p-8 space-y-8">
+        {/* Header Section */}
+        <div className="space-y-2 animate-fade-in">
+          <h1 className="text-4xl font-bold flex items-center gap-3" data-testid="heading-dashboard">
+            <span className="text-gradient">Welcome back{user?.username ? `, ${user.username}` : ""}</span>
+            <Waves className="w-8 h-8 text-primary/50" />
+          </h1>
+          <p className="text-lg text-muted-foreground">Here's your lead marketplace overview</p>
+        </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <LeadStatsCard
-          title="Total Purchases"
-          value={stats.totalPurchases}
-          icon={Package}
-        />
-        <LeadStatsCard
-          title="Total Leads"
-          value={stats.totalLeads}
-          icon={Download}
-        />
-        <LeadStatsCard
-          title="Total Spent"
-          value={`$${stats.totalSpent.toFixed(2)}`}
-          icon={DollarSign}
-        />
-        <LeadStatsCard
-          title="Success Rate"
-          value={stats.totalPurchases ? `${Math.round((stats.successfulPurchases / stats.totalPurchases) * 100)}%` : "N/A"}
-          icon={TrendingUp}
-        />
-      </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
+          <LeadStatsCard
+            title="Total Purchases"
+            value={stats.totalPurchases}
+            icon={Package}
+          />
+          <LeadStatsCard
+            title="Total Leads"
+            value={stats.totalLeads}
+            icon={Download}
+          />
+          <LeadStatsCard
+            title="Total Spent"
+            value={`$${stats.totalSpent.toFixed(2)}`}
+            icon={DollarSign}
+          />
+          <LeadStatsCard
+            title="Success Rate"
+            value={stats.totalPurchases ? `${Math.round((stats.successfulPurchases / stats.totalPurchases) * 100)}%` : "N/A"}
+            icon={TrendingUp}
+          />
+        </div>
 
-      {/* Recent Purchases */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+        {/* Recent Purchases */}
+        <Card className="shadow-lg border-primary/10">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
           <h2 className="text-xl font-semibold">Recent Purchases</h2>
           <Link href="/purchases">
             <Button variant="outline" size="sm" data-testid="button-view-all">
@@ -133,6 +140,7 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
