@@ -226,7 +226,7 @@ export default function Home() {
   const [commissionRate, setCommissionRate] = useState(10);
 
   // Check if user is authenticated
-  const { data: user } = useQuery<User>({ queryKey: ["/api/auth/me"] });
+  const { data: user } = useQuery<User | null>({ queryKey: ["/api/auth/me"] });
 
   // Login form
   const loginForm = useForm<z.infer<typeof loginSchema>>({
