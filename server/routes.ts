@@ -941,7 +941,7 @@ Format your response as JSON with the following structure:
       const stats = {
         totalLeads: leads.length,
         avgQualityScore: leads.reduce((sum, l) => sum + l.qualityScore, 0) / leads.length,
-        industries: Array.from(new Set(leads.map(l => l.industry).filter(Boolean))),
+        industries: Array.from(new Set(leads.map(l => l.industry).filter((ind): ind is string => ind !== null && ind !== undefined))),
         qualityDistribution: {
           excellent: leads.filter(l => l.qualityScore >= 90).length,
           good: leads.filter(l => l.qualityScore >= 80 && l.qualityScore < 90).length,
