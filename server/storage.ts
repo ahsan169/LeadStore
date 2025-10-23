@@ -94,6 +94,7 @@ export interface IStorage {
   getAiInsight(id: string): Promise<AiInsight | undefined>;
   getAiInsightByBatchId(batchId: string): Promise<AiInsight | undefined>;
   createAiInsight(insight: InsertAiInsight): Promise<AiInsight>;
+  getAiInsightByLeadId(leadId: string): Promise<AiInsight | undefined>;
   
   // Product tier operations
   getProductTier(id: string): Promise<ProductTier | undefined>;
@@ -347,6 +348,15 @@ export class DbStorage implements IStorage {
 
   async createAiInsight(insight: InsertAiInsight): Promise<AiInsight> {
     const result = await db.insert(aiInsights).values(insight).returning();
+    return result[0];
+  }
+
+  async getAiInsightByLeadId(leadId: string): Promise<AiInsight | undefined> {
+    // For lead-specific insights, we'll store the leadId in the referenceId field of the insight
+    const result = await db.select().from(aiInsights)
+      .where(sql`${aiInsights.segments}->>'leadId' = ${leadId}`)
+      .orderBy(desc(aiInsights.generatedAt))
+      .limit(1);
     return result[0];
   }
 

@@ -634,6 +634,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // AI analysis for individual lead
+  app.post("/api/leads/:leadId/analyze", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const lead = await storage.getLead(req.params.leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      // Check for existing analysis
+      const existingInsight = await storage.getAiInsightByLeadId(req.params.leadId);
+      if (existingInsight) {
+        return res.json(existingInsight);
+      }
+
+      // Generate AI analysis for the individual lead
+      const prompt = `Analyze this MCA (Merchant Cash Advance) lead and provide actionable insights:
+
+Business: ${lead.businessName}
+Owner: ${lead.ownerName}
+Industry: ${lead.industry || 'Unknown'}
+Annual Revenue: ${lead.annualRevenue || 'Not provided'}
+Requested Amount: ${lead.requestedAmount || 'Not specified'}
+Time in Business: ${lead.timeInBusiness ? lead.timeInBusiness + ' months' : 'Not provided'}
+Credit Score: ${lead.creditScore || 'Not provided'}
+State: ${lead.stateCode || 'Not provided'}
+Daily Bank Deposits: ${lead.dailyBankDeposits ? 'Yes' : 'No'}
+Previous MCA History: ${lead.previousMCAHistory || 'None'}
+Urgency Level: ${lead.urgencyLevel || 'Exploring'}
+Quality Score: ${lead.qualityScore}/100
+
+Provide a comprehensive analysis including:
+1. Lead Quality Assessment: Evaluate the overall quality and likelihood of conversion
+2. Risk Analysis: Identify potential risks or red flags
+3. Recommended Offer Structure: Suggest optimal MCA terms based on the profile
+4. Outreach Strategy: Provide specific talking points and approach recommendations
+5. Competitive Positioning: How to position against competitors
+6. Follow-up Timeline: Recommended cadence for follow-ups
+7. Key Selling Points: What aspects of this lead make them attractive for MCA funding`;
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert MCA (Merchant Cash Advance) analyst. Provide detailed, actionable insights for sales teams."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1500,
+      });
+
+      const analysisText = completion.choices[0].message.content;
+
+      // Structure the analysis
+      const sections = analysisText?.split(/\d+\.\s+/).filter(Boolean) || [];
+      
+      const insight = await storage.createAiInsight({
+        batchId: lead.batchId,
+        executiveSummary: sections[0] || analysisText,
+        segments: {
+          leadId: req.params.leadId,
+          qualityAssessment: sections[1] || '',
+          riskAnalysis: sections[2] || '',
+          offerStructure: sections[3] || '',
+          outreachStrategy: sections[4] || '',
+          competitivePositioning: sections[5] || '',
+          followUpTimeline: sections[6] || '',
+          keySellingPoints: sections[7] || '',
+        },
+        riskFlags: [],
+        outreachAngles: [],
+        generatedBy: "openai",
+      });
+
+      res.json(insight);
+    } catch (error) {
+      console.error("Lead analysis error:", error);
+      res.status(500).json({ error: "Failed to analyze lead" });
+    }
+  });
+
   // AI Insights routes
   app.post("/api/insights/generate/:batchId", requireAuth, requireAdmin, async (req, res) => {
     try {

@@ -3,19 +3,43 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { QualityScoreBadge } from "@/components/QualityScoreBadge";
 import { InsightsCard } from "@/components/InsightsCard";
 import { Button } from "@/components/ui/button";
-import { Package, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { 
+  Package, 
+  Sparkles, 
+  ChevronDown, 
+  ChevronUp, 
+  Brain,
+  Loader2,
+  Mail,
+  Phone,
+  Building,
+  DollarSign,
+  Calendar,
+  MapPin,
+  TrendingUp
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
-import type { AiInsight } from "@shared/schema";
+import type { AiInsight, Lead, LeadBatch } from "@shared/schema";
 
 export default function ManageLeadsPage() {
-  const { data: batches, isLoading } = useQuery({
+  const { data: batches, isLoading } = useQuery<LeadBatch[]>({
     queryKey: ["/api/batches"],
   });
   const { toast } = useToast();
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [leadAnalysis, setLeadAnalysis] = useState<AiInsight | null>(null);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
 
   const generateInsightsMutation = useMutation({
     mutationFn: async (batchId: string) => {
@@ -38,6 +62,27 @@ export default function ManageLeadsPage() {
     },
   });
 
+  const analyzeLeadMutation = useMutation<AiInsight, Error, string>({
+    mutationFn: async (leadId: string) => {
+      const response = await apiRequest("POST", `/api/leads/${leadId}/analyze`);
+      return await response.json() as AiInsight;
+    },
+    onSuccess: (data) => {
+      setLeadAnalysis(data);
+      toast({
+        title: "Lead Analysis Complete",
+        description: "AI analysis generated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "Failed to analyze lead.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const toggleBatchExpansion = (batchId: string) => {
     const newExpanded = new Set(expandedBatches);
     if (newExpanded.has(batchId)) {
@@ -46,6 +91,13 @@ export default function ManageLeadsPage() {
       newExpanded.add(batchId);
     }
     setExpandedBatches(newExpanded);
+  };
+
+  const handleAnalyzeLead = async (lead: Lead) => {
+    setSelectedLead(lead);
+    setLeadAnalysis(null);
+    setShowAnalysisModal(true);
+    await analyzeLeadMutation.mutateAsync(lead.id);
   };
 
   if (isLoading) {
@@ -83,10 +135,93 @@ export default function ManageLeadsPage() {
               onToggleExpansion={() => toggleBatchExpansion(batch.id)}
               onGenerateInsights={() => generateInsightsMutation.mutate(batch.id)}
               isGenerating={generateInsightsMutation.isPending}
+              onAnalyzeLead={handleAnalyzeLead}
             />
           ))}
         </div>
       )}
+
+      {/* AI Analysis Modal */}
+      <Dialog open={showAnalysisModal} onOpenChange={setShowAnalysisModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="w-5 h-5" />
+              AI Lead Analysis
+            </DialogTitle>
+            {selectedLead && (
+              <DialogDescription>
+                {selectedLead.businessName} - {selectedLead.ownerName}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          {(() => {
+            if (analyzeLeadMutation.isPending) {
+              return (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-muted-foreground">Analyzing lead...</span>
+                </div>
+              );
+            }
+            
+            if (!leadAnalysis) {
+              return null;
+            }
+            
+            const renderAnalysis = () => {
+              const summary = leadAnalysis.executiveSummary 
+                ? String(leadAnalysis.executiveSummary)
+                : null;
+              
+              const segments = leadAnalysis.segments as Record<string, unknown> | null;
+              
+              return (
+                <div className="space-y-4">
+                  {/* Executive Summary */}
+                  {summary && (
+                    <div className="rounded-lg bg-muted/50 p-4">
+                      <h4 className="font-semibold mb-2">Executive Summary</h4>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {summary}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Detailed Analysis Sections */}
+                  {segments && typeof segments === 'object' && (
+                    <div className="grid gap-4">
+                      {Object.entries(segments).map(([key, value]) => {
+                        if (key === 'leadId' || !value) return null;
+                        
+                        const formatTitle = (k: string) => {
+                          return k.replace(/([A-Z])/g, ' $1')
+                            .replace(/^./, str => str.toUpperCase())
+                            .trim();
+                        };
+
+                        return (
+                          <div key={key} className="rounded-lg border p-4">
+                            <h4 className="font-semibold mb-2 text-sm">
+                              {formatTitle(key)}
+                            </h4>
+                            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                              {String(value)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            };
+            
+            return renderAnalysis();
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -97,6 +232,7 @@ interface BatchCardProps {
   onToggleExpansion: () => void;
   onGenerateInsights: () => void;
   isGenerating: boolean;
+  onAnalyzeLead: (lead: Lead) => void;
 }
 
 function BatchCard({
@@ -105,9 +241,15 @@ function BatchCard({
   onToggleExpansion,
   onGenerateInsights,
   isGenerating,
+  onAnalyzeLead,
 }: BatchCardProps) {
   const { data: insights, isLoading: insightsLoading } = useQuery<AiInsight>({
     queryKey: ["/api/insights/batch", batch.id],
+    enabled: isExpanded,
+  });
+
+  const { data: leads, isLoading: leadsLoading } = useQuery<Lead[]>({
+    queryKey: ["/api/leads/batch", batch.id],
     enabled: isExpanded,
   });
 
@@ -169,47 +311,121 @@ function BatchCard({
             data-testid={`button-generate-insights-${batch.id}`}
           >
             <Sparkles className="w-4 h-4 mr-2" />
-            {isGenerating ? "Generating..." : "Generate AI Insights"}
+            {isGenerating ? "Generating..." : "Generate Batch Insights"}
           </Button>
 
-          {insights && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onToggleExpansion}
-              data-testid={`button-toggle-insights-${batch.id}`}
-            >
-              {isExpanded ? (
-                <>
-                  <ChevronUp className="w-4 h-4 mr-2" />
-                  Hide Insights
-                </>
-              ) : (
-                <>
-                  <ChevronDown className="w-4 h-4 mr-2" />
-                  View Insights
-                </>
-              )}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onToggleExpansion}
+            data-testid={`button-toggle-expansion-${batch.id}`}
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="w-4 h-4 mr-2" />
+                Hide Details
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-4 h-4 mr-2" />
+                View Leads & Insights
+              </>
+            )}
+          </Button>
         </div>
 
         {isExpanded && (
-          <div className="pt-4">
-            {insightsLoading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading insights...
-              </div>
-            ) : insights ? (
-              <InsightsCard insight={insights} />
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No insights available yet. Click "Generate AI Insights" to create them.
+          <div className="pt-4 space-y-4">
+            {/* Batch Insights Section */}
+            {insights && (
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold mb-2">Batch Insights</h4>
+                <InsightsCard insight={insights} />
               </div>
             )}
+
+            {/* Individual Leads Section */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3">Individual Leads</h4>
+              {leadsLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading leads...
+                </div>
+              ) : leads && leads.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 px-3 text-sm font-medium">Business</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium">Industry</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium">Revenue</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium">Score</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium">State</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leads.map((lead) => (
+                        <tr key={lead.id} className="border-b hover:bg-muted/50">
+                          <td className="py-3 px-3">
+                            <div>
+                              <div className="font-medium text-sm">{lead.businessName}</div>
+                              <div className="text-xs text-muted-foreground">{lead.ownerName}</div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-sm">{lead.industry || '-'}</td>
+                          <td className="py-3 px-3 text-sm">
+                            {lead.annualRevenue ? `$${lead.annualRevenue}` : '-'}
+                          </td>
+                          <td className="py-3 px-3">
+                            <QualityScoreBadge score={lead.qualityScore} />
+                          </td>
+                          <td className="py-3 px-3 text-sm">{lead.stateCode || '-'}</td>
+                          <td className="py-3 px-3">
+                            <div className="flex gap-2">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => onAnalyzeLead(lead)}
+                                data-testid={`button-analyze-lead-${lead.id}`}
+                                title="Analyze with AI"
+                              >
+                                <Brain className="w-4 h-4" />
+                              </Button>
+                              <LeadDetailsPopover lead={lead} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No leads found in this batch.
+                </div>
+              )}
+            </div>
           </div>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function LeadDetailsPopover({ lead }: { lead: Lead }) {
+  return (
+    <Button
+      size="icon"
+      variant="ghost"
+      data-testid={`button-view-lead-${lead.id}`}
+      title="View Details"
+      onClick={() => {
+        // This could open a popover or dialog with full lead details
+        // For now, it's a placeholder
+      }}
+    >
+      <TrendingUp className="w-4 h-4" />
+    </Button>
   );
 }
