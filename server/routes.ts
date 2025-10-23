@@ -882,16 +882,18 @@ Format your response as JSON with the following structure:
           // Get user info for CSV watermark
           const user = await storage.getUser(userId);
           
-          // Generate CSV with watermark and upload to object storage
+          // Generate CSV with watermark and upload to object storage (if configured)
           const csvContent = generateLeadsCsv(selectedLeads, user);
           const key = `purchases/${purchase.id}/leads.csv`;
 
-          await s3Client.send(new PutObjectCommand({
-            Bucket: BUCKET_NAME,
-            Key: key,
-            Body: csvContent,
-            ContentType: 'text/csv',
-          }));
+          if (isObjectStorageConfigured() && s3Client) {
+            await s3Client.send(new PutObjectCommand({
+              Bucket: BUCKET_NAME,
+              Key: key,
+              Body: csvContent,
+              ContentType: 'text/csv',
+            }));
+          }
 
           // Update purchase
           await storage.updatePurchase(purchase.id, {
