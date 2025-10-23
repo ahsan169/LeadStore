@@ -68,12 +68,18 @@ export default function UploadLeadsPage() {
     setIsDragging(false);
     
     const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && droppedFile.name.endsWith('.csv')) {
+    const isValidFile = droppedFile && (
+      droppedFile.name.endsWith('.csv') || 
+      droppedFile.name.endsWith('.xlsx') || 
+      droppedFile.name.endsWith('.xls')
+    );
+    
+    if (isValidFile) {
       setFile(droppedFile);
     } else {
       toast({
         title: "Invalid file type",
-        description: "Please upload a CSV file",
+        description: "Please upload a CSV or Excel file (.csv, .xlsx, .xls)",
         variant: "destructive",
       });
     }
@@ -89,7 +95,7 @@ export default function UploadLeadsPage() {
     if (!file) {
       toast({
         title: "No file selected",
-        description: "Please select a CSV file to upload",
+        description: "Please select a CSV or Excel file to upload",
         variant: "destructive",
       });
       return;
@@ -216,7 +222,7 @@ export default function UploadLeadsPage() {
       {currentStep === 'upload' && (
         <Card className="max-w-2xl">
           <CardHeader>
-            <h2 className="text-xl font-semibold">Step 1: Upload CSV File</h2>
+            <h2 className="text-xl font-semibold">Step 1: Upload Lead File</h2>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Drag and Drop Zone */}
@@ -234,7 +240,7 @@ export default function UploadLeadsPage() {
               <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <div className="space-y-2">
                 <p className="text-lg font-medium">
-                  {isDragging ? 'Drop your CSV file here' : 'Drag and drop your CSV file'}
+                  {isDragging ? 'Drop your file here' : 'Drag and drop your CSV or Excel file'}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   or click below to browse
@@ -242,7 +248,7 @@ export default function UploadLeadsPage() {
               </div>
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                 onChange={handleFileChange}
                 className="hidden"
                 id="file-input"
@@ -283,9 +289,9 @@ export default function UploadLeadsPage() {
               </div>
             )}
 
-            {/* CSV Format Guide */}
+            {/* File Format Guide */}
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <h3 className="font-semibold">Required CSV Columns:</h3>
+              <h3 className="font-semibold">Required Columns (CSV/Excel):</h3>
               <ul className="text-sm space-y-1 text-muted-foreground font-mono">
                 <li>• businessName (required)</li>
                 <li>• ownerName (required)</li>

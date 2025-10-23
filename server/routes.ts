@@ -396,24 +396,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const row = rows[i];
         const rowNum = i + 2; // +2 for header and 0-index
 
-        // Normalize column names (case-insensitive)
+        // Normalize column names with flexible mapping
         const normalizedRow: any = {};
         for (const key in row) {
-          const lowerKey = key.toLowerCase();
-          if (lowerKey === 'businessname' || lowerKey === 'business name') normalizedRow.businessName = row[key];
-          else if (lowerKey === 'ownername' || lowerKey === 'owner name') normalizedRow.ownerName = row[key];
-          else if (lowerKey === 'email') normalizedRow.email = row[key];
-          else if (lowerKey === 'phone') normalizedRow.phone = row[key];
-          else if (lowerKey === 'industry') normalizedRow.industry = row[key];
-          else if (lowerKey === 'annualrevenue' || lowerKey === 'annual revenue') normalizedRow.annualRevenue = row[key];
-          else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount') normalizedRow.requestedAmount = row[key];
-          else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business') normalizedRow.timeInBusiness = row[key];
-          else if (lowerKey === 'creditscore' || lowerKey === 'credit score') normalizedRow.creditScore = row[key];
-          else if (lowerKey === 'dailybankdeposits' || lowerKey === 'daily bank deposits') normalizedRow.dailyBankDeposits = row[key]?.toLowerCase() === 'true' || row[key]?.toLowerCase() === 'yes';
-          else if (lowerKey === 'previousmcahistory' || lowerKey === 'previous mca history') normalizedRow.previousMCAHistory = row[key] || 'none';
-          else if (lowerKey === 'urgencylevel' || lowerKey === 'urgency level') normalizedRow.urgencyLevel = row[key] || 'exploring';
-          else if (lowerKey === 'statecode' || lowerKey === 'state code' || lowerKey === 'state') normalizedRow.stateCode = row[key];
-          else if (lowerKey === 'exclusivitystatus' || lowerKey === 'exclusivity status') normalizedRow.exclusivityStatus = row[key] || 'non_exclusive';
+          const lowerKey = key.toLowerCase().replace(/[_\-]/g, ' ').trim();
+          const value = row[key];
+          
+          // Business Name variations
+          if (lowerKey === 'businessname' || lowerKey === 'business name' || lowerKey === 'company name' || 
+              lowerKey === 'company' || lowerKey === 'dba' || lowerKey === 'business') {
+            normalizedRow.businessName = value;
+          }
+          // Owner Name variations
+          else if (lowerKey === 'ownername' || lowerKey === 'owner name' || lowerKey === 'contact name' || 
+                   lowerKey === 'owner' || lowerKey === 'contact' || lowerKey === 'name' || lowerKey === 'full name') {
+            normalizedRow.ownerName = normalizedRow.ownerName || value;
+          }
+          // Email variations
+          else if (lowerKey === 'email' || lowerKey === 'email address' || lowerKey === 'e mail') {
+            normalizedRow.email = value;
+          }
+          // Phone variations
+          else if (lowerKey === 'phone' || lowerKey === 'phone number' || lowerKey === 'telephone' || 
+                   lowerKey === 'mobile' || lowerKey === 'cell' || lowerKey === 'contact number') {
+            normalizedRow.phone = value;
+          }
+          // Industry variations
+          else if (lowerKey === 'industry' || lowerKey === 'business type' || lowerKey === 'sector' || lowerKey === 'category') {
+            normalizedRow.industry = value;
+          }
+          // Revenue variations
+          else if (lowerKey === 'annualrevenue' || lowerKey === 'annual revenue' || lowerKey === 'revenue' || 
+                   lowerKey === 'annual sales' || lowerKey === 'yearly revenue' || lowerKey === 'gross revenue') {
+            normalizedRow.annualRevenue = value;
+          }
+          // Requested Amount variations
+          else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount' || lowerKey === 'amount' || 
+                   lowerKey === 'funding amount' || lowerKey === 'loan amount' || lowerKey === 'amount requested') {
+            normalizedRow.requestedAmount = value;
+          }
+          // Time in Business variations
+          else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business' || lowerKey === 'years in business' || 
+                   lowerKey === 'business age' || lowerKey === 'established') {
+            normalizedRow.timeInBusiness = value;
+          }
+          // Credit Score variations
+          else if (lowerKey === 'creditscore' || lowerKey === 'credit score' || lowerKey === 'fico' || 
+                   lowerKey === 'fico score' || lowerKey === 'credit rating') {
+            normalizedRow.creditScore = value;
+          }
+          // Daily Bank Deposits variations
+          else if (lowerKey === 'dailybankdeposits' || lowerKey === 'daily bank deposits' || lowerKey === 'daily deposits' || 
+                   lowerKey === 'bank deposits') {
+            normalizedRow.dailyBankDeposits = value?.toLowerCase() === 'true' || value?.toLowerCase() === 'yes' || value === '1';
+          }
+          // Previous MCA History variations
+          else if (lowerKey === 'previousmcahistory' || lowerKey === 'previous mca history' || lowerKey === 'mca history' || 
+                   lowerKey === 'prior mca' || lowerKey === 'existing mca') {
+            normalizedRow.previousMCAHistory = value || 'none';
+          }
+          // Urgency Level variations
+          else if (lowerKey === 'urgencylevel' || lowerKey === 'urgency level' || lowerKey === 'urgency' || 
+                   lowerKey === 'timeline' || lowerKey === 'need level') {
+            normalizedRow.urgencyLevel = value || 'exploring';
+          }
+          // State variations
+          else if (lowerKey === 'statecode' || lowerKey === 'state code' || lowerKey === 'state' || 
+                   lowerKey === 'location' || lowerKey === 'region') {
+            normalizedRow.stateCode = value;
+          }
+          // Exclusivity Status variations
+          else if (lowerKey === 'exclusivitystatus' || lowerKey === 'exclusivity status' || lowerKey === 'exclusivity' || 
+                   lowerKey === 'exclusive') {
+            normalizedRow.exclusivityStatus = value || 'non_exclusive';
+          }
         }
 
         // Validate required fields
