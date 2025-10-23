@@ -43,6 +43,11 @@ import {
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { InteractiveTooltip, DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
+import { AnimatedCounter, AnimatedStats } from "@/components/engagement/AnimatedCounter";
+import { CountdownTimer } from "@/components/engagement/CountdownTimer";
+import { ScrollIndicator } from "@/components/engagement/ScrollIndicator";
+import { VisitorCounter, StockIndicator, RotatingTestimonials, LastUpdatedIndicator } from "@/components/engagement/TrustIndicators";
 
 const PRICING_TIERS = [
   {
@@ -377,6 +382,21 @@ export default function Home() {
             </p>
           </div>
 
+          {/* Countdown Timer for Limited Time Offer */}
+          <div className="flex justify-center mb-8 animate-fade-in animate-delay-300">
+            <CountdownTimer 
+              endDate={new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 14 * 60 * 60 * 1000 + 32 * 60 * 1000)} 
+              label="Spring Sale Ends In:"
+            />
+          </div>
+
+          {/* Trust Indicators */}
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-8 animate-fade-in animate-delay-400">
+            <VisitorCounter />
+            <LastUpdatedIndicator />
+            <StockIndicator tier="Diamond" remaining={127} />
+          </div>
+
           {/* Trust Badges */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
             {TRUST_BADGES.map((badge, index) => (
@@ -390,6 +410,11 @@ export default function Home() {
                 </CardContent>
               </Card>
             ))}
+          </div>
+
+          {/* Scroll Indicator */}
+          <div className="flex justify-center mt-12">
+            <ScrollIndicator />
           </div>
 
           {/* Auth Forms */}
@@ -568,6 +593,21 @@ export default function Home() {
               </Card>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* Stats Section with Animated Counters */}
+      <section className="py-16 bg-gradient-to-b from-muted/20 to-background">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <AnimatedStats 
+            stats={[
+              { label: "Active Buyers", value: 5847, icon: Users },
+              { label: "Leads Delivered", value: 250000, suffix: "+", icon: Download },
+              { label: "Success Rate", value: 94, suffix: "%", icon: TrendingUp },
+              { label: "Years Experience", value: 10, suffix: "+", icon: Award },
+            ]}
+            className="grid-cols-2 md:grid-cols-4"
+          />
         </div>
       </section>
 

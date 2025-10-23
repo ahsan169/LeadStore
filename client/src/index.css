@@ -463,4 +463,130 @@
     margin-top: var(--spacing-scale, 1rem);
   }
 
+  /* Tour spotlight effect */
+  .tour-spotlight {
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0);
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: 41;
+  }
+
+  .tour-highlight {
+    position: relative;
+    z-index: 42;
+    box-shadow: 0 0 0 4px hsl(var(--primary) / 0.3);
+    animation: pulse-highlight 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-highlight {
+    0%, 100% {
+      box-shadow: 0 0 0 4px hsl(var(--primary) / 0.3);
+    }
+    50% {
+      box-shadow: 0 0 0 8px hsl(var(--primary) / 0.1);
+    }
+  }
+
+  /* Glass card effect for engagement modals */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .dark .glass-card {
+    background: rgba(20, 40, 60, 0.85);
+    border: 1px solid rgba(80, 200, 200, 0.2);
+  }
+
+  /* Scroll indicator animation */
+  @keyframes bounce {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .animate-bounce {
+    animation: bounce 2s ease-in-out infinite;
+  }
+
+  /* Number counter animation */
+  @keyframes count-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-count {
+    animation: count-up 0.5s ease-out;
+  }
+
+  /* Pulse animation for badges and indicators */
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Floating animation for FAB */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* Slide animations for notifications */
+  @keyframes slide-in-left {
+    from {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-in-right {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-in-left {
+    animation: slide-in-left 0.4s ease-out;
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.4s ease-out;
+  }
+
 }

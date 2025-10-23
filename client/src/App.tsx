@@ -25,6 +25,15 @@ import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 
+// Engagement components
+import { ExitIntentPopup } from "@/components/engagement/ExitIntentPopup";
+import { FloatingActionButton } from "@/components/engagement/FloatingActionButton";
+import { ActivityFeed } from "@/components/engagement/ActivityFeed";
+import { NewsletterSlideIn } from "@/components/engagement/NewsletterSlideIn";
+import { ChatWidget } from "@/components/engagement/ChatWidget";
+import { StickyCTABar } from "@/components/engagement/StickyCTABar";
+import { ProductTour } from "@/components/engagement/ProductTour";
+
 function AppSidebar() {
   const [location, setLocation] = useLocation();
   const { data: user } = useQuery<User>({
@@ -207,6 +216,15 @@ export default function App() {
       <TooltipProvider>
         <Toaster />
         <Router />
+        
+        {/* Global engagement components */}
+        <ExitIntentPopup />
+        <FloatingActionButton />
+        <ActivityFeed />
+        <NewsletterSlideIn />
+        <ChatWidget />
+        <StickyCTABar />
+        <ProductTour autoStart={false} />
       </TooltipProvider>
     </QueryClientProvider>
   );

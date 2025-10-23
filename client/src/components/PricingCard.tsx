@@ -2,6 +2,7 @@ import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check } from "lucide-react";
+import { DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
 
 interface PricingCardProps {
   tier: string;
@@ -29,10 +30,10 @@ export function PricingCard({
   const isElite = tier === "elite";
 
   return (
-    <Card className={`relative flex flex-col ${recommended ? "border-primary border-2" : ""}`} data-testid={`card-pricing-${tier}`}>
+    <Card className={`relative flex flex-col ${recommended ? "border-primary border-2" : ""} hover-elevate`} data-testid={`card-pricing-${tier}`} data-tour="pricing-tiers">
       {recommended && (
         <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-          <Badge className="bg-primary text-primary-foreground" data-testid="badge-recommended">
+          <Badge className="bg-primary text-primary-foreground animate-pulse" data-testid="badge-recommended">
             Most Popular
           </Badge>
         </div>
@@ -62,9 +63,16 @@ export function PricingCard({
 
         <div className="space-y-2">
           <div className="text-sm text-muted-foreground">Quality Score Range</div>
-          <Badge variant="outline" className="text-sm" data-testid={`badge-quality-range-${tier}`}>
-            {minQuality}-{maxQuality}
-          </Badge>
+          <DiscoveryTooltip
+            title="AI-Enhanced Quality Scores"
+            description={`Each lead is scored ${minQuality}-${maxQuality} using 50+ data points for maximum transparency`}
+            badge="AI Powered"
+            side="top"
+          >
+            <Badge variant="outline" className="text-sm cursor-help" data-testid={`badge-quality-range-${tier}`} data-tour="quality-score">
+              {minQuality}-{maxQuality}
+            </Badge>
+          </DiscoveryTooltip>
         </div>
 
         <div className="space-y-3 pt-4">

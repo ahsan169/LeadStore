@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Shield, Clock, Award, FileCheck, Waves, Droplets, CheckCircle2 } from "lucide-react";
 import type { ProductTier } from "@shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
+import { InteractiveTooltip, DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
+import { VisitorCounter, StockIndicator } from "@/components/engagement/TrustIndicators";
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
@@ -86,6 +88,12 @@ export default function PricingPage() {
               <span className="text-sm font-semibold">Verified Sources</span>
               <span className="text-xs text-muted-foreground">Expert Team</span>
             </div>
+          </div>
+
+          {/* Trust Indicators */}
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-8 animate-fade-in animate-delay-200">
+            <VisitorCounter />
+            <StockIndicator tier="Diamond" remaining={89} />
           </div>
         </div>
       </div>
