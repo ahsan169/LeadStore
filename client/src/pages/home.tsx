@@ -348,7 +348,7 @@ export default function Home() {
               Lakefront Leadworks
             </h1>
             <p className="text-2xl md:text-3xl text-primary font-semibold animate-slide-down animate-delay-100">
-              Where Quality MCA Leads Flow to You
+              Where Quality MCA Leads Flow
             </p>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto animate-slide-up animate-delay-200">
               Dive into our crystal-clear pool of AI-scored Merchant Cash Advance leads. 
