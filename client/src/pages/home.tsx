@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -693,7 +692,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <Separator className="my-6" />
+              <div className="my-6 h-[1px] w-full bg-border" />
 
               {/* ROI Calculations */}
               <div className="space-y-4">
