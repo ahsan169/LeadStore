@@ -1,0 +1,5 @@
+businessName,ownerName,email,phone,industry,annualRevenue,requestedAmount,timeInBusiness,creditScore
+ABC Restaurant,John Smith,john@abcrest.com,555-1234,Restaurant,500000,50000,5,720
+XYZ Retail,Jane Doe,jane@xyzretail.com,555-5678,Retail,1000000,100000,8,680
+Tech Solutions,Bob Johnson,bob@techsol.com,555-9012,Technology,2000000,250000,3,750
+Green Construction,Alice Brown,alice@greencon.com,555-3456,Construction,3000000,400000,12,700
