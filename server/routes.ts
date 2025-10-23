@@ -8,7 +8,7 @@ import Stripe from "stripe";
 import OpenAI from "openai";
 import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { s3Client } from "./object-storage";
+import { s3Client } from "./object-storage.js";
 import multer from "multer";
 import Papa from "papaparse";
 import crypto from "crypto";
