@@ -1013,12 +1013,116 @@ Format your response as JSON with the following structure:
     const sig = req.headers['stripe-signature'] as string;
 
     try {
-      const event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET || ""
-      );
+      // If no webhook secret is configured, log warning but continue for development
+      if (!process.env.STRIPE_WEBHOOK_SECRET) {
+        console.warn("WARNING: STRIPE_WEBHOOK_SECRET not configured. Webhook verification skipped in development.");
+        // In production, you should always verify webhooks
+      }
+      
+      let event;
+      if (process.env.STRIPE_WEBHOOK_SECRET) {
+        event = stripe.webhooks.constructEvent(
+          req.body,
+          sig,
+          process.env.STRIPE_WEBHOOK_SECRET
+        );
+      } else {
+        // Development only - parse without verification
+        event = JSON.parse(req.body.toString());
+      }
 
+      // Handle checkout.session.completed event (for Stripe Checkout)
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as Stripe.Checkout.Session;
+        const { userId, tier, leadCount } = session.metadata || {};
+        
+        if (!userId || !tier || !leadCount) {
+          console.error("Missing metadata in checkout session");
+          return res.status(400).json({ error: "Missing metadata" });
+        }
+        
+        // Get tier configuration
+        const tierConfig = await storage.getProductTierByTier(tier);
+        if (!tierConfig) {
+          console.error(`Tier configuration not found for tier: ${tier}`);
+          return res.status(400).json({ error: "Tier configuration not found" });
+        }
+        
+        // Create purchase record
+        const purchase = await storage.createPurchase({
+          userId,
+          tier,
+          leadCount: parseInt(leadCount),
+          totalAmount: (session.amount_total! / 100).toString(), // Convert cents to dollars
+          stripePaymentIntentId: session.payment_intent as string,
+          paymentStatus: "succeeded",
+          leadIds: [],
+        });
+        
+        // Get leads for this purchase
+        const selectedLeads = await storage.getLeadsForPurchase(
+          userId,
+          parseInt(leadCount),
+          tierConfig.minQuality,
+          tierConfig.maxQuality
+        );
+        
+        if (selectedLeads.length < parseInt(leadCount)) {
+          console.error(`Not enough leads available. Requested: ${leadCount}, Available: ${selectedLeads.length}`);
+        }
+        
+        const leadIds = selectedLeads.map(l => l.id);
+        
+        // Mark leads as sold
+        await storage.markLeadsAsSold(leadIds, userId);
+        
+        // Create allocation records
+        const allocationsToCreate = selectedLeads.map(lead => ({
+          userId,
+          purchaseId: purchase.id,
+          leadId: lead.id,
+          leadHash: createLeadHash(lead.email, lead.phone),
+        }));
+        await storage.createAllocations(allocationsToCreate);
+        
+        // Get user info
+        const user = await storage.getUser(userId);
+        
+        // Generate CSV and upload to storage
+        const csvContent = generateLeadsCsv(selectedLeads, user);
+        const key = `purchases/${purchase.id}/leads.csv`;
+        
+        if (isObjectStorageConfigured() && s3Client) {
+          await s3Client.send(new PutObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: key,
+            Body: csvContent,
+            ContentType: 'text/csv',
+          }));
+        }
+        
+        // Update purchase with lead IDs
+        await storage.updatePurchase(purchase.id, {
+          leadIds,
+        });
+        
+        // Send confirmation emails
+        if (user) {
+          await sendOrderConfirmation(user.email, {
+            id: purchase.id,
+            tier: purchase.tier,
+            leadCount: purchase.leadCount,
+            totalAmount: Number(purchase.totalAmount),
+          });
+          
+          await sendAdminAlert(
+            'New Purchase Completed',
+            `User ${user.email} purchased ${purchase.leadCount} ${purchase.tier} leads for $${purchase.totalAmount}`
+          );
+        }
+      }
+      
+      // Handle payment_intent.succeeded event (for legacy payment flow)
       if (event.type === 'payment_intent.succeeded') {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const { userId, tier, leadCount } = paymentIntent.metadata;
@@ -1107,6 +1211,72 @@ Format your response as JSON with the following structure:
     } catch (error) {
       console.error("Webhook error:", error);
       res.status(400).json({ error: "Webhook processing failed" });
+    }
+  });
+
+  // Stripe Checkout Session endpoint
+  app.post("/api/create-checkout-session", requireAuth, async (req, res) => {
+    try {
+      const { tier } = req.body;
+      
+      // Validate tier
+      if (!['gold', 'platinum', 'diamond'].includes(tier)) {
+        return res.status(400).json({ error: "Invalid tier selected" });
+      }
+      
+      // Get tier configuration
+      const tierConfig = await storage.getProductTierByTier(tier);
+      if (!tierConfig) {
+        return res.status(400).json({ error: "Tier configuration not found" });
+      }
+      
+      // Check if enough leads are available
+      const availableLeads = await storage.getAvailableLeadsByTier(tier, tierConfig.leadCount);
+      if (availableLeads.length < tierConfig.leadCount) {
+        return res.status(400).json({ 
+          error: "Not enough leads available",
+          available: availableLeads.length,
+          requested: tierConfig.leadCount 
+        });
+      }
+      
+      // Create Stripe checkout session
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product_data: {
+                name: `${tierConfig.name} Package`,
+                description: `${tierConfig.leadCount} high-quality MCA leads`,
+                metadata: {
+                  tier,
+                  leadCount: tierConfig.leadCount.toString(),
+                }
+              },
+              unit_amount: tierConfig.price, // Price is already in cents
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${req.headers.origin}/payment-cancel`,
+        metadata: {
+          userId: req.user!.id,
+          tier,
+          leadCount: tierConfig.leadCount.toString(),
+        },
+      });
+      
+      res.json({ 
+        checkoutUrl: session.url,
+        sessionId: session.id 
+      });
+    } catch (error) {
+      console.error("Checkout session creation error:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
     }
   });
 

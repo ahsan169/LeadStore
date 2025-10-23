@@ -13,6 +13,8 @@ import DashboardPage from "@/pages/dashboard";
 import PurchasesPage from "@/pages/purchases";
 import PurchaseTierPage from "@/pages/purchase-tier";
 import PurchaseFlowPage from "@/pages/purchase-flow";
+import PaymentSuccessPage from "@/pages/payment-success";
+import PaymentCancelPage from "@/pages/payment-cancel";
 import AdminDashboardPage from "@/pages/admin/admin-dashboard";
 import UploadLeadsPage from "@/pages/admin/upload-leads";
 import ManageLeadsPage from "@/pages/admin/manage-leads";
@@ -33,6 +35,7 @@ import { NewsletterSlideIn } from "@/components/engagement/NewsletterSlideIn";
 import { ChatWidget } from "@/components/engagement/ChatWidget";
 import { StickyCTABar } from "@/components/engagement/StickyCTABar";
 import { ProductTour } from "@/components/engagement/ProductTour";
+import { StripeTestModeIndicator } from "@/components/StripeTestModeIndicator";
 
 function AppSidebar() {
   const [location, setLocation] = useLocation();
@@ -187,6 +190,8 @@ function Router() {
               <Route path="/purchase" component={PurchaseFlowPage} />
               <Route path="/purchases" component={PurchasesPage} />
               <Route path="/purchase/:tier" component={PurchaseTierPage} />
+              <Route path="/payment-success" component={PaymentSuccessPage} />
+              <Route path="/payment-cancel" component={PaymentCancelPage} />
 
               {/* Admin routes */}
               {user.role === "admin" && (
@@ -225,6 +230,9 @@ export default function App() {
         <ChatWidget />
         <StickyCTABar />
         <ProductTour autoStart={false} />
+        
+        {/* Stripe Test Mode Indicator */}
+        <StripeTestModeIndicator />
       </TooltipProvider>
     </QueryClientProvider>
   );

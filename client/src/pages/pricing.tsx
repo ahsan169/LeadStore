@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { PricingCard } from "@/components/PricingCard";
 import { useLocation } from "wouter";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Shield, Clock, Award, FileCheck, Waves, Droplets, CheckCircle2 } from "lucide-react";
 import type { ProductTier } from "@shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
@@ -12,9 +14,30 @@ import { ContactModal } from "@/components/modals/ContactModal";
 export default function PricingPage() {
   const [, setLocation] = useLocation();
   const [showContactModal, setShowContactModal] = useState(false);
+  const { toast } = useToast();
   
   const { data: tiers = [], isLoading } = useQuery<ProductTier[]>({
     queryKey: ["/api/tiers"],
+  });
+
+  // Create checkout session mutation
+  const createCheckoutSession = useMutation({
+    mutationFn: async (tier: string) => {
+      return apiRequest("POST", "/api/create-checkout-session", { tier });
+    },
+    onSuccess: (data: any) => {
+      if (data.checkoutUrl) {
+        // Redirect to Stripe Checkout
+        window.location.href = data.checkoutUrl;
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Payment Error",
+        description: error.message || "Failed to create checkout session. Please try again.",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleSelectTier = (tier: string) => {
@@ -22,9 +45,22 @@ export default function PricingPage() {
       // For Elite tier, open contact sales modal
       setShowContactModal(true);
     } else {
-      setLocation(`/purchase/${tier}`);
+      // Create checkout session for other tiers
+      createCheckoutSession.mutate(tier);
     }
   };
+
+  // Show loading state while fetching tiers
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/5 to-background">
+        <div className="text-center space-y-4">
+          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full mx-auto"></div>
+          <p className="text-lg text-muted-foreground">Loading pricing information...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/5 to-background">
