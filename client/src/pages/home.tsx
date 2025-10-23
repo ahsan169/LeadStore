@@ -16,6 +16,7 @@ import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useState } from "react";
+import type { User } from "@shared/schema";
 import {
   Shield,
   Zap,
@@ -225,7 +226,7 @@ export default function Home() {
   const [commissionRate, setCommissionRate] = useState(10);
 
   // Check if user is authenticated
-  const { data: user } = useQuery({ queryKey: ["/api/auth/me"] });
+  const { data: user } = useQuery<User>({ queryKey: ["/api/auth/me"] });
 
   // Login form
   const loginForm = useForm<z.infer<typeof loginSchema>>({
