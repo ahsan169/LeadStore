@@ -240,10 +240,40 @@ export class DbStorage implements IStorage {
   }
 
   async getAvailableLeadsByTier(tier: string, limit: number): Promise<Lead[]> {
+    // Map tier to quality score ranges
+    let minQuality: number;
+    let maxQuality: number;
+    
+    switch(tier) {
+      case 'gold':
+        minQuality = 60;
+        maxQuality = 69;
+        break;
+      case 'platinum':
+        minQuality = 70;
+        maxQuality = 79;
+        break;
+      case 'diamond':
+        minQuality = 80;
+        maxQuality = 100;
+        break;
+      default:
+        // If tier is not recognized, fallback to exact tier match
+        return db.select().from(leads)
+          .where(and(
+            eq(leads.sold, false),
+            eq(leads.tier, tier)
+          ))
+          .orderBy(desc(leads.qualityScore))
+          .limit(limit);
+    }
+    
+    // Filter by quality score range and availability
     return db.select().from(leads)
       .where(and(
         eq(leads.sold, false),
-        eq(leads.tier, tier)
+        gte(leads.qualityScore, minQuality),
+        lte(leads.qualityScore, maxQuality)
       ))
       .orderBy(desc(leads.qualityScore))
       .limit(limit);

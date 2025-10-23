@@ -10,7 +10,8 @@ import {
   AlertCircle, 
   AlertTriangle,
   TrendingUp,
-  Users
+  Users,
+  Sparkles
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,6 +42,7 @@ export default function UploadLeadsPage() {
   const [uploading, setUploading] = useState(false);
   const [batchId, setBatchId] = useState<string>('');
   const [summary, setSummary] = useState<UploadSummary | null>(null);
+  const [generatingTestLeads, setGeneratingTestLeads] = useState(false);
   const { toast } = useToast();
 
   const steps: WizardStep[] = ['upload', 'validate', 'process', 'complete'];
@@ -159,13 +161,82 @@ export default function UploadLeadsPage() {
     setSummary(null);
   };
 
+  const handleGenerateTestLeads = async () => {
+    setGeneratingTestLeads(true);
+    
+    try {
+      const response = await fetch('/api/admin/generate-test-leads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate test leads');
+      }
+
+      const data = await response.json();
+      
+      toast({
+        title: "Test leads generated successfully",
+        description: `Generated ${data.distribution.total} test leads (Gold: ${data.distribution.gold}, Platinum: ${data.distribution.platinum}, Diamond: ${data.distribution.diamond})`,
+      });
+
+      // Optionally redirect to batch details
+      if (data.batchId) {
+        setBatchId(data.batchId);
+        setSummary({
+          totalLeads: data.distribution.total,
+          averageQualityScore: parseFloat(data.distribution.averageQualityScore),
+          tierDistribution: {
+            gold: data.distribution.gold,
+            platinum: data.distribution.platinum,
+            diamond: data.distribution.diamond,
+          },
+          validationResults: {
+            total: data.distribution.total,
+            valid: data.distribution.total,
+            errors: [],
+            warnings: [],
+          },
+        });
+        setCurrentStep('complete');
+      }
+    } catch (error: any) {
+      console.error("Generate test leads error:", error);
+      toast({
+        title: "Failed to generate test leads",
+        description: error.message || "An error occurred while generating test leads",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingTestLeads(false);
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="heading-upload">
-          Upload Lead Batch
-        </h1>
-        <p className="text-muted-foreground">Upload and process new MCA leads</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold" data-testid="heading-upload">
+            Upload Lead Batch
+          </h1>
+          <p className="text-muted-foreground">Upload and process new MCA leads</p>
+        </div>
+        <Button
+          variant="outline"
+          size="lg"
+          onClick={handleGenerateTestLeads}
+          disabled={generatingTestLeads}
+          className="gap-2"
+          data-testid="button-generate-test-leads"
+        >
+          <Sparkles className="w-4 h-4" />
+          {generatingTestLeads ? "Generating..." : "Generate Test Leads"}
+        </Button>
       </div>
 
       {/* Progress Indicator */}
