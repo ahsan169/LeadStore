@@ -11,6 +11,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3Client, isObjectStorageConfigured } from "./object-storage.js";
 import multer from "multer";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import crypto from "crypto";
 import { 
   sendOrderConfirmation, 
@@ -166,10 +167,16 @@ const upload = multer({
     fileSize: 10 * 1024 * 1024, // 10MB limit
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+    const isCSV = file.mimetype === 'text/csv' || file.originalname.endsWith('.csv');
+    const isExcel = file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+                     file.mimetype === 'application/vnd.ms-excel' ||
+                     file.originalname.endsWith('.xlsx') ||
+                     file.originalname.endsWith('.xls');
+    
+    if (isCSV || isExcel) {
       cb(null, true);
     } else {
-      cb(new Error('Only CSV files are allowed'));
+      cb(new Error('Only CSV and Excel files are allowed'));
     }
   },
 });
@@ -299,7 +306,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV Upload route
+  // CSV/Excel Upload route
   app.post("/api/batches/upload", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
@@ -307,27 +314,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const file = req.file;
-      const csvContent = file.buffer.toString('utf-8');
-
-      // Parse CSV
-      const parseResult = Papa.parse(csvContent, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: (header: string) => header.trim(),
-      });
-
-      if (parseResult.errors.length > 0) {
-        return res.status(400).json({ 
-          error: "CSV parsing failed", 
-          details: parseResult.errors.map(e => e.message) 
+      let rows: any[] = [];
+      let headers: string[] = [];
+      
+      // Check file type and parse accordingly
+      const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
+      
+      if (isExcel) {
+        // Parse Excel file
+        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to JSON with header row
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          header: 1,
+          defval: '',
+          blankrows: false
+        }) as any[][];
+        
+        if (jsonData.length === 0) {
+          return res.status(400).json({ error: "Excel file is empty" });
+        }
+        
+        // Extract headers (first row)
+        headers = jsonData[0].map(h => String(h || '').trim());
+        
+        // Convert to array of objects
+        rows = jsonData.slice(1).map(row => {
+          const obj: any = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index] || '';
+          });
+          return obj;
         });
-      }
+      } else {
+        // Parse CSV
+        const csvContent = file.buffer.toString('utf-8');
+        const parseResult = Papa.parse(csvContent, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header: string) => header.trim(),
+        });
 
-      const rows = parseResult.data as any[];
+        if (parseResult.errors.length > 0) {
+          return res.status(400).json({ 
+            error: "CSV parsing failed", 
+            details: parseResult.errors.map(e => e.message) 
+          });
+        }
+
+        rows = parseResult.data as any[];
+        headers = parseResult.meta.fields || [];
+      }
 
       // Validate required columns
       const requiredColumns = ['businessName', 'ownerName', 'email', 'phone'];
-      const headers = parseResult.meta.fields || [];
       const missingColumns = requiredColumns.filter(col => 
         !headers.some(h => h.toLowerCase() === col.toLowerCase())
       );
