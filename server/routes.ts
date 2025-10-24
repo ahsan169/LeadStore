@@ -1306,6 +1306,11 @@ Format your response as JSON with the following structure:
         });
       }
       
+      // Get base URL for redirect - use Replit URL or fallback
+      const baseUrl = process.env.REPLIT_DOMAINS ? 
+        `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 
+        req.headers.origin || `http://localhost:${PORT}`;
+      
       // Create Stripe checkout session
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
@@ -1327,8 +1332,8 @@ Format your response as JSON with the following structure:
           },
         ],
         mode: 'payment',
-        success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${req.headers.origin}/payment-cancel`,
+        success_url: `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/payment-cancel`,
         metadata: {
           userId: req.user!.id,
           tier,
