@@ -1034,6 +1034,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(existingInsight);
       }
 
+      // Check if OpenAI is configured
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey || apiKey === 'default') {
+        // Return a default analysis when OpenAI is not configured
+        const qualityLevel = lead.qualityScore >= 80 ? 'High' : lead.qualityScore >= 60 ? 'Medium' : 'Low';
+        const defaultInsight = {
+          batchId: lead.batchId,
+          executiveSummary: `Lead quality score: ${lead.qualityScore}/100 (${qualityLevel}). This ${lead.businessName} lead shows ${qualityLevel.toLowerCase()} conversion potential.`,
+          segments: {
+            leadId: req.params.leadId,
+            qualityAssessment: `Quality Score: ${lead.qualityScore}/100. This lead is classified as ${qualityLevel} quality based on available data points.`,
+            riskAnalysis: "Standard risk profile. Verify business details and financial history before proceeding with offer.",
+            offerStructure: lead.qualityScore >= 80 ? "$25,000 - $75,000 at 1.2-1.3 factor rate" : lead.qualityScore >= 60 ? "$10,000 - $30,000 at 1.3-1.4 factor rate" : "$5,000 - $15,000 at 1.4-1.5 factor rate",
+            outreachStrategy: "Initial phone contact during business hours (10am-4pm local time), followed by email with proposal. Emphasize quick funding and flexible terms.",
+            competitivePositioning: "Highlight: 24-48 hour funding, no collateral required, flexible repayment based on revenue, dedicated support team.",
+            followUpTimeline: "Day 1: Initial call. Day 2: Email follow-up. Day 4: Second call. Day 7: Check-in email. Day 14: Final follow-up.",
+            keySellingPoints: "Fast approval process, revenue-based repayment, no personal guarantee required, transparent terms.",
+          },
+          riskFlags: [],
+          outreachAngles: ["Quick funding solution", "Growth capital", "Working capital needs"],
+          generatedBy: "default",
+          createdAt: new Date(),
+        };
+        
+        // Save default analysis
+        const savedInsight = await storage.createAiInsight(defaultInsight);
+        return res.json(savedInsight);
+      }
+
       // Generate AI analysis for the individual lead
       const prompt = `Analyze this MCA (Merchant Cash Advance) lead and provide actionable insights:
 
@@ -1059,46 +1088,72 @@ Provide a comprehensive analysis including:
 6. Follow-up Timeline: Recommended cadence for follow-ups
 7. Key Selling Points: What aspects of this lead make them attractive for MCA funding`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert MCA (Merchant Cash Advance) analyst. Provide detailed, actionable insights for sales teams."
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert MCA (Merchant Cash Advance) analyst. Provide detailed, actionable insights for sales teams."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 1500,
+        });
+
+        const analysisText = completion.choices[0].message.content;
+
+        // Structure the analysis
+        const sections = analysisText?.split(/\d+\.\s+/).filter(Boolean) || [];
+        
+        const insight = await storage.createAiInsight({
+          batchId: lead.batchId,
+          executiveSummary: sections[0] || analysisText,
+          segments: {
+            leadId: req.params.leadId,
+            qualityAssessment: sections[1] || '',
+            riskAnalysis: sections[2] || '',
+            offerStructure: sections[3] || '',
+            outreachStrategy: sections[4] || '',
+            competitivePositioning: sections[5] || '',
+            followUpTimeline: sections[6] || '',
+            keySellingPoints: sections[7] || '',
           },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-      });
+          riskFlags: [],
+          outreachAngles: [],
+          generatedBy: "openai",
+        });
 
-      const analysisText = completion.choices[0].message.content;
-
-      // Structure the analysis
-      const sections = analysisText?.split(/\d+\.\s+/).filter(Boolean) || [];
-      
-      const insight = await storage.createAiInsight({
-        batchId: lead.batchId,
-        executiveSummary: sections[0] || analysisText,
-        segments: {
-          leadId: req.params.leadId,
-          qualityAssessment: sections[1] || '',
-          riskAnalysis: sections[2] || '',
-          offerStructure: sections[3] || '',
-          outreachStrategy: sections[4] || '',
-          competitivePositioning: sections[5] || '',
-          followUpTimeline: sections[6] || '',
-          keySellingPoints: sections[7] || '',
-        },
-        riskFlags: [],
-        outreachAngles: [],
-        generatedBy: "openai",
-      });
-
-      res.json(insight);
+        res.json(insight);
+      } catch (openAiError) {
+        console.error("OpenAI API error:", openAiError);
+        
+        // Fallback to default analysis on OpenAI error
+        const qualityLevel = lead.qualityScore >= 80 ? 'High' : lead.qualityScore >= 60 ? 'Medium' : 'Low';
+        const fallbackInsight = await storage.createAiInsight({
+          batchId: lead.batchId,
+          executiveSummary: `Analysis temporarily unavailable. Lead quality: ${qualityLevel} (${lead.qualityScore}/100).`,
+          segments: {
+            leadId: req.params.leadId,
+            qualityAssessment: `Quality Score: ${lead.qualityScore}/100 (${qualityLevel})`,
+            riskAnalysis: "Manual risk assessment recommended.",
+            offerStructure: "Standard MCA terms apply.",
+            outreachStrategy: "Use standard outreach protocol.",
+            competitivePositioning: "Focus on speed and flexibility.",
+            followUpTimeline: "Standard follow-up schedule.",
+            keySellingPoints: "Fast funding, flexible terms, dedicated support.",
+          },
+          riskFlags: [],
+          outreachAngles: [],
+          generatedBy: "fallback",
+        });
+        
+        res.json(fallbackInsight);
+      }
     } catch (error) {
       console.error("Lead analysis error:", error);
       res.status(500).json({ error: "Failed to analyze lead" });
