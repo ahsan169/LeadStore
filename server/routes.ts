@@ -46,7 +46,7 @@ const PRICING = {
 const COLUMN_MAPPINGS = {
   businessName: [
     'businessname', 'business name', 'business_name', 'business-name',
-    'company name', 'companyname', 'company_name', 'company-name',
+    'company name', 'companyname', 'company_name', 'company-name', 
     'company', 'business', 'dba', 'legal name', 'legal_name',
     'firm name', 'firm_name', 'organization', 'corp', 'corporation',
     'enterprise', 'establishment', 'vendor', 'merchant', 'merchant name'
@@ -211,9 +211,17 @@ function mapColumnToField(columnName: string): string | null {
     .replace(/[\s\-_\.]+/g, ' ')  // Replace separators with space
     .replace(/\s+/g, ' ');  // Remove multiple spaces
   
+  // Debug logging for specific problematic columns
+  if (columnName.toLowerCase().includes('company') || columnName.toLowerCase().includes('owner')) {
+    console.log(`Mapping column "${columnName}" -> normalized: "${normalized}"`);
+  }
+  
   // Check exact matches first
   for (const [field, patterns] of Object.entries(COLUMN_MAPPINGS)) {
     if (patterns.includes(normalized)) {
+      if (columnName.toLowerCase().includes('company') || columnName.toLowerCase().includes('owner')) {
+        console.log(`  -> Matched to field: ${field}`);
+      }
       return field;
     }
   }
@@ -443,14 +451,18 @@ function normalizeLeadData(row: any, debug: boolean = false): any {
 
 /**
  * Check if required fields are present in normalized data
+ * More lenient validation: needs business name OR (email + phone) OR (owner + phone)
  */
 function validateRequiredFields(normalizedData: any): { isValid: boolean, missing: string[], suggestions: string[] } {
-  const required = ['businessName', 'ownerName', 'email', 'phone'];
+  const allFields = ['businessName', 'ownerName', 'email', 'phone'];
   const missing: string[] = [];
   const suggestions: string[] = [];
+  const present: string[] = [];
   
-  for (const field of required) {
-    if (!normalizedData[field] || String(normalizedData[field]).trim() === '') {
+  for (const field of allFields) {
+    if (normalizedData[field] && String(normalizedData[field]).trim() !== '') {
+      present.push(field);
+    } else {
       missing.push(field);
       
       // Provide suggestions from unmapped fields
@@ -468,8 +480,24 @@ function validateRequiredFields(normalizedData: any): { isValid: boolean, missin
     }
   }
   
+  // More lenient validation logic:
+  // Valid if we have:
+  // 1. Business name (most important field)
+  // 2. OR email + phone (can identify/contact)
+  // 3. OR owner name + phone (can identify/contact)
+  // 4. OR at least 2 out of 4 fields present
+  const hasBusinessName = present.includes('businessName');
+  const hasEmail = present.includes('email');
+  const hasPhone = present.includes('phone');
+  const hasOwner = present.includes('ownerName');
+  
+  const isValid = hasBusinessName || 
+                  (hasEmail && hasPhone) || 
+                  (hasOwner && hasPhone) ||
+                  present.length >= 2;
+  
   return {
-    isValid: missing.length === 0,
+    isValid,
     missing,
     suggestions
   };

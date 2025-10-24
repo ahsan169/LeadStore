@@ -1,0 +1,4 @@
+company_name,industry,WEBSITE,owner_name,title,email,linkedin,phone1,phone2,city,state,UCC_date,MCA_score
+"ACME Corporation",construction,acme.com,"John Smith",CEO,john@acme.com,,555-1234,555-5678,Miami,FL,2024-01-15,85
+"Tech Solutions Inc",technology,techsol.com,"Jane Doe",President,jane@techsol.com,,555-9999,,New York,NY,2024-02-20,92
+"Restaurant Group LLC",restaurant,,,info@restaurant.com,,555-4444,555-5555,Los Angeles,CA,,78
