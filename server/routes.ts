@@ -42,6 +42,438 @@ const PRICING = {
   elite: { price: 0, leadsPerPurchase: 0 }, // Contact sales
 };
 
+// Comprehensive column mapping for flexible field detection
+const COLUMN_MAPPINGS = {
+  businessName: [
+    'businessname', 'business name', 'business_name', 'business-name',
+    'company name', 'companyname', 'company_name', 'company-name',
+    'company', 'business', 'dba', 'legal name', 'legal_name',
+    'firm name', 'firm_name', 'organization', 'corp', 'corporation',
+    'enterprise', 'establishment', 'vendor', 'merchant', 'merchant name'
+  ],
+  ownerName: [
+    'ownername', 'owner name', 'owner_name', 'owner-name',
+    'contact name', 'contactname', 'contact_name', 'contact-name',
+    'owner', 'contact', 'name', 'full name', 'full_name',
+    'contact person', 'primary contact', 'principal', 'proprietor',
+    'first name last name', 'firstname lastname', 'representative',
+    'manager', 'ceo', 'president', 'director', 'lead name'
+  ],
+  email: [
+    'email', 'e-mail', 'e_mail', 'email address', 'emailaddress',
+    'email_address', 'contact email', 'contactemail', 'contact_email',
+    'business email', 'businessemail', 'business_email', 'email id',
+    'emailid', 'mail', 'electronic mail', 'primary email'
+  ],
+  phone: [
+    'phone', 'phone number', 'phonenumber', 'phone_number', 'phone-number',
+    'telephone', 'tel', 'mobile', 'cell', 'cell phone', 'cellphone',
+    'mobile number', 'mobile_number', 'contact number', 'contactnumber',
+    'contact_number', 'business phone', 'businessphone', 'business_phone',
+    'primary phone', 'main phone', 'office phone', 'work phone',
+    'contact phone', 'contactphone', 'tel no', 'tel_no', 'phone no'
+  ],
+  industry: [
+    'industry', 'business type', 'businesstype', 'business_type',
+    'sector', 'category', 'vertical', 'business category', 
+    'business_category', 'type', 'sic', 'naics', 'trade',
+    'line of business', 'business sector', 'industry type'
+  ],
+  annualRevenue: [
+    'annualrevenue', 'annual revenue', 'annual_revenue', 'annual-revenue',
+    'revenue', 'yearly revenue', 'yearlyrevenue', 'yearly_revenue',
+    'annual sales', 'annualsales', 'annual_sales', 'sales',
+    'gross revenue', 'grossrevenue', 'gross_revenue', 'gross sales',
+    'grosssales', 'gross_sales', 'monthly revenue', 'monthlyrevenue',
+    'monthly_revenue', 'monthly sales', 'monthlysales', 'monthly_sales',
+    'yearly sales', 'yearlysales', 'yearly_sales', 'total revenue',
+    'annual income', 'yearly income', 'business revenue'
+  ],
+  requestedAmount: [
+    'requestedamount', 'requested amount', 'requested_amount', 'requested-amount',
+    'amount', 'funding amount', 'fundingamount', 'funding_amount',
+    'loan amount', 'loanamount', 'loan_amount', 'amount requested',
+    'amountrequested', 'amount_requested', 'advance amount', 'advanceamount',
+    'advance_amount', 'amount needed', 'amountneeded', 'amount_needed',
+    'funding requested', 'capital needed', 'financing amount', 'desired amount'
+  ],
+  timeInBusiness: [
+    'timeinbusiness', 'time in business', 'time_in_business', 'time-in-business',
+    'years in business', 'yearsinbusiness', 'years_in_business',
+    'business age', 'businessage', 'business_age', 'established',
+    'months in business', 'monthsinbusiness', 'months_in_business',
+    'years established', 'yearsestablished', 'years_established',
+    'establishment date', 'time established', 'company age',
+    'operating since', 'years operating', 'business established'
+  ],
+  creditScore: [
+    'creditscore', 'credit score', 'credit_score', 'credit-score',
+    'fico', 'fico score', 'ficoscore', 'fico_score', 'credit rating',
+    'creditrating', 'credit_rating', 'score', 'personal credit',
+    'personal credit score', 'personalcreditscore', 'personal_credit_score',
+    'credit', 'fico rating', 'credit points', 'owner credit score'
+  ],
+  stateCode: [
+    'statecode', 'state code', 'state_code', 'state-code',
+    'state', 'location', 'region', 'province', 'state abbreviation',
+    'stateabbreviation', 'state_abbreviation', 'us state', 'usstate',
+    'us_state', 'business state', 'businessstate', 'business_state',
+    'address state', 'addressstate', 'address_state'
+  ],
+  address: [
+    'address', 'street address', 'streetaddress', 'street_address',
+    'street', 'business address', 'businessaddress', 'business_address',
+    'location address', 'address1', 'address 1', 'address_1',
+    'street1', 'street 1', 'street_1', 'main address', 'physical address'
+  ],
+  city: [
+    'city', 'town', 'municipality', 'business city', 'businesscity',
+    'business_city', 'location city', 'address city', 'addresscity',
+    'address_city'
+  ],
+  zipCode: [
+    'zipcode', 'zip code', 'zip_code', 'zip-code', 'zip',
+    'postal code', 'postalcode', 'postal_code', 'postcode',
+    'post code', 'post_code', 'business zip', 'businesszip',
+    'business_zip', 'address zip', 'addresszip', 'address_zip'
+  ],
+  website: [
+    'website', 'web site', 'website url', 'websiteurl', 'website_url',
+    'url', 'web', 'web address', 'webaddress', 'web_address',
+    'company website', 'companywebsite', 'company_website',
+    'business website', 'businesswebsite', 'business_website',
+    'homepage', 'home page', 'site'
+  ],
+  ein: [
+    'ein', 'tax id', 'taxid', 'tax_id', 'federal tax id',
+    'federaltaxid', 'federal_tax_id', 'employer identification number',
+    'employer id', 'employerid', 'employer_id', 'fein', 'tax number',
+    'taxnumber', 'tax_number', 'business tax id'
+  ],
+  sicCode: [
+    'siccode', 'sic code', 'sic_code', 'sic-code', 'sic',
+    'standard industrial classification', 'industry code', 'industrycode',
+    'industry_code'
+  ],
+  naicsCode: [
+    'naicscode', 'naics code', 'naics_code', 'naics-code', 'naics',
+    'north american industry classification', 'industry classification'
+  ],
+  fax: [
+    'fax', 'fax number', 'faxnumber', 'fax_number', 'fax no',
+    'faxno', 'fax_no', 'facsimile', 'business fax', 'businessfax',
+    'business_fax'
+  ],
+  dailyBankDeposits: [
+    'dailybankdeposits', 'daily bank deposits', 'daily_bank_deposits',
+    'daily deposits', 'dailydeposits', 'daily_deposits', 'bank deposits',
+    'bankdeposits', 'bank_deposits', 'average daily deposits',
+    'daily banking', 'avg daily deposits'
+  ],
+  previousMCAHistory: [
+    'previousmcahistory', 'previous mca history', 'previous_mca_history',
+    'mca history', 'mcahistory', 'mca_history', 'prior mca', 'priormca',
+    'prior_mca', 'existing mca', 'existingmca', 'existing_mca',
+    'past mca', 'pastmca', 'past_mca', 'mca experience', 'advance history',
+    'previous advance', 'cash advance history'
+  ],
+  urgencyLevel: [
+    'urgencylevel', 'urgency level', 'urgency_level', 'urgency',
+    'timeline', 'need level', 'needlevel', 'need_level', 'priority',
+    'funding urgency', 'fundingurgency', 'funding_urgency',
+    'how soon', 'timeframe', 'time frame', 'time_frame', 'when needed'
+  ],
+  exclusivityStatus: [
+    'exclusivitystatus', 'exclusivity status', 'exclusivity_status',
+    'exclusivity', 'exclusive', 'lead exclusivity', 'leadexclusivity',
+    'lead_exclusivity', 'exclusive lead', 'exclusivelead', 'exclusive_lead'
+  ],
+  monthlyRevenue: [
+    'monthlyrevenue', 'monthly revenue', 'monthly_revenue', 'monthly-revenue',
+    'monthly sales', 'monthlysales', 'monthly_sales', 'monthly gross',
+    'monthlygross', 'monthly_gross', 'avg monthly revenue', 'average monthly revenue',
+    'monthly income', 'monthlyincome', 'monthly_income'
+  ]
+};
+
+/**
+ * Flexible column mapper that handles case-insensitive matching,
+ * partial matching, and various formats
+ */
+function mapColumnToField(columnName: string): string | null {
+  if (!columnName) return null;
+  
+  // Normalize the column name: lowercase, remove extra spaces, replace separators
+  const normalized = columnName
+    .toLowerCase()
+    .trim()
+    .replace(/[\s\-_\.]+/g, ' ')  // Replace separators with space
+    .replace(/\s+/g, ' ');  // Remove multiple spaces
+  
+  // Check exact matches first
+  for (const [field, patterns] of Object.entries(COLUMN_MAPPINGS)) {
+    if (patterns.includes(normalized)) {
+      return field;
+    }
+  }
+  
+  // Check if column contains any of the patterns (partial matching)
+  for (const [field, patterns] of Object.entries(COLUMN_MAPPINGS)) {
+    for (const pattern of patterns) {
+      // Check if the normalized column contains the pattern
+      if (normalized.includes(pattern) || pattern.includes(normalized)) {
+        return field;
+      }
+      
+      // Check word-based matching (all words from pattern exist in column)
+      const patternWords = pattern.split(' ').filter(w => w.length > 2);
+      const columnWords = normalized.split(' ').filter(w => w.length > 2);
+      
+      if (patternWords.length > 0 && patternWords.every(w => columnWords.includes(w))) {
+        return field;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Parse Excel file with better error handling and edge case support
+ */
+function parseExcelFile(buffer: Buffer, filename: string): { rows: any[], headers: string[] } {
+  try {
+    const workbook = XLSX.read(buffer, { 
+      type: 'buffer',
+      cellDates: true,  // Parse dates properly
+      cellFormula: false,  // Don't evaluate formulas, just get values
+      cellNF: false,
+      cellStyles: false,
+      cellText: false,
+      raw: false  // Get formatted values
+    });
+    
+    // Find the first sheet with data
+    let worksheet = null;
+    let sheetName = '';
+    
+    for (const name of workbook.SheetNames) {
+      const sheet = workbook.Sheets[name];
+      const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+      
+      // Check if sheet has data (more than just headers)
+      if (range.e.r > 0) {
+        worksheet = sheet;
+        sheetName = name;
+        break;
+      }
+    }
+    
+    if (!worksheet) {
+      throw new Error('No sheets with data found in Excel file');
+    }
+    
+    console.log(`Using sheet: ${sheetName}`);
+    
+    // Convert to JSON with header row
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+      header: 1,
+      defval: '',
+      blankrows: false,
+      raw: false,  // Get formatted values
+      dateNF: 'yyyy-mm-dd'
+    }) as any[][];
+    
+    if (jsonData.length === 0) {
+      throw new Error('Excel file has no data rows');
+    }
+    
+    // Extract headers (first non-empty row)
+    let headerRowIndex = 0;
+    let headers: string[] = [];
+    
+    for (let i = 0; i < Math.min(jsonData.length, 10); i++) {
+      const row = jsonData[i];
+      const nonEmptyCells = row.filter(cell => cell !== null && cell !== undefined && String(cell).trim() !== '');
+      
+      // If this row has more than 3 non-empty cells, consider it as header
+      if (nonEmptyCells.length > 3) {
+        headers = row.map(h => String(h || '').trim()).filter(h => h !== '');
+        headerRowIndex = i;
+        break;
+      }
+    }
+    
+    if (headers.length === 0) {
+      throw new Error('No valid headers found in Excel file');
+    }
+    
+    // Convert to array of objects, skipping empty rows
+    const rows: any[] = [];
+    
+    for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      
+      // Skip empty rows
+      const nonEmptyCells = row.filter(cell => cell !== null && cell !== undefined && String(cell).trim() !== '');
+      if (nonEmptyCells.length === 0) continue;
+      
+      const obj: any = {};
+      let hasData = false;
+      
+      headers.forEach((header, index) => {
+        const value = row[index];
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          obj[header] = String(value).trim();
+          hasData = true;
+        }
+      });
+      
+      if (hasData) {
+        rows.push(obj);
+      }
+    }
+    
+    return { rows, headers };
+  } catch (error) {
+    console.error('Excel parsing error:', error);
+    throw error;
+  }
+}
+
+/**
+ * Parse CSV file with multiple encoding support
+ */
+function parseCSVFile(buffer: Buffer, filename: string): { rows: any[], headers: string[] } {
+  // Try different encodings
+  const encodings = ['utf-8', 'latin1', 'windows-1252', 'utf-16'];
+  let csvContent: string = '';
+  let usedEncoding = '';
+  
+  for (const encoding of encodings) {
+    try {
+      csvContent = buffer.toString(encoding as BufferEncoding);
+      
+      // Quick validation - check if content looks reasonable
+      if (csvContent.includes('\n') && !csvContent.includes('�')) {
+        usedEncoding = encoding;
+        break;
+      }
+    } catch (e) {
+      continue;
+    }
+  }
+  
+  if (!csvContent) {
+    csvContent = buffer.toString('utf-8');
+    usedEncoding = 'utf-8 (fallback)';
+  }
+  
+  console.log(`Parsing CSV with encoding: ${usedEncoding}`);
+  
+  const parseResult = Papa.parse(csvContent, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (header: string) => header.trim(),
+    dynamicTyping: false,  // Keep everything as strings for consistency
+    delimitersToGuess: [',', '\t', '|', ';', Papa.RECORD_SEP, Papa.UNIT_SEP]
+  });
+  
+  if (parseResult.errors.length > 0) {
+    // Log errors but try to continue if we have some data
+    console.warn('CSV parsing warnings:', parseResult.errors);
+    
+    if (!parseResult.data || parseResult.data.length === 0) {
+      throw new Error('CSV parsing failed: ' + parseResult.errors.map(e => e.message).join(', '));
+    }
+  }
+  
+  const rows = parseResult.data as any[];
+  const headers = parseResult.meta.fields || [];
+  
+  return { rows, headers };
+}
+
+/**
+ * Normalize and map lead data with flexible column detection
+ */
+function normalizeLeadData(row: any, debug: boolean = false): any {
+  const normalized: any = {};
+  const unmappedFields: any = {};
+  
+  for (const [originalKey, value] of Object.entries(row)) {
+    if (!value || String(value).trim() === '') continue;
+    
+    const mappedField = mapColumnToField(originalKey);
+    
+    if (mappedField) {
+      // Special handling for boolean fields
+      if (mappedField === 'dailyBankDeposits') {
+        const strValue = String(value).toLowerCase();
+        normalized[mappedField] = strValue === 'true' || strValue === 'yes' || 
+                                  strValue === '1' || strValue === 'y';
+      } else {
+        normalized[mappedField] = String(value).trim();
+      }
+    } else {
+      // Keep unmapped fields for potential use
+      unmappedFields[originalKey] = value;
+    }
+  }
+  
+  // Set defaults for optional fields
+  normalized.previousMCAHistory = normalized.previousMCAHistory || 'none';
+  normalized.urgencyLevel = normalized.urgencyLevel || 'exploring';
+  normalized.exclusivityStatus = normalized.exclusivityStatus || 'non_exclusive';
+  normalized.leadAge = normalized.leadAge || 0;
+  
+  if (debug) {
+    console.log('Column mapping result:', {
+      mapped: Object.keys(normalized),
+      unmapped: Object.keys(unmappedFields)
+    });
+  }
+  
+  // Include unmapped fields as additional data
+  normalized._unmapped = unmappedFields;
+  
+  return normalized;
+}
+
+/**
+ * Check if required fields are present in normalized data
+ */
+function validateRequiredFields(normalizedData: any): { isValid: boolean, missing: string[], suggestions: string[] } {
+  const required = ['businessName', 'ownerName', 'email', 'phone'];
+  const missing: string[] = [];
+  const suggestions: string[] = [];
+  
+  for (const field of required) {
+    if (!normalizedData[field] || String(normalizedData[field]).trim() === '') {
+      missing.push(field);
+      
+      // Provide suggestions from unmapped fields
+      if (normalizedData._unmapped) {
+        const unmappedKeys = Object.keys(normalizedData._unmapped);
+        const fieldPatterns = COLUMN_MAPPINGS[field] || [];
+        
+        for (const key of unmappedKeys) {
+          const normalizedKey = key.toLowerCase();
+          if (fieldPatterns.some(p => normalizedKey.includes(p) || p.includes(normalizedKey))) {
+            suggestions.push(`Column "${key}" might contain ${field} data`);
+          }
+        }
+      }
+    }
+  }
+  
+  return {
+    isValid: missing.length === 0,
+    missing,
+    suggestions
+  };
+}
+
 // Enhanced MCA Lead Scoring Algorithm
 function calculateMCAQualityScore(lead: any): number {
   let score = 0;
@@ -382,76 +814,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const file = req.file;
+      
+      // Debug logging
+      console.log('File received:', file.originalname, file.mimetype, file.size);
+      
       let rows: any[] = [];
       let headers: string[] = [];
       
-      // Check file type and parse accordingly
+      // Parse file based on type
       const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
       
-      if (isExcel) {
-        // Parse Excel file
-        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Convert to JSON with header row
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-          header: 1,
-          defval: '',
-          blankrows: false
-        }) as any[][];
-        
-        if (jsonData.length === 0) {
-          return res.status(400).json({ error: "Excel file is empty" });
+      try {
+        if (isExcel) {
+          const result = parseExcelFile(file.buffer, file.originalname);
+          rows = result.rows;
+          headers = result.headers;
+        } else {
+          const result = parseCSVFile(file.buffer, file.originalname);
+          rows = result.rows;
+          headers = result.headers;
         }
-        
-        // Extract headers (first row)
-        headers = jsonData[0].map(h => String(h || '').trim());
-        
-        // Convert to array of objects
-        rows = jsonData.slice(1).map(row => {
-          const obj: any = {};
-          headers.forEach((header, index) => {
-            obj[header] = row[index] || '';
-          });
-          return obj;
-        });
-      } else {
-        // Parse CSV
-        const csvContent = file.buffer.toString('utf-8');
-        const parseResult = Papa.parse(csvContent, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (header: string) => header.trim(),
-        });
-
-        if (parseResult.errors.length > 0) {
-          return res.status(400).json({ 
-            error: "CSV parsing failed", 
-            details: parseResult.errors.map(e => e.message) 
-          });
-        }
-
-        rows = parseResult.data as any[];
-        headers = parseResult.meta.fields || [];
-      }
-
-      // Validate required columns
-      const requiredColumns = ['businessName', 'ownerName', 'email', 'phone'];
-      const missingColumns = requiredColumns.filter(col => 
-        !headers.some(h => h.toLowerCase() === col.toLowerCase())
-      );
-
-      if (missingColumns.length > 0) {
+      } catch (parseError: any) {
+        console.error('File parsing error:', parseError);
         return res.status(400).json({ 
-          error: "Missing required columns", 
-          missingColumns 
+          error: "Failed to parse file", 
+          details: parseError.message,
+          headers: headers
         });
       }
+      
+      console.log('Headers found:', headers);
+      console.log('Total rows:', rows.length);
+      if (rows.length > 0) {
+        console.log('Sample row:', rows[0]);
+      }
+      
+      // Normalize all rows first
+      const normalizedRows = rows.map((row, index) => {
+        return normalizeLeadData(row, index === 0); // Debug first row only
+      });
+      
+      // Check if we have required fields across all normalized rows
+      const firstValidRow = normalizedRows.find(row => {
+        const validation = validateRequiredFields(row);
+        return validation.isValid;
+      });
+      
+      if (!firstValidRow) {
+        // No valid rows found - provide detailed error
+        const firstRowValidation = normalizedRows[0] ? validateRequiredFields(normalizedRows[0]) : null;
+        
+        return res.status(400).json({ 
+          error: "Required fields could not be mapped from the uploaded file",
+          details: "The file must contain columns that can be mapped to: Business Name, Owner Name, Email, and Phone",
+          headersFound: headers,
+          missingFields: firstRowValidation?.missing || [],
+          suggestions: firstRowValidation?.suggestions || [],
+          hint: "Column names are matched flexibly. For example, 'Company Name', 'Business', 'DBA' all map to Business Name"
+        });
+      }
+      
+      console.log('Column mappings applied:', Object.keys(firstValidRow));
 
       // Process and validate leads
       const validationResults = {
-        total: rows.length,
+        total: normalizedRows.length,
         valid: 0,
         errors: [] as any[],
         warnings: [] as any[],
@@ -460,91 +887,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validLeads: any[] = [];
       const leadHashes = new Set<string>();
 
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
+      for (let i = 0; i < normalizedRows.length; i++) {
+        const normalizedRow = normalizedRows[i];
         const rowNum = i + 2; // +2 for header and 0-index
 
-        // Normalize column names with flexible mapping
-        const normalizedRow: any = {};
-        for (const key in row) {
-          const lowerKey = key.toLowerCase().replace(/[_\-]/g, ' ').trim();
-          const value = row[key];
-          
-          // Business Name variations
-          if (lowerKey === 'businessname' || lowerKey === 'business name' || lowerKey === 'company name' || 
-              lowerKey === 'company' || lowerKey === 'dba' || lowerKey === 'business') {
-            normalizedRow.businessName = value;
-          }
-          // Owner Name variations
-          else if (lowerKey === 'ownername' || lowerKey === 'owner name' || lowerKey === 'contact name' || 
-                   lowerKey === 'owner' || lowerKey === 'contact' || lowerKey === 'name' || lowerKey === 'full name') {
-            normalizedRow.ownerName = normalizedRow.ownerName || value;
-          }
-          // Email variations
-          else if (lowerKey === 'email' || lowerKey === 'email address' || lowerKey === 'e mail') {
-            normalizedRow.email = value;
-          }
-          // Phone variations
-          else if (lowerKey === 'phone' || lowerKey === 'phone number' || lowerKey === 'telephone' || 
-                   lowerKey === 'mobile' || lowerKey === 'cell' || lowerKey === 'contact number') {
-            normalizedRow.phone = value;
-          }
-          // Industry variations
-          else if (lowerKey === 'industry' || lowerKey === 'business type' || lowerKey === 'sector' || lowerKey === 'category') {
-            normalizedRow.industry = value;
-          }
-          // Revenue variations
-          else if (lowerKey === 'annualrevenue' || lowerKey === 'annual revenue' || lowerKey === 'revenue' || 
-                   lowerKey === 'annual sales' || lowerKey === 'yearly revenue' || lowerKey === 'gross revenue') {
-            normalizedRow.annualRevenue = value;
-          }
-          // Requested Amount variations
-          else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount' || lowerKey === 'amount' || 
-                   lowerKey === 'funding amount' || lowerKey === 'loan amount' || lowerKey === 'amount requested') {
-            normalizedRow.requestedAmount = value;
-          }
-          // Time in Business variations
-          else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business' || lowerKey === 'years in business' || 
-                   lowerKey === 'business age' || lowerKey === 'established') {
-            normalizedRow.timeInBusiness = value;
-          }
-          // Credit Score variations
-          else if (lowerKey === 'creditscore' || lowerKey === 'credit score' || lowerKey === 'fico' || 
-                   lowerKey === 'fico score' || lowerKey === 'credit rating') {
-            normalizedRow.creditScore = value;
-          }
-          // Daily Bank Deposits variations
-          else if (lowerKey === 'dailybankdeposits' || lowerKey === 'daily bank deposits' || lowerKey === 'daily deposits' || 
-                   lowerKey === 'bank deposits') {
-            normalizedRow.dailyBankDeposits = value?.toLowerCase() === 'true' || value?.toLowerCase() === 'yes' || value === '1';
-          }
-          // Previous MCA History variations
-          else if (lowerKey === 'previousmcahistory' || lowerKey === 'previous mca history' || lowerKey === 'mca history' || 
-                   lowerKey === 'prior mca' || lowerKey === 'existing mca') {
-            normalizedRow.previousMCAHistory = value || 'none';
-          }
-          // Urgency Level variations
-          else if (lowerKey === 'urgencylevel' || lowerKey === 'urgency level' || lowerKey === 'urgency' || 
-                   lowerKey === 'timeline' || lowerKey === 'need level') {
-            normalizedRow.urgencyLevel = value || 'exploring';
-          }
-          // State variations
-          else if (lowerKey === 'statecode' || lowerKey === 'state code' || lowerKey === 'state' || 
-                   lowerKey === 'location' || lowerKey === 'region') {
-            normalizedRow.stateCode = value;
-          }
-          // Exclusivity Status variations
-          else if (lowerKey === 'exclusivitystatus' || lowerKey === 'exclusivity status' || lowerKey === 'exclusivity' || 
-                   lowerKey === 'exclusive') {
-            normalizedRow.exclusivityStatus = value || 'non_exclusive';
-          }
-        }
-
         // Validate required fields
-        if (!normalizedRow.businessName || !normalizedRow.ownerName || !normalizedRow.email || !normalizedRow.phone) {
+        const validation = validateRequiredFields(normalizedRow);
+        if (!validation.isValid) {
           validationResults.errors.push({
             row: rowNum,
-            error: "Missing required fields",
+            error: "Missing required fields: " + validation.missing.join(', '),
+            missingFields: validation.missing,
+            suggestions: validation.suggestions,
             data: normalizedRow,
           });
           continue;
@@ -693,112 +1047,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const file = req.file;
+      
+      // Debug logging
+      console.log('Verify-upload file received:', file.originalname, file.mimetype, file.size);
+      
       let rows: any[] = [];
       let headers: string[] = [];
       
-      // Parse file (same as upload route)
+      // Parse file using improved parsing
       const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
       
-      if (isExcel) {
-        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-          header: 1,
-          defval: '',
-          blankrows: false
-        }) as any[][];
-        
-        if (jsonData.length === 0) {
-          return res.status(400).json({ error: "Excel file is empty" });
+      try {
+        if (isExcel) {
+          const result = parseExcelFile(file.buffer, file.originalname);
+          rows = result.rows;
+          headers = result.headers;
+        } else {
+          const result = parseCSVFile(file.buffer, file.originalname);
+          rows = result.rows;
+          headers = result.headers;
         }
-        
-        headers = jsonData[0].map(h => String(h || '').trim());
-        rows = jsonData.slice(1).map(row => {
-          const obj: any = {};
-          headers.forEach((header, index) => {
-            obj[header] = row[index] || '';
-          });
-          return obj;
-        });
-      } else {
-        const csvContent = file.buffer.toString('utf-8');
-        const parseResult = Papa.parse(csvContent, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (header: string) => header.trim(),
-        });
-
-        if (parseResult.errors.length > 0) {
-          return res.status(400).json({ 
-            error: "CSV parsing failed", 
-            details: parseResult.errors.map(e => e.message) 
-          });
-        }
-
-        rows = parseResult.data as any[];
-        headers = parseResult.meta.fields || [];
-      }
-
-      // Validate required columns
-      const requiredColumns = ['businessName', 'ownerName', 'email', 'phone'];
-      const missingColumns = requiredColumns.filter(col => 
-        !headers.some(h => h.toLowerCase() === col.toLowerCase())
-      );
-
-      if (missingColumns.length > 0) {
+      } catch (parseError: any) {
+        console.error('Verification file parsing error:', parseError);
         return res.status(400).json({ 
-          error: "Missing required columns", 
-          missingColumns 
+          error: "Failed to parse file", 
+          details: parseError.message,
+          headers: headers
         });
       }
-
-      // Normalize lead data (same mapping logic)
-      const normalizedLeads = rows.map(row => {
-        const normalizedRow: any = {};
-        for (const key in row) {
-          const lowerKey = key.toLowerCase().replace(/[_\-]/g, ' ').trim();
-          const value = row[key];
-          
-          // Apply same field mapping as upload route
-          if (lowerKey === 'businessname' || lowerKey === 'business name' || lowerKey === 'company name' || 
-              lowerKey === 'company' || lowerKey === 'dba' || lowerKey === 'business') {
-            normalizedRow.businessName = value;
-          } else if (lowerKey === 'ownername' || lowerKey === 'owner name' || lowerKey === 'owner' || 
-                     lowerKey === 'contact name' || lowerKey === 'contact' || lowerKey === 'name') {
-            normalizedRow.ownerName = value;
-          } else if (lowerKey === 'email' || lowerKey === 'emailaddress' || lowerKey === 'email address' || 
-                     lowerKey === 'e-mail' || lowerKey === 'contact email') {
-            normalizedRow.email = value;
-          } else if (lowerKey === 'phone' || lowerKey === 'phonenumber' || lowerKey === 'phone number' || 
-                     lowerKey === 'telephone' || lowerKey === 'tel' || lowerKey === 'mobile' || 
-                     lowerKey === 'cell' || lowerKey === 'contact phone') {
-            normalizedRow.phone = value;
-          } else if (lowerKey === 'industry' || lowerKey === 'business type' || lowerKey === 'sector' || 
-                     lowerKey === 'vertical' || lowerKey === 'category') {
-            normalizedRow.industry = value;
-          } else if (lowerKey === 'annualrevenue' || lowerKey === 'annual revenue' || lowerKey === 'revenue' || 
-                     lowerKey === 'yearly revenue' || lowerKey === 'annual sales' || lowerKey === 'sales') {
-            normalizedRow.annualRevenue = value;
-          } else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount' || lowerKey === 'amount' || 
-                     lowerKey === 'funding amount' || lowerKey === 'loan amount' || lowerKey === 'advance amount') {
-            normalizedRow.requestedAmount = value;
-          } else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business' || lowerKey === 'years in business' || 
-                     lowerKey === 'business age' || lowerKey === 'months in business' || lowerKey === 'established') {
-            normalizedRow.timeInBusiness = value;
-          } else if (lowerKey === 'creditscore' || lowerKey === 'credit score' || lowerKey === 'fico' || 
-                     lowerKey === 'credit rating' || lowerKey === 'score') {
-            normalizedRow.creditScore = value;
-          } else if (lowerKey === 'statecode' || lowerKey === 'state code' || lowerKey === 'state' || 
-                     lowerKey === 'location' || lowerKey === 'region') {
-            normalizedRow.stateCode = value;
-          } else {
-            // Keep other fields as-is
-            normalizedRow[key] = value;
-          }
-        }
-        return normalizedRow;
+      
+      console.log('Verify-upload headers found:', headers);
+      console.log('Verify-upload total rows:', rows.length);
+      if (rows.length > 0) {
+        console.log('Verify-upload sample row:', rows[0]);
+      }
+      
+      // Normalize all rows using the improved mapper
+      const normalizedLeads = rows.map((row, index) => {
+        return normalizeLeadData(row, index === 0); // Debug first row only
       });
+      
+      // Validate we have at least one row with required fields
+      const validRows = normalizedLeads.filter(row => {
+        const validation = validateRequiredFields(row);
+        return validation.isValid;
+      });
+      
+      if (validRows.length === 0) {
+        const firstRowValidation = normalizedLeads[0] ? validateRequiredFields(normalizedLeads[0]) : null;
+        
+        return res.status(400).json({ 
+          error: "No valid leads found in file",
+          details: "The file must contain columns that can be mapped to: Business Name, Owner Name, Email, and Phone",
+          headersFound: headers,
+          missingFields: firstRowValidation?.missing || [],
+          suggestions: firstRowValidation?.suggestions || [],
+          totalRows: rows.length
+        });
+      }
+      
+      console.log('Verify-upload column mappings applied:', validRows.length > 0 ? Object.keys(validRows[0]) : []);
 
       // Get strictness level from query params or use default
       const strictnessLevel = (req.query.strictness as StrictnessLevel) || StrictnessLevel.MODERATE;
@@ -872,111 +1180,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const file = req.file;
-      let rows: any[] = [];
       
-      // Check file type and parse accordingly
+      // Debug logging
+      console.log('AI verify-upload file received:', file.originalname, file.mimetype, file.size);
+      
+      let rows: any[] = [];
+      let headers: string[] = [];
+      
+      // Parse file using improved parsing
       const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
       
-      if (isExcel) {
-        // Parse Excel file
-        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Convert to JSON with header row
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-          header: 1,
-          defval: '',
-          blankrows: false
-        }) as any[][];
-        
-        if (jsonData.length === 0) {
-          return res.status(400).json({ error: "Excel file is empty" });
+      try {
+        if (isExcel) {
+          const result = parseExcelFile(file.buffer, file.originalname);
+          rows = result.rows;
+          headers = result.headers;
+        } else {
+          const result = parseCSVFile(file.buffer, file.originalname);
+          rows = result.rows;
+          headers = result.headers;
         }
-        
-        // Extract headers (first row) and convert to array of objects
-        const headers = jsonData[0].map(h => String(h || '').trim());
-        rows = jsonData.slice(1).map(row => {
-          const obj: any = {};
-          headers.forEach((header, index) => {
-            obj[header] = row[index] || '';
-          });
-          return obj;
+      } catch (parseError: any) {
+        console.error('AI verification file parsing error:', parseError);
+        return res.status(400).json({ 
+          error: "Failed to parse file", 
+          details: parseError.message,
+          headers: headers
         });
-      } else {
-        // Parse CSV
-        const csvContent = file.buffer.toString('utf-8');
-        const parseResult = Papa.parse(csvContent, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (header: string) => header.trim(),
-        });
-
-        if (parseResult.errors.length > 0) {
-          return res.status(400).json({ 
-            error: "CSV parsing failed", 
-            details: parseResult.errors.map(e => e.message) 
-          });
-        }
-
-        rows = parseResult.data as any[];
       }
-
-      // Normalize column names
-      const normalizedLeads = rows.map(row => {
-        const normalizedRow: any = {};
-        for (const key in row) {
-          const value = row[key];
-          const lowerKey = key.toLowerCase().replace(/[_\-]/g, ' ').trim();
-          
-          // Map columns to standard names
-          if (lowerKey === 'businessname' || lowerKey === 'business name' || lowerKey === 'company name' || 
-              lowerKey === 'company' || lowerKey === 'dba' || lowerKey === 'business') {
-            normalizedRow.businessName = value;
-          } else if (lowerKey === 'ownername' || lowerKey === 'owner name' || lowerKey === 'contact name' || 
-                     lowerKey === 'owner' || lowerKey === 'contact' || lowerKey === 'name' || lowerKey === 'full name') {
-            normalizedRow.ownerName = normalizedRow.ownerName || value;
-          } else if (lowerKey === 'email' || lowerKey === 'email address' || lowerKey === 'e mail') {
-            normalizedRow.email = value;
-          } else if (lowerKey === 'phone' || lowerKey === 'phone number' || lowerKey === 'telephone' || 
-                     lowerKey === 'mobile' || lowerKey === 'cell' || lowerKey === 'contact number') {
-            normalizedRow.phone = value;
-          } else if (lowerKey === 'industry' || lowerKey === 'business type' || lowerKey === 'sector' || lowerKey === 'category') {
-            normalizedRow.industry = value;
-          } else if (lowerKey === 'annualrevenue' || lowerKey === 'annual revenue' || lowerKey === 'revenue' || 
-                     lowerKey === 'annual sales' || lowerKey === 'yearly revenue' || lowerKey === 'gross revenue') {
-            normalizedRow.annualRevenue = value;
-          } else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount' || lowerKey === 'amount' || 
-                     lowerKey === 'funding amount' || lowerKey === 'loan amount' || lowerKey === 'amount requested') {
-            normalizedRow.requestedAmount = value;
-          } else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business' || lowerKey === 'years in business' || 
-                     lowerKey === 'business age' || lowerKey === 'established') {
-            normalizedRow.timeInBusiness = value;
-          } else if (lowerKey === 'creditscore' || lowerKey === 'credit score' || lowerKey === 'fico' || 
-                     lowerKey === 'fico score' || lowerKey === 'credit rating') {
-            normalizedRow.creditScore = value;
-          } else if (lowerKey === 'dailybankdeposits' || lowerKey === 'daily bank deposits' || lowerKey === 'daily deposits' || 
-                     lowerKey === 'bank deposits') {
-            normalizedRow.dailyBankDeposits = value?.toLowerCase() === 'true' || value?.toLowerCase() === 'yes' || value === '1';
-          } else if (lowerKey === 'previousmcahistory' || lowerKey === 'previous mca history' || lowerKey === 'mca history' || 
-                     lowerKey === 'prior mca' || lowerKey === 'existing mca') {
-            normalizedRow.previousMCAHistory = value || 'none';
-          } else if (lowerKey === 'urgencylevel' || lowerKey === 'urgency level' || lowerKey === 'urgency' || 
-                     lowerKey === 'timeline' || lowerKey === 'need level') {
-            normalizedRow.urgencyLevel = value || 'exploring';
-          } else if (lowerKey === 'statecode' || lowerKey === 'state code' || lowerKey === 'state' || 
-                     lowerKey === 'location' || lowerKey === 'region') {
-            normalizedRow.stateCode = value;
-          } else if (lowerKey === 'exclusivitystatus' || lowerKey === 'exclusivity status' || lowerKey === 'exclusivity' || 
-                     lowerKey === 'exclusive') {
-            normalizedRow.exclusivityStatus = value || 'non_exclusive';
-          } else {
-            // Keep other fields as-is
-            normalizedRow[key] = value;
-          }
-        }
-        return normalizedRow;
+      
+      console.log('AI verify-upload headers found:', headers);
+      console.log('AI verify-upload total rows:', rows.length);
+      if (rows.length > 0) {
+        console.log('AI verify-upload sample row:', rows[0]);
+      }
+      
+      // Normalize all rows using the improved mapper
+      const normalizedLeads = rows.map((row, index) => {
+        return normalizeLeadData(row, index === 0); // Debug first row only
       });
+      
+      // Validate we have at least one row with required fields
+      const validRows = normalizedLeads.filter(row => {
+        const validation = validateRequiredFields(row);
+        return validation.isValid;
+      });
+      
+      if (validRows.length === 0) {
+        const firstRowValidation = normalizedLeads[0] ? validateRequiredFields(normalizedLeads[0]) : null;
+        
+        return res.status(400).json({ 
+          error: "No valid leads found in file",
+          details: "The file must contain columns that can be mapped to: Business Name, Owner Name, Email, and Phone",
+          headersFound: headers,
+          missingFields: firstRowValidation?.missing || [],
+          suggestions: firstRowValidation?.suggestions || [],
+          totalRows: rows.length
+        });
+      }
+      
+      console.log('AI verify-upload column mappings applied:', validRows.length > 0 ? Object.keys(validRows[0]) : []);
 
       // Get strictness level from query params or use default
       const strictnessLevel = (req.query.strictness as 'strict' | 'moderate' | 'lenient') || 'moderate';
@@ -1050,6 +1313,152 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // POST /api/admin/test-parse - Test endpoint for debugging file parsing
+  app.post("/api/admin/test-parse", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      
+      console.log('Test-parse file received:', {
+        filename: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        encoding: file.encoding
+      });
+      
+      let rows: any[] = [];
+      let headers: string[] = [];
+      let parseInfo: any = {};
+      
+      // Determine file type
+      const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
+      
+      try {
+        if (isExcel) {
+          parseInfo.fileType = 'Excel';
+          const result = parseExcelFile(file.buffer, file.originalname);
+          rows = result.rows;
+          headers = result.headers;
+        } else {
+          parseInfo.fileType = 'CSV';
+          const result = parseCSVFile(file.buffer, file.originalname);
+          rows = result.rows;
+          headers = result.headers;
+        }
+      } catch (parseError: any) {
+        console.error('Test-parse error:', parseError);
+        return res.status(400).json({ 
+          error: "Failed to parse file", 
+          details: parseError.message,
+          fileInfo: {
+            filename: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size
+          }
+        });
+      }
+      
+      // Map columns to fields
+      const columnMappings: any = {};
+      const unmappedColumns: string[] = [];
+      
+      for (const header of headers) {
+        const mappedField = mapColumnToField(header);
+        if (mappedField) {
+          columnMappings[header] = mappedField;
+        } else {
+          unmappedColumns.push(header);
+        }
+      }
+      
+      // Normalize sample rows
+      const sampleRows = rows.slice(0, 5).map((row, index) => {
+        const normalized = normalizeLeadData(row, false);
+        const validation = validateRequiredFields(normalized);
+        return {
+          rowNumber: index + 2,
+          original: row,
+          normalized: normalized,
+          validation: {
+            isValid: validation.isValid,
+            missing: validation.missing,
+            suggestions: validation.suggestions
+          }
+        };
+      });
+      
+      // Check overall validity
+      const allNormalizedRows = rows.map(row => normalizeLeadData(row, false));
+      const validRowCount = allNormalizedRows.filter(row => {
+        const validation = validateRequiredFields(row);
+        return validation.isValid;
+      }).length;
+      
+      // Prepare response
+      const response = {
+        success: true,
+        fileInfo: {
+          filename: file.originalname,
+          type: parseInfo.fileType,
+          size: file.size,
+          encoding: file.encoding || 'unknown'
+        },
+        parsing: {
+          totalRows: rows.length,
+          totalHeaders: headers.length,
+          headers: headers,
+          columnMappings: columnMappings,
+          unmappedColumns: unmappedColumns,
+          mappedFieldsAvailable: Object.values(columnMappings)
+        },
+        validation: {
+          validRowCount: validRowCount,
+          invalidRowCount: rows.length - validRowCount,
+          percentValid: ((validRowCount / rows.length) * 100).toFixed(2) + '%',
+          requiredFieldsFound: {
+            businessName: allNormalizedRows.some(r => r.businessName),
+            ownerName: allNormalizedRows.some(r => r.ownerName),
+            email: allNormalizedRows.some(r => r.email),
+            phone: allNormalizedRows.some(r => r.phone)
+          }
+        },
+        sampleData: {
+          firstFiveRows: sampleRows
+        },
+        recommendations: []
+      };
+      
+      // Add recommendations
+      if (validRowCount === 0) {
+        response.recommendations.push("No valid rows found. Check that your file contains the required fields: Business Name, Owner Name, Email, and Phone");
+      } else if (validRowCount < rows.length) {
+        response.recommendations.push(`${rows.length - validRowCount} rows are missing required fields`);
+      }
+      
+      if (unmappedColumns.length > 0) {
+        response.recommendations.push(`${unmappedColumns.length} columns could not be mapped automatically. Consider renaming them to standard field names.`);
+      }
+      
+      // Check for common issues
+      const hasEmptyHeaders = headers.some(h => !h || h.trim() === '');
+      if (hasEmptyHeaders) {
+        response.recommendations.push("File contains empty column headers. Please ensure all columns have names.");
+      }
+      
+      res.json(response);
+      
+    } catch (error) {
+      console.error("Test-parse error:", error);
+      res.status(500).json({ 
+        error: "Failed to test parse file",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // GET /api/admin/verification-session/:id - Retrieves verification session data
   app.get("/api/admin/verification-session/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
