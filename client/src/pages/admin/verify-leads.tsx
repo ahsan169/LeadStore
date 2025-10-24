@@ -31,7 +31,11 @@ import {
   Building2,
   User,
   MapPin,
-  AlertCircle
+  AlertCircle,
+  Brain,
+  Shield,
+  Sparkles,
+  TrendingUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -508,11 +512,19 @@ export default function VerifyLeadsPage() {
                   <TableHead className="w-12">Row</TableHead>
                   <TableHead className="w-20">Status</TableHead>
                   <TableHead className="w-16">Score</TableHead>
+                  {results?.[0]?.leadData?.aiInsights && (
+                    <TableHead className="w-20">
+                      <div className="flex items-center gap-1">
+                        <Brain className="w-3 h-3" />
+                        <span>AI</span>
+                      </div>
+                    </TableHead>
+                  )}
                   <TableHead>Business</TableHead>
                   <TableHead>Owner</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead className="min-w-[200px]">Issues</TableHead>
+                  <TableHead className="min-w-[200px]">Issues & Insights</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -547,6 +559,56 @@ export default function VerifyLeadsPage() {
                         {result.verificationScore}
                       </Badge>
                     </TableCell>
+                    {results?.[0]?.leadData?.aiInsights && (
+                      <TableCell>
+                        {result.leadData?.aiInsights ? (
+                          <div className="flex flex-col gap-1">
+                            <Badge 
+                              variant="outline" 
+                              className="gap-1 text-xs"
+                              style={{
+                                backgroundColor: result.leadData.aiInsights.confidenceScore >= 80 
+                                  ? 'rgba(34, 197, 94, 0.1)'  
+                                  : result.leadData.aiInsights.confidenceScore >= 60 
+                                  ? 'rgba(250, 204, 21, 0.1)' 
+                                  : 'rgba(239, 68, 68, 0.1)',
+                                color: result.leadData.aiInsights.confidenceScore >= 80 
+                                  ? 'rgb(34, 197, 94)' 
+                                  : result.leadData.aiInsights.confidenceScore >= 60 
+                                  ? 'rgb(202, 138, 4)' 
+                                  : 'rgb(239, 68, 68)'
+                              }}
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              {result.leadData.aiInsights.confidenceScore}%
+                            </Badge>
+                            {result.leadData.aiInsights.riskAssessment?.score && (
+                              <Badge 
+                                variant="outline" 
+                                className="gap-1 text-xs"
+                                style={{
+                                  backgroundColor: result.leadData.aiInsights.riskAssessment.score <= 30 
+                                    ? 'rgba(34, 197, 94, 0.1)'  
+                                    : result.leadData.aiInsights.riskAssessment.score <= 60 
+                                    ? 'rgba(250, 204, 21, 0.1)' 
+                                    : 'rgba(239, 68, 68, 0.1)',
+                                  color: result.leadData.aiInsights.riskAssessment.score <= 30 
+                                    ? 'rgb(34, 197, 94)' 
+                                    : result.leadData.aiInsights.riskAssessment.score <= 60 
+                                    ? 'rgb(202, 138, 4)' 
+                                    : 'rgb(239, 68, 68)'
+                                }}
+                              >
+                                <Shield className="w-3 h-3" />
+                                Risk: {result.leadData.aiInsights.riskAssessment.score}
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Building2 className="w-3 h-3 text-muted-foreground" />
@@ -601,7 +663,38 @@ export default function VerifyLeadsPage() {
                             </span>
                           </div>
                         )}
-                        {result.issues.length === 0 && result.warnings.length === 0 && !result.isDuplicate && (
+                        {/* AI Insights */}
+                        {result.leadData?.aiInsights && (
+                          <>
+                            {result.leadData.aiInsights.aiRecommendation && (
+                              <div className="flex items-start gap-1 mt-2 pt-2 border-t">
+                                <Brain className="w-3 h-3 text-purple-600 mt-0.5 flex-shrink-0" />
+                                <span className="text-xs text-purple-600 italic">
+                                  {result.leadData.aiInsights.aiRecommendation}
+                                </span>
+                              </div>
+                            )}
+                            {result.leadData.aiInsights.industryClassification && (
+                              <div className="flex items-start gap-1">
+                                <TrendingUp className="w-3 h-3 text-blue-600 mt-0.5 flex-shrink-0" />
+                                <span className="text-xs text-blue-600">
+                                  Industry: {result.leadData.aiInsights.industryClassification.industry}
+                                  {result.leadData.aiInsights.industryClassification.subIndustry && 
+                                    ` - ${result.leadData.aiInsights.industryClassification.subIndustry}`}
+                                </span>
+                              </div>
+                            )}
+                            {result.leadData.aiInsights.suggestions?.length > 0 && (
+                              <div className="flex items-start gap-1">
+                                <Sparkles className="w-3 h-3 text-green-600 mt-0.5 flex-shrink-0" />
+                                <span className="text-xs text-green-600">
+                                  {result.leadData.aiInsights.suggestions[0]}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {result.issues.length === 0 && result.warnings.length === 0 && !result.isDuplicate && !result.leadData?.aiInsights && (
                           <div className="flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-green-600" />
                             <span className="text-xs text-green-600">No issues</span>

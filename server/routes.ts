@@ -20,6 +20,7 @@ import {
   sendContactFormNotification 
 } from "./email";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
+import { AIVerificationEngine } from "./ai-verification";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -860,6 +861,192 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Verification error:", error);
       res.status(500).json({ error: "Failed to verify leads" });
+    }
+  });
+
+  // POST /api/admin/verify-upload-ai - AI-powered lead verification
+  app.post("/api/admin/verify-upload-ai", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      let rows: any[] = [];
+      
+      // Check file type and parse accordingly
+      const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
+      
+      if (isExcel) {
+        // Parse Excel file
+        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Convert to JSON with header row
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          header: 1,
+          defval: '',
+          blankrows: false
+        }) as any[][];
+        
+        if (jsonData.length === 0) {
+          return res.status(400).json({ error: "Excel file is empty" });
+        }
+        
+        // Extract headers (first row) and convert to array of objects
+        const headers = jsonData[0].map(h => String(h || '').trim());
+        rows = jsonData.slice(1).map(row => {
+          const obj: any = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index] || '';
+          });
+          return obj;
+        });
+      } else {
+        // Parse CSV
+        const csvContent = file.buffer.toString('utf-8');
+        const parseResult = Papa.parse(csvContent, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header: string) => header.trim(),
+        });
+
+        if (parseResult.errors.length > 0) {
+          return res.status(400).json({ 
+            error: "CSV parsing failed", 
+            details: parseResult.errors.map(e => e.message) 
+          });
+        }
+
+        rows = parseResult.data as any[];
+      }
+
+      // Normalize column names
+      const normalizedLeads = rows.map(row => {
+        const normalizedRow: any = {};
+        for (const key in row) {
+          const value = row[key];
+          const lowerKey = key.toLowerCase().replace(/[_\-]/g, ' ').trim();
+          
+          // Map columns to standard names
+          if (lowerKey === 'businessname' || lowerKey === 'business name' || lowerKey === 'company name' || 
+              lowerKey === 'company' || lowerKey === 'dba' || lowerKey === 'business') {
+            normalizedRow.businessName = value;
+          } else if (lowerKey === 'ownername' || lowerKey === 'owner name' || lowerKey === 'contact name' || 
+                     lowerKey === 'owner' || lowerKey === 'contact' || lowerKey === 'name' || lowerKey === 'full name') {
+            normalizedRow.ownerName = normalizedRow.ownerName || value;
+          } else if (lowerKey === 'email' || lowerKey === 'email address' || lowerKey === 'e mail') {
+            normalizedRow.email = value;
+          } else if (lowerKey === 'phone' || lowerKey === 'phone number' || lowerKey === 'telephone' || 
+                     lowerKey === 'mobile' || lowerKey === 'cell' || lowerKey === 'contact number') {
+            normalizedRow.phone = value;
+          } else if (lowerKey === 'industry' || lowerKey === 'business type' || lowerKey === 'sector' || lowerKey === 'category') {
+            normalizedRow.industry = value;
+          } else if (lowerKey === 'annualrevenue' || lowerKey === 'annual revenue' || lowerKey === 'revenue' || 
+                     lowerKey === 'annual sales' || lowerKey === 'yearly revenue' || lowerKey === 'gross revenue') {
+            normalizedRow.annualRevenue = value;
+          } else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount' || lowerKey === 'amount' || 
+                     lowerKey === 'funding amount' || lowerKey === 'loan amount' || lowerKey === 'amount requested') {
+            normalizedRow.requestedAmount = value;
+          } else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business' || lowerKey === 'years in business' || 
+                     lowerKey === 'business age' || lowerKey === 'established') {
+            normalizedRow.timeInBusiness = value;
+          } else if (lowerKey === 'creditscore' || lowerKey === 'credit score' || lowerKey === 'fico' || 
+                     lowerKey === 'fico score' || lowerKey === 'credit rating') {
+            normalizedRow.creditScore = value;
+          } else if (lowerKey === 'dailybankdeposits' || lowerKey === 'daily bank deposits' || lowerKey === 'daily deposits' || 
+                     lowerKey === 'bank deposits') {
+            normalizedRow.dailyBankDeposits = value?.toLowerCase() === 'true' || value?.toLowerCase() === 'yes' || value === '1';
+          } else if (lowerKey === 'previousmcahistory' || lowerKey === 'previous mca history' || lowerKey === 'mca history' || 
+                     lowerKey === 'prior mca' || lowerKey === 'existing mca') {
+            normalizedRow.previousMCAHistory = value || 'none';
+          } else if (lowerKey === 'urgencylevel' || lowerKey === 'urgency level' || lowerKey === 'urgency' || 
+                     lowerKey === 'timeline' || lowerKey === 'need level') {
+            normalizedRow.urgencyLevel = value || 'exploring';
+          } else if (lowerKey === 'statecode' || lowerKey === 'state code' || lowerKey === 'state' || 
+                     lowerKey === 'location' || lowerKey === 'region') {
+            normalizedRow.stateCode = value;
+          } else if (lowerKey === 'exclusivitystatus' || lowerKey === 'exclusivity status' || lowerKey === 'exclusivity' || 
+                     lowerKey === 'exclusive') {
+            normalizedRow.exclusivityStatus = value || 'non_exclusive';
+          } else {
+            // Keep other fields as-is
+            normalizedRow[key] = value;
+          }
+        }
+        return normalizedRow;
+      });
+
+      // Get strictness level from query params or use default
+      const strictnessLevel = (req.query.strictness as 'strict' | 'moderate' | 'lenient') || 'moderate';
+      
+      // Create verification session
+      const sessionExpiry = new Date();
+      sessionExpiry.setHours(sessionExpiry.getHours() + 24); // Expires in 24 hours
+      
+      const session: InsertVerificationSession = {
+        uploadedBy: req.user!.id,
+        filename: file.originalname + ' (AI Verified)',
+        fileBuffer: file.buffer.toString('base64'), // Store file for potential re-processing
+        totalLeads: normalizedLeads.length,
+        verifiedCount: 0,
+        warningCount: 0,
+        failedCount: 0,
+        duplicateCount: 0,
+        status: 'pending',
+        strictnessLevel,
+        expiresAt: sessionExpiry
+      };
+      
+      const createdSession = await storage.createVerificationSession(session);
+      
+      // Run AI-powered verification
+      const aiVerificationEngine = new AIVerificationEngine(strictnessLevel);
+      const verificationResults = await aiVerificationEngine.verifyBatchWithAI(normalizedLeads, createdSession.id);
+      
+      // Save verification results
+      await storage.createVerificationResults(verificationResults);
+      
+      // Calculate summary stats including AI insights
+      const verifiedCount = verificationResults.filter(r => r.status === 'verified').length;
+      const warningCount = verificationResults.filter(r => r.status === 'warning').length;
+      const failedCount = verificationResults.filter(r => r.status === 'failed').length;
+      const duplicateCount = verificationResults.filter(r => r.isDuplicate).length;
+      
+      // Calculate average confidence score from AI insights
+      const avgConfidence = verificationResults.reduce((sum, r) => {
+        const confidence = r.leadData?.aiInsights?.confidenceScore || 0;
+        return sum + confidence;
+      }, 0) / verificationResults.length;
+      
+      // Update session with counts and AI metrics
+      await storage.updateVerificationSession(createdSession.id, {
+        verifiedCount,
+        warningCount,
+        failedCount,
+        duplicateCount,
+        status: 'completed'
+      });
+      
+      res.json({
+        success: true,
+        sessionId: createdSession.id,
+        summary: {
+          totalLeads: normalizedLeads.length,
+          verifiedCount,
+          warningCount,
+          failedCount,
+          duplicateCount,
+          strictnessLevel,
+          averageConfidenceScore: Math.round(avgConfidence),
+          aiPowered: true
+        }
+      });
+      
+    } catch (error) {
+      console.error("AI Verification error:", error);
+      res.status(500).json({ error: "Failed to verify leads with AI" });
     }
   });
   

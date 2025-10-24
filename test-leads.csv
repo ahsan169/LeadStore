@@ -1,0 +1,13 @@
+businessName,ownerName,phone,email,mailingAddress,mailingCity,mailingState,mailingZip,monthlyRevenue,industry
+ABC Software Solutions,John Smith,555-123-4567,john@abcsoftware.com,123 Main St,New York,NY,10001,50000,Technology
+Test Company,Test User,000-000-0000,test@example.com,Test Address,Test City,XX,00000,0,Test Industry
+Global Consulting Group,Michael Johnson,212-555-9876,michael@globalconsulting.net,456 Park Ave,New York,NY,10022,150000,Consulting
+FAKE BUSINESS,Fake Name,999-999-9999,fake@test.com,123 Fake St,Nowhere,ZZ,99999,0,Unknown
+Express Logistics LLC,Sarah Davis,(415) 867-5309,info@expresslogistics.com,789 Market St,San Francisco,CA,94103,75000,Transportation
+Digital Marketing Pro,Emily Brown,555.2468,emily@digitalmarketingpro.io,321 Tech Blvd,Austin,TX,78701,60000,Marketing
+,,,,,,,,0,
+Premium Coffee Roasters,David Wilson,800-123-4567,david@premiumcoffee.com,555 Coffee Lane,Seattle,WA,98101,40000,Food & Beverage
+Johnson & Associates,Robert Johnson,212-555-9876,robert@johnsonassoc.com,456 Park Ave,New York,NY,10022,120000,Legal Services
+Acme Corp,Jane Doe,5551234567,jane@acme123456789.xyz,999 Industrial Way,Chicago,IL,60601,85000,Manufacturing
+Green Energy Solutions,Lisa Chen,+1-555-987-6543,contact@greenenergy.solutions,777 Eco Plaza,Portland,OR,97201,95000,Energy
+XYZ123,Person McPersonface,111-111-1111,admin@disposable-email.net,PO Box 123,Las Vegas,NV,89101,10000,Unknown

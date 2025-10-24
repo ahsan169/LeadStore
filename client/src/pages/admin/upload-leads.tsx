@@ -3,6 +3,8 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { 
   Upload, 
   FileText, 
@@ -11,7 +13,9 @@ import {
   AlertTriangle,
   TrendingUp,
   Users,
-  Sparkles
+  Sparkles,
+  Brain,
+  Zap
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -43,6 +47,8 @@ export default function UploadLeadsPage() {
   const [batchId, setBatchId] = useState<string>('');
   const [summary, setSummary] = useState<UploadSummary | null>(null);
   const [generatingTestLeads, setGeneratingTestLeads] = useState(false);
+  const [useAiVerification, setUseAiVerification] = useState(true);
+  const [strictnessLevel, setStrictnessLevel] = useState<'strict' | 'moderate' | 'lenient'>('moderate');
   const { toast } = useToast();
 
   const steps: WizardStep[] = ['upload', 'validate', 'process', 'complete'];
@@ -110,8 +116,12 @@ export default function UploadLeadsPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      // Call the verify-upload endpoint instead of direct upload
-      const response = await fetch('/api/admin/verify-upload', {
+      // Choose endpoint based on AI verification toggle
+      const endpoint = useAiVerification 
+        ? `/api/admin/verify-upload-ai?strictness=${strictnessLevel}`
+        : `/api/admin/verify-upload?strictness=${strictnessLevel}`;
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -132,6 +142,8 @@ export default function UploadLeadsPage() {
           failedCount: number;
           duplicateCount: number;
           strictnessLevel: string;
+          averageConfidenceScore?: number;
+          aiPowered?: boolean;
         }
       };
       
@@ -140,9 +152,13 @@ export default function UploadLeadsPage() {
       
       // Redirect to verification page after a brief moment
       setTimeout(() => {
+        const aiDescription = data.summary.aiPowered 
+          ? ` AI confidence: ${data.summary.averageConfidenceScore}%.`
+          : '';
+        
         toast({
-          title: "Verification complete",
-          description: `${data.summary.totalLeads} leads verified. Redirecting to review page...`,
+          title: useAiVerification ? "AI Verification complete" : "Verification complete",
+          description: `${data.summary.totalLeads} leads verified.${aiDescription} Redirecting to review page...`,
         });
         
         // Redirect to verification preview page with session ID
@@ -348,6 +364,82 @@ export default function UploadLeadsPage() {
               </label>
             </div>
 
+            {/* AI Verification Options */}
+            <div className="border rounded-lg p-4 space-y-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="ai-toggle" className="text-base font-semibold flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-purple-600" />
+                    AI-Powered Verification
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Use OpenAI for advanced lead verification with confidence scoring
+                  </p>
+                </div>
+                <Switch
+                  id="ai-toggle"
+                  checked={useAiVerification}
+                  onCheckedChange={setUseAiVerification}
+                  className="data-[state=checked]:bg-purple-600"
+                  data-testid="switch-ai-verification"
+                />
+              </div>
+
+              {useAiVerification && (
+                <div className="space-y-3 pt-3 border-t">
+                  <Label className="text-sm font-medium">Verification Strictness</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      type="button"
+                      variant={strictnessLevel === 'lenient' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStrictnessLevel('lenient')}
+                      className="gap-1"
+                      data-testid="button-strictness-lenient"
+                    >
+                      <Zap className="w-3 h-3" />
+                      Lenient
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={strictnessLevel === 'moderate' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStrictnessLevel('moderate')}
+                      data-testid="button-strictness-moderate"
+                    >
+                      Moderate
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={strictnessLevel === 'strict' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setStrictnessLevel('strict')}
+                      data-testid="button-strictness-strict"
+                    >
+                      Strict
+                    </Button>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {strictnessLevel === 'lenient' && 'More forgiving - accepts most leads with minor issues'}
+                    {strictnessLevel === 'moderate' && 'Balanced approach - flags significant issues'}
+                    {strictnessLevel === 'strict' && 'Maximum accuracy - only accepts high-quality leads'}
+                  </div>
+                  <div className="flex items-start gap-2 p-2 bg-blue-100 dark:bg-blue-950/50 rounded">
+                    <Sparkles className="w-4 h-4 text-blue-600 mt-0.5" />
+                    <div className="text-xs">
+                      <p className="font-medium text-blue-900 dark:text-blue-100">AI Features:</p>
+                      <ul className="space-y-0.5 text-blue-800 dark:text-blue-200 mt-1">
+                        <li>• Business legitimacy analysis</li>
+                        <li>• Intelligent duplicate detection</li>
+                        <li>• Risk scoring and insights</li>
+                        <li>• Data correction suggestions</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Selected File Info */}
             {file && (
               <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
@@ -362,8 +454,10 @@ export default function UploadLeadsPage() {
                   onClick={handleUpload}
                   disabled={uploading}
                   data-testid="button-upload"
+                  className={useAiVerification ? "gap-2" : ""}
                 >
-                  {uploading ? "Processing..." : "Upload & Process"}
+                  {useAiVerification && <Brain className="w-4 h-4" />}
+                  {uploading ? "Processing..." : useAiVerification ? "AI Verify & Process" : "Upload & Process"}
                 </Button>
               </div>
             )}
