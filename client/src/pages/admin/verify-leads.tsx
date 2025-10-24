@@ -128,7 +128,7 @@ export default function VerifyLeadsPage() {
         title: "Import successful",
         description: `${data.importedCount} leads imported successfully`,
       });
-      navigate('/admin/manage-leads');
+      navigate('/admin/leads');
     },
     onError: (error: any) => {
       toast({
