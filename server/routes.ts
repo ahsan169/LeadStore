@@ -481,11 +481,11 @@ function validateRequiredFields(normalizedData: any): { isValid: boolean, missin
       // Provide suggestions from unmapped fields
       if (normalizedData._unmapped) {
         const unmappedKeys = Object.keys(normalizedData._unmapped);
-        const fieldPatterns = COLUMN_MAPPINGS[field] || [];
+        const fieldPatterns = COLUMN_MAPPINGS[field as keyof typeof COLUMN_MAPPINGS] || [];
         
         for (const key of unmappedKeys) {
           const normalizedKey = key.toLowerCase();
-          if (fieldPatterns.some(p => normalizedKey.includes(p) || p.includes(normalizedKey))) {
+          if (fieldPatterns.some((p: string) => normalizedKey.includes(p) || p.includes(normalizedKey))) {
             suggestions.push(`Column "${key}" might contain ${field} data`);
           }
         }
@@ -1226,18 +1226,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Debug logging
       console.log('AI verify-upload file received:', file.originalname, file.mimetype, file.size);
       
+      // Check for binary file signatures (Numbers/Excel compressed format)
+      const firstBytes = file.buffer.slice(0, 4).toString('hex');
+      const isBinaryFile = firstBytes === '504b0304'; // PK\x03\x04 - ZIP/compressed file signature
+      
+      if (isBinaryFile) {
+        console.log('Detected binary/compressed file format (Numbers/Excel), will use Excel parser');
+      }
+      
       let rows: any[] = [];
       let headers: string[] = [];
       
       // Parse file using improved parsing
-      const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
+      const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls') || isBinaryFile;
       
       try {
         if (isExcel) {
+          // Use Excel parser for binary files (including Numbers files with .csv extension)
+          console.log('Using Excel parser for file');
           const result = parseExcelFile(file.buffer, file.originalname);
           rows = result.rows;
           headers = result.headers;
         } else {
+          console.log('Using CSV parser for file');
           const result = parseCSVFile(file.buffer, file.originalname);
           rows = result.rows;
           headers = result.headers;
@@ -1321,7 +1332,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Calculate average confidence score from AI insights
       const avgConfidence = verificationResults.reduce((sum, r) => {
-        const confidence = r.leadData?.aiInsights?.confidenceScore || 0;
+        const leadData = r.leadData as any;
+        const confidence = leadData?.aiInsights?.confidenceScore || 0;
         return sum + confidence;
       }, 0) / verificationResults.length;
       
@@ -1470,7 +1482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sampleData: {
           firstFiveRows: sampleRows
         },
-        recommendations: []
+        recommendations: [] as string[]
       };
       
       // Add recommendations
@@ -1593,7 +1605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           businessName: leadData.businessName?.trim(),
           ownerName: leadData.ownerName?.trim(),
           email: leadData.email?.trim().toLowerCase(),
-          phone: result.phoneValidation?.formatted || leadData.phone?.trim(),
+          phone: leadData.phone?.trim(),
           industry: leadData.industry?.trim() || null,
           annualRevenue: leadData.annualRevenue?.trim() || null,
           requestedAmount: leadData.requestedAmount?.trim() || null,
@@ -1606,7 +1618,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           leadAge: leadData.leadAge || 0,
           exclusivityStatus: leadData.exclusivityStatus || 'non_exclusive',
           qualityScore,
-          tier,
+          tier: tier as "gold" | "platinum" | "diamond" | "elite",
           sold: false
         });
       }
@@ -2130,7 +2142,7 @@ Format your response as JSON with the following structure:
         // Create purchase record
         const purchase = await storage.createPurchase({
           userId,
-          tier,
+          tier: tier as "gold" | "platinum" | "diamond" | "elite",
           leadCount: parseInt(leadCount),
           totalAmount: (session.amount_total! / 100).toString(), // Convert cents to dollars
           stripePaymentIntentId: session.payment_intent as string,
@@ -2322,7 +2334,7 @@ Format your response as JSON with the following structure:
       // Get base URL for redirect - use Replit URL or fallback
       const baseUrl = process.env.REPLIT_DOMAINS ? 
         `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 
-        req.headers.origin || `http://localhost:${PORT}`;
+        req.headers.origin || `http://localhost:5000`;
       
       // Create Stripe checkout session
       const session = await stripe.checkout.sessions.create({
@@ -2789,14 +2801,6 @@ function calculateQualityScore(lead: any): number {
   return Math.min(score, 100);
 }
 
-// Helper function to assign tier based on quality score
-// 60-69 = gold, 70-79 = platinum, 80-100 = diamond
-function assignTier(qualityScore: number): string {
-  if (qualityScore >= 80) return 'diamond';
-  if (qualityScore >= 70) return 'platinum';
-  if (qualityScore >= 60) return 'gold';
-  return 'gold'; // Default to gold for scores below 60
-}
 
 // Helper function to create lead hash for deduplication
 function createLeadHash(email: string, phone: string): string {
@@ -2850,6 +2854,14 @@ function generateLeadsCsv(leads: any[], user?: any): string {
   }
 
   return csvLines.join("\n");
+}
+
+// Helper function to assign tier based on quality score
+function assignTier(qualityScore: number): "gold" | "platinum" | "diamond" | "elite" {
+  if (qualityScore >= 80) return 'diamond';
+  if (qualityScore >= 70) return 'platinum';
+  if (qualityScore >= 60) return 'gold';
+  return 'gold'; // Default to gold for low scores
 }
 
 // Helper function to generate realistic test MCA leads
