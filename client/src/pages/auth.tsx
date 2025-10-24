@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Shield } from "lucide-react";
+import { Shield, Lock, CheckCircle, Award, TrendingUp, Users, Building2, Waves } from "lucide-react";
+import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 
 export default function AuthPage() {
   const [, setLocation] = useLocation();
@@ -28,15 +30,15 @@ export default function AuthPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
-        title: "Login successful",
-        description: "Welcome back!",
+        title: "Welcome back!",
+        description: "You have successfully logged in to your account.",
       });
       setLocation("/dashboard");
     },
     onError: () => {
       toast({
-        title: "Login failed",
-        description: "Invalid username or password",
+        title: "Authentication Failed",
+        description: "Please check your credentials and try again.",
         variant: "destructive",
       });
     },
@@ -49,15 +51,15 @@ export default function AuthPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
-        title: "Registration successful",
-        description: "Your account has been created",
+        title: "Welcome to Lakefront Leadworks!",
+        description: "Your account has been created successfully.",
       });
       setLocation("/dashboard");
     },
     onError: (error: any) => {
       toast({
-        title: "Registration failed",
-        description: error.message || "Please try again",
+        title: "Registration Failed",
+        description: error.message || "Please ensure all fields are filled correctly.",
         variant: "destructive",
       });
     },
@@ -73,116 +75,301 @@ export default function AuthPage() {
     registerMutation.mutate(registerData);
   };
 
+  const trustIndicators = [
+    { icon: Shield, text: "Bank-Level Security", subtext: "256-bit SSL encryption" },
+    { icon: CheckCircle, text: "TCPA Compliant", subtext: "Verified lead sources" },
+    { icon: Users, text: "10,000+ Clients", subtext: "Trusted nationwide" },
+    { icon: Award, text: "Industry Leader", subtext: "Since 2020" },
+  ];
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/10 to-background p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Shield className="w-10 h-10 text-primary" />
-            <h1 className="text-3xl font-black">MCA Leads</h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+      {/* Professional Header Bar */}
+      <div className="w-full bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Lock className="w-4 h-4" />
+              <span>Secure Connection</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Shield className="w-4 h-4" />
+              <span>TCPA Compliant</span>
+            </div>
           </div>
-          <p className="text-muted-foreground">
-            Premium Merchant Cash Advance Lead Marketplace
-          </p>
+          <Badge variant="outline" className="bg-green-50 dark:bg-green-950 border-green-600">
+            <span className="text-green-700 dark:text-green-400">Verified Business</span>
+          </Badge>
+        </div>
+      </div>
+
+      <div className="flex min-h-[calc(100vh-52px)]">
+        {/* Left Side - Branding and Features */}
+        <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 dark:from-blue-800 dark:via-blue-900 dark:to-indigo-950 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10"></div>
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-400 rounded-full filter blur-3xl opacity-20 animate-pulse"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-400 rounded-full filter blur-3xl opacity-20 animate-pulse"></div>
+          
+          <div className="relative z-10 flex flex-col justify-center px-12 lg:px-16 text-white">
+            {/* Logo and Company Name */}
+            <div className="mb-12">
+              <div className="flex items-center gap-4 mb-6">
+                <img 
+                  src={logoUrl} 
+                  alt="Lakefront Leadworks" 
+                  className="w-24 h-24 rounded-2xl shadow-2xl ring-4 ring-white/20"
+                />
+                <Waves className="w-12 h-12 text-blue-300 animate-pulse" />
+              </div>
+              <h1 className="text-5xl lg:text-6xl font-bold mb-4 tracking-tight">
+                Lakefront
+                <span className="block text-blue-200">Leadworks</span>
+              </h1>
+              <p className="text-xl text-blue-100 mb-8">
+                Premium B2B Lead Generation Platform
+              </p>
+            </div>
+
+            {/* Features */}
+            <div className="space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-1">AI-Verified Leads</h3>
+                  <p className="text-blue-100">Advanced AI scoring ensures only the highest quality MCA leads</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-1">Enterprise-Grade Platform</h3>
+                  <p className="text-blue-100">Secure, scalable infrastructure trusted by leading brokers</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-1">Exclusive Network</h3>
+                  <p className="text-blue-100">Access to pre-qualified merchant leads nationwide</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Trust Badge */}
+            <div className="mt-12 pt-8 border-t border-white/20">
+              <p className="text-sm text-blue-200 mb-2">Trusted by industry leaders</p>
+              <div className="flex items-center gap-6">
+                <Badge className="bg-white/10 hover:bg-white/20 border-white/20 text-white">
+                  ISO 27001 Certified
+                </Badge>
+                <Badge className="bg-white/10 hover:bg-white/20 border-white/20 text-white">
+                  SOC 2 Type II
+                </Badge>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <Card>
-          <Tabs defaultValue="login" className="w-full">
-            <CardHeader>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
-                <TabsTrigger value="register" data-testid="tab-register">Register</TabsTrigger>
-              </TabsList>
-            </CardHeader>
+        {/* Right Side - Auth Form */}
+        <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+          <div className="w-full max-w-md">
+            {/* Mobile Logo */}
+            <div className="lg:hidden text-center mb-8">
+              <img 
+                src={logoUrl} 
+                alt="Lakefront Leadworks" 
+                className="w-20 h-20 mx-auto mb-4 rounded-xl shadow-lg"
+              />
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Lakefront Leadworks
+              </h2>
+              <p className="text-muted-foreground mt-2">
+                Premium B2B Lead Generation Platform
+              </p>
+            </div>
 
-            <TabsContent value="login">
-              <form onSubmit={handleLogin}>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="login-username">Username</Label>
-                    <Input
-                      id="login-username"
-                      value={loginData.username}
-                      onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
-                      required
-                      data-testid="input-login-username"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      value={loginData.password}
-                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-                      required
-                      data-testid="input-login-password"
-                    />
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={loginMutation.isPending}
-                    data-testid="button-login"
-                  >
-                    {loginMutation.isPending ? "Logging in..." : "Login"}
-                  </Button>
-                </CardFooter>
-              </form>
-            </TabsContent>
+            <Card className="border-0 shadow-xl">
+              <Tabs defaultValue="login" className="w-full">
+                <CardHeader className="pb-4">
+                  <TabsList className="grid w-full grid-cols-2 h-12">
+                    <TabsTrigger value="login" className="text-base" data-testid="tab-login">
+                      Sign In
+                    </TabsTrigger>
+                    <TabsTrigger value="register" className="text-base" data-testid="tab-register">
+                      Create Account
+                    </TabsTrigger>
+                  </TabsList>
+                </CardHeader>
 
-            <TabsContent value="register">
-              <form onSubmit={handleRegister}>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="register-username">Username</Label>
-                    <Input
-                      id="register-username"
-                      value={registerData.username}
-                      onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
-                      required
-                      data-testid="input-register-username"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">Email</Label>
-                    <Input
-                      id="register-email"
-                      type="email"
-                      value={registerData.email}
-                      onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
-                      required
-                      data-testid="input-register-email"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password">Password</Label>
-                    <Input
-                      id="register-password"
-                      type="password"
-                      value={registerData.password}
-                      onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
-                      required
-                      data-testid="input-register-password"
-                    />
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    type="submit" 
-                    className="w-full"
-                    disabled={registerMutation.isPending}
-                    data-testid="button-register"
-                  >
-                    {registerMutation.isPending ? "Creating account..." : "Create Account"}
-                  </Button>
-                </CardFooter>
-              </form>
-            </TabsContent>
-          </Tabs>
-        </Card>
+                <TabsContent value="login">
+                  <form onSubmit={handleLogin}>
+                    <CardContent className="space-y-5">
+                      <div className="space-y-2">
+                        <Label htmlFor="login-username" className="text-base font-medium">
+                          Username
+                        </Label>
+                        <Input
+                          id="login-username"
+                          placeholder="Enter your username"
+                          value={loginData.username}
+                          onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
+                          required
+                          className="h-12 text-base"
+                          data-testid="input-login-username"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="login-password" className="text-base font-medium">
+                          Password
+                        </Label>
+                        <Input
+                          id="login-password"
+                          type="password"
+                          placeholder="Enter your password"
+                          value={loginData.password}
+                          onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                          required
+                          className="h-12 text-base"
+                          data-testid="input-login-password"
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" className="rounded" />
+                          <span className="text-muted-foreground">Remember me</span>
+                        </label>
+                        <a href="#" className="text-primary hover:underline">
+                          Forgot password?
+                        </a>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex flex-col space-y-4">
+                      <Button 
+                        type="submit" 
+                        className="w-full h-12 text-base font-semibold"
+                        disabled={loginMutation.isPending}
+                        data-testid="button-login"
+                      >
+                        {loginMutation.isPending ? (
+                          <span className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Signing in...
+                          </span>
+                        ) : (
+                          "Sign In to Your Account"
+                        )}
+                      </Button>
+                      
+                      <div className="text-center text-sm text-muted-foreground">
+                        By signing in, you agree to our{" "}
+                        <a href="#" className="text-primary hover:underline">Terms of Service</a>
+                        {" "}and{" "}
+                        <a href="#" className="text-primary hover:underline">Privacy Policy</a>
+                      </div>
+                    </CardFooter>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="register">
+                  <form onSubmit={handleRegister}>
+                    <CardContent className="space-y-5">
+                      <div className="space-y-2">
+                        <Label htmlFor="register-username" className="text-base font-medium">
+                          Username
+                        </Label>
+                        <Input
+                          id="register-username"
+                          placeholder="Choose a username"
+                          value={registerData.username}
+                          onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
+                          required
+                          className="h-12 text-base"
+                          data-testid="input-register-username"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="register-email" className="text-base font-medium">
+                          Business Email
+                        </Label>
+                        <Input
+                          id="register-email"
+                          type="email"
+                          placeholder="your@company.com"
+                          value={registerData.email}
+                          onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
+                          required
+                          className="h-12 text-base"
+                          data-testid="input-register-email"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="register-password" className="text-base font-medium">
+                          Password
+                        </Label>
+                        <Input
+                          id="register-password"
+                          type="password"
+                          placeholder="Create a strong password"
+                          value={registerData.password}
+                          onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
+                          required
+                          className="h-12 text-base"
+                          data-testid="input-register-password"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Must be at least 8 characters with a mix of letters and numbers
+                        </p>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex flex-col space-y-4">
+                      <Button 
+                        type="submit" 
+                        className="w-full h-12 text-base font-semibold"
+                        disabled={registerMutation.isPending}
+                        data-testid="button-register"
+                      >
+                        {registerMutation.isPending ? (
+                          <span className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Creating account...
+                          </span>
+                        ) : (
+                          "Create Your Account"
+                        )}
+                      </Button>
+                      
+                      <div className="text-center text-sm text-muted-foreground">
+                        By creating an account, you agree to our{" "}
+                        <a href="#" className="text-primary hover:underline">Terms of Service</a>
+                        {" "}and{" "}
+                        <a href="#" className="text-primary hover:underline">Privacy Policy</a>
+                      </div>
+                    </CardFooter>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            </Card>
+
+            {/* Trust Indicators */}
+            <div className="mt-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {trustIndicators.map((indicator, index) => (
+                <div key={index} className="text-center">
+                  <indicator.icon className="w-6 h-6 mx-auto mb-2 text-primary" />
+                  <p className="text-sm font-semibold text-foreground">{indicator.text}</p>
+                  <p className="text-xs text-muted-foreground">{indicator.subtext}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
