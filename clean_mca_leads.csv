@@ -1,0 +1,6 @@
+company_name,industry,WEBSITE,owner_name,title,email,linkedin,phone1,phone2,city,state,UCC_date,MCA_score
+"NORTHWEST FREIGHTWAY INC",logistics,northwestfreightways.ca,"John Smith",CEO,john@northwest.com,,555-1234,555-5678,Portland,OR,2024-01-15,85
+"CICO ELECTRICAL CONTRACTORS INC",construction,cicoelectric.com,"Mike Johnson",President,mike@cico.com,,555-2222,555-3333,Miami,FL,2024-02-20,92
+"TRANSPORTATION RESOURCES LLC",logistics,trans-resource.com,"Edmond Davis",Owner,edmond@transres.com,,555-4444,,New York,NY,2024-03-15,78
+"DEVINE AND SON TRUCKING CO",logistics,devineintermodal.com,"John Devine",CEO,john@devine.com,,555-6666,555-7777,Chicago,IL,2024-04-10,82
+"HYATT PLACE ONTARIO MILLS",hospitality,hyatt.com,"Patrick Donelly",Manager,patrick@hyatt.com,,555-8888,,Los Angeles,CA,2024-05-20,88

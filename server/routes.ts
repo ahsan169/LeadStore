@@ -216,6 +216,19 @@ function mapColumnToField(columnName: string): string | null {
     console.log(`Mapping column "${columnName}" -> normalized: "${normalized}"`);
   }
   
+  // DIRECT MAPPING for user's exact column names
+  const directMap: Record<string, string> = {
+    'company name': 'businessName',
+    'owner name': 'ownerName',
+    'phone1': 'phone',
+    'phone2': 'phone'
+  };
+  
+  if (directMap[normalized]) {
+    console.log(`  -> Direct mapping: "${normalized}" to "${directMap[normalized]}"`);
+    return directMap[normalized];
+  }
+  
   // Check exact matches first
   for (const [field, patterns] of Object.entries(COLUMN_MAPPINGS)) {
     if (patterns.includes(normalized)) {
