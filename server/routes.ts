@@ -71,7 +71,8 @@ const COLUMN_MAPPINGS = {
     'mobile number', 'mobile_number', 'contact number', 'contactnumber',
     'contact_number', 'business phone', 'businessphone', 'business_phone',
     'primary phone', 'main phone', 'office phone', 'work phone',
-    'contact phone', 'contactphone', 'tel no', 'tel_no', 'phone no'
+    'contact phone', 'contactphone', 'tel no', 'tel_no', 'phone no',
+    'phone1', 'phone2', 'phone 1', 'phone 2'  // Added support for phone1/phone2
   ],
   industry: [
     'industry', 'business type', 'businesstype', 'business_type',
