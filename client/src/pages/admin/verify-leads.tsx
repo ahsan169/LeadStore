@@ -117,10 +117,11 @@ export default function VerifyLeadsPage() {
   // Import mutation
   const importMutation = useMutation({
     mutationFn: async (selectedRowNumbers: number[]) => {
-      return apiRequest('/api/admin/import-verified', {
-        method: 'POST',
-        body: JSON.stringify({ sessionId, selectedRowNumbers })
+      const response = await apiRequest('POST', '/api/admin/import-verified', { 
+        sessionId, 
+        selectedRowNumbers 
       });
+      return response.json();
     },
     onSuccess: (data) => {
       toast({
