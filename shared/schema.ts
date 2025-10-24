@@ -215,6 +215,58 @@ export const contactSubmissions = pgTable("contact_submissions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Verification sessions for lead uploads
+export const verificationSessions = pgTable("verification_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  uploadedBy: varchar("uploaded_by").references(() => users.id).notNull(),
+  filename: text("filename").notNull(),
+  fileBuffer: text("file_buffer"), // Base64 encoded file content for re-processing
+  totalLeads: integer("total_leads").notNull().default(0),
+  verifiedCount: integer("verified_count").notNull().default(0),
+  warningCount: integer("warning_count").notNull().default(0),
+  failedCount: integer("failed_count").notNull().default(0),
+  duplicateCount: integer("duplicate_count").notNull().default(0),
+  status: text("status").notNull().default("pending"), // 'pending', 'completed', 'imported', 'expired'
+  strictnessLevel: text("strictness_level").notNull().default("moderate"), // 'strict', 'moderate', 'lenient'
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Detailed verification results for each lead in a session
+export const verificationResults = pgTable("verification_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").references(() => verificationSessions.id).notNull(),
+  
+  // Lead data
+  rowNumber: integer("row_number").notNull(),
+  leadData: jsonb("lead_data").notNull(), // Original lead data from CSV/Excel
+  
+  // Verification status
+  status: text("status").notNull(), // 'verified', 'warning', 'failed'
+  verificationScore: integer("verification_score").notNull().default(0), // 0-100
+  
+  // Detailed validation results
+  phoneValidation: jsonb("phone_validation"), // {valid: boolean, issues: string[], formatted: string}
+  emailValidation: jsonb("email_validation"), // {valid: boolean, issues: string[], domain: string}
+  businessNameValidation: jsonb("business_name_validation"), // {valid: boolean, issues: string[]}
+  ownerNameValidation: jsonb("owner_name_validation"), // {valid: boolean, issues: string[]}
+  addressValidation: jsonb("address_validation"), // {valid: boolean, issues: string[], fields: {}}
+  
+  // Duplicate detection
+  isDuplicate: boolean("is_duplicate").notNull().default(false),
+  duplicateType: text("duplicate_type"), // 'phone', 'business', 'both'
+  duplicateLeadId: varchar("duplicate_lead_id").references(() => leads.id),
+  
+  // Issue summary
+  issues: text("issues").array().notNull().default(sql`ARRAY[]::text[]`),
+  warnings: text("warnings").array().notNull().default(sql`ARRAY[]::text[]`),
+  
+  // Selection status for import
+  selectedForImport: boolean("selected_for_import").notNull().default(true),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -290,6 +342,22 @@ export const insertContactSubmissionSchema = createInsertSchema(contactSubmissio
 }).extend({
   email: z.string().email(),
   status: z.enum(["new", "read", "responded"]).default("new"),
+});
+
+export const insertVerificationSessionSchema = createInsertSchema(verificationSessions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  status: z.enum(["pending", "completed", "imported", "expired"]).default("pending"),
+  strictnessLevel: z.enum(["strict", "moderate", "lenient"]).default("moderate"),
+});
+
+export const insertVerificationResultSchema = createInsertSchema(verificationResults).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  status: z.enum(["verified", "warning", "failed"]),
+  verificationScore: z.number().min(0).max(100),
 });
 
 export const insertPricingStrategySchema = createInsertSchema(pricingStrategies).omit({
@@ -372,3 +440,9 @@ export type Credit = typeof credits.$inferSelect;
 
 export type InsertCreditTransaction = z.infer<typeof insertCreditTransactionSchema>;
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
+
+export type InsertVerificationSession = z.infer<typeof insertVerificationSessionSchema>;
+export type VerificationSession = typeof verificationSessions.$inferSelect;
+
+export type InsertVerificationResult = z.infer<typeof insertVerificationResultSchema>;
+export type VerificationResult = typeof verificationResults.$inferSelect;

@@ -29,6 +29,10 @@ import {
   type InsertCreditTransaction,
   type ContactSubmission,
   type InsertContactSubmission,
+  type VerificationSession,
+  type InsertVerificationSession,
+  type VerificationResult,
+  type InsertVerificationResult,
   users,
   subscriptions,
   leadBatches,
@@ -43,6 +47,8 @@ import {
   credits,
   creditTransactions,
   contactSubmissions,
+  verificationSessions,
+  verificationResults,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -151,6 +157,23 @@ export interface IStorage {
   createContactSubmission(submission: InsertContactSubmission): Promise<ContactSubmission>;
   getContactSubmissions(): Promise<ContactSubmission[]>;
   updateContactSubmissionStatus(id: string, status: string): Promise<ContactSubmission | undefined>;
+  
+  // Verification session operations
+  createVerificationSession(session: InsertVerificationSession): Promise<VerificationSession>;
+  getVerificationSession(id: string): Promise<VerificationSession | undefined>;
+  updateVerificationSession(id: string, data: Partial<InsertVerificationSession>): Promise<VerificationSession | undefined>;
+  deleteExpiredSessions(): Promise<void>;
+  
+  // Verification result operations
+  createVerificationResult(result: InsertVerificationResult): Promise<VerificationResult>;
+  createVerificationResults(results: InsertVerificationResult[]): Promise<VerificationResult[]>;
+  getVerificationResults(sessionId: string): Promise<VerificationResult[]>;
+  updateVerificationResult(id: string, data: Partial<InsertVerificationResult>): Promise<VerificationResult | undefined>;
+  updateSelectedForImport(sessionId: string, rowNumbers: number[]): Promise<void>;
+  
+  // Duplicate detection
+  checkPhoneDuplicate(phone: string): Promise<Lead | undefined>;
+  checkBusinessNameDuplicate(businessName: string): Promise<Lead | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -495,6 +518,90 @@ export class DbStorage implements IStorage {
       .set({ status })
       .where(eq(contactSubmissions.id, id))
       .returning();
+    return result[0];
+  }
+
+  // Verification session operations
+  async createVerificationSession(session: InsertVerificationSession): Promise<VerificationSession> {
+    const result = await db.insert(verificationSessions).values(session).returning();
+    return result[0];
+  }
+
+  async getVerificationSession(id: string): Promise<VerificationSession | undefined> {
+    const result = await db.select().from(verificationSessions).where(eq(verificationSessions.id, id)).limit(1);
+    return result[0];
+  }
+
+  async updateVerificationSession(id: string, data: Partial<InsertVerificationSession>): Promise<VerificationSession | undefined> {
+    const result = await db.update(verificationSessions)
+      .set(data)
+      .where(eq(verificationSessions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteExpiredSessions(): Promise<void> {
+    await db.delete(verificationSessions)
+      .where(lte(verificationSessions.expiresAt, new Date()));
+  }
+
+  // Verification result operations
+  async createVerificationResult(result: InsertVerificationResult): Promise<VerificationResult> {
+    const [created] = await db.insert(verificationResults).values(result).returning();
+    return created;
+  }
+
+  async createVerificationResults(results: InsertVerificationResult[]): Promise<VerificationResult[]> {
+    if (results.length === 0) return [];
+    const created = await db.insert(verificationResults).values(results).returning();
+    return created;
+  }
+
+  async getVerificationResults(sessionId: string): Promise<VerificationResult[]> {
+    return db.select().from(verificationResults)
+      .where(eq(verificationResults.sessionId, sessionId))
+      .orderBy(verificationResults.rowNumber);
+  }
+
+  async updateVerificationResult(id: string, data: Partial<InsertVerificationResult>): Promise<VerificationResult | undefined> {
+    const result = await db.update(verificationResults)
+      .set(data)
+      .where(eq(verificationResults.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async updateSelectedForImport(sessionId: string, rowNumbers: number[]): Promise<void> {
+    // First set all to false
+    await db.update(verificationResults)
+      .set({ selectedForImport: false })
+      .where(eq(verificationResults.sessionId, sessionId));
+    
+    // Then set selected ones to true
+    if (rowNumbers.length > 0) {
+      await db.update(verificationResults)
+        .set({ selectedForImport: true })
+        .where(and(
+          eq(verificationResults.sessionId, sessionId),
+          inArray(verificationResults.rowNumber, rowNumbers)
+        ));
+    }
+  }
+
+  // Duplicate detection
+  async checkPhoneDuplicate(phone: string): Promise<Lead | undefined> {
+    const cleanPhone = phone.replace(/\D/g, ''); // Remove non-digits
+    const result = await db.select().from(leads)
+      .where(sql`replace(${leads.phone}, '[^0-9]', '') = ${cleanPhone}`)
+      .limit(1);
+    return result[0];
+  }
+
+  async checkBusinessNameDuplicate(businessName: string): Promise<Lead | undefined> {
+    const normalizedName = businessName.toLowerCase().trim();
+    const result = await db.select().from(leads)
+      .where(sql`lower(trim(${leads.businessName})) = ${normalizedName}`)
+      .limit(1);
     return result[0];
   }
 }

@@ -110,7 +110,8 @@ export default function UploadLeadsPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/batches/upload', {
+      // Call the verify-upload endpoint instead of direct upload
+      const response = await fetch('/api/admin/verify-upload', {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -123,22 +124,29 @@ export default function UploadLeadsPage() {
 
       const data = await response.json() as { 
         success: boolean; 
-        batchId: string; 
-        summary: UploadSummary 
+        sessionId: string; 
+        summary: {
+          totalLeads: number;
+          verifiedCount: number;
+          warningCount: number;
+          failedCount: number;
+          duplicateCount: number;
+          strictnessLevel: string;
+        }
       };
-
-      setBatchId(data.batchId);
-      setSummary(data.summary);
       
+      // Show verification in progress
       setCurrentStep('process');
       
-      // Simulate processing delay for better UX
+      // Redirect to verification page after a brief moment
       setTimeout(() => {
-        setCurrentStep('complete');
         toast({
-          title: "Upload successful",
-          description: `${data.summary.totalLeads} leads processed successfully`,
+          title: "Verification complete",
+          description: `${data.summary.totalLeads} leads verified. Redirecting to review page...`,
         });
+        
+        // Redirect to verification preview page with session ID
+        window.location.href = `/admin/verify-leads?session=${data.sessionId}`;
       }, 1500);
 
     } catch (error: any) {
@@ -475,14 +483,14 @@ export default function UploadLeadsPage() {
       {currentStep === 'process' && (
         <Card className="max-w-2xl">
           <CardHeader>
-            <h2 className="text-xl font-semibold">Step 3: Processing Leads</h2>
+            <h2 className="text-xl font-semibold">Step 3: Verifying Leads</h2>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="text-center py-12">
               <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-lg font-medium">Processing your leads...</p>
+              <p className="text-lg font-medium">Verifying your leads...</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Calculating quality scores and assigning tiers
+                Checking phone numbers, emails, and detecting duplicates
               </p>
             </div>
           </CardContent>

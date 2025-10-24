@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
-import { insertUserSchema, insertLeadBatchSchema, insertPurchaseSchema, insertContactSubmissionSchema, type InsertLead } from "@shared/schema";
+import { insertUserSchema, insertLeadBatchSchema, insertPurchaseSchema, insertContactSubmissionSchema, type InsertLead, type InsertVerificationSession, type InsertVerificationResult } from "@shared/schema";
 import bcrypt from "bcrypt";
 import Stripe from "stripe";
 import OpenAI from "openai";
@@ -19,6 +19,7 @@ import {
   sendAdminAlert, 
   sendContactFormNotification 
 } from "./email";
+import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -678,6 +679,325 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Upload error:", error);
       res.status(500).json({ error: "Failed to process CSV upload" });
+    }
+  });
+
+  // Verification API Endpoints
+  
+  // POST /api/admin/verify-upload - Receives file, verifies leads, returns verification results
+  app.post("/api/admin/verify-upload", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      let rows: any[] = [];
+      let headers: string[] = [];
+      
+      // Parse file (same as upload route)
+      const isExcel = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
+      
+      if (isExcel) {
+        const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          header: 1,
+          defval: '',
+          blankrows: false
+        }) as any[][];
+        
+        if (jsonData.length === 0) {
+          return res.status(400).json({ error: "Excel file is empty" });
+        }
+        
+        headers = jsonData[0].map(h => String(h || '').trim());
+        rows = jsonData.slice(1).map(row => {
+          const obj: any = {};
+          headers.forEach((header, index) => {
+            obj[header] = row[index] || '';
+          });
+          return obj;
+        });
+      } else {
+        const csvContent = file.buffer.toString('utf-8');
+        const parseResult = Papa.parse(csvContent, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header: string) => header.trim(),
+        });
+
+        if (parseResult.errors.length > 0) {
+          return res.status(400).json({ 
+            error: "CSV parsing failed", 
+            details: parseResult.errors.map(e => e.message) 
+          });
+        }
+
+        rows = parseResult.data as any[];
+        headers = parseResult.meta.fields || [];
+      }
+
+      // Validate required columns
+      const requiredColumns = ['businessName', 'ownerName', 'email', 'phone'];
+      const missingColumns = requiredColumns.filter(col => 
+        !headers.some(h => h.toLowerCase() === col.toLowerCase())
+      );
+
+      if (missingColumns.length > 0) {
+        return res.status(400).json({ 
+          error: "Missing required columns", 
+          missingColumns 
+        });
+      }
+
+      // Normalize lead data (same mapping logic)
+      const normalizedLeads = rows.map(row => {
+        const normalizedRow: any = {};
+        for (const key in row) {
+          const lowerKey = key.toLowerCase().replace(/[_\-]/g, ' ').trim();
+          const value = row[key];
+          
+          // Apply same field mapping as upload route
+          if (lowerKey === 'businessname' || lowerKey === 'business name' || lowerKey === 'company name' || 
+              lowerKey === 'company' || lowerKey === 'dba' || lowerKey === 'business') {
+            normalizedRow.businessName = value;
+          } else if (lowerKey === 'ownername' || lowerKey === 'owner name' || lowerKey === 'owner' || 
+                     lowerKey === 'contact name' || lowerKey === 'contact' || lowerKey === 'name') {
+            normalizedRow.ownerName = value;
+          } else if (lowerKey === 'email' || lowerKey === 'emailaddress' || lowerKey === 'email address' || 
+                     lowerKey === 'e-mail' || lowerKey === 'contact email') {
+            normalizedRow.email = value;
+          } else if (lowerKey === 'phone' || lowerKey === 'phonenumber' || lowerKey === 'phone number' || 
+                     lowerKey === 'telephone' || lowerKey === 'tel' || lowerKey === 'mobile' || 
+                     lowerKey === 'cell' || lowerKey === 'contact phone') {
+            normalizedRow.phone = value;
+          } else if (lowerKey === 'industry' || lowerKey === 'business type' || lowerKey === 'sector' || 
+                     lowerKey === 'vertical' || lowerKey === 'category') {
+            normalizedRow.industry = value;
+          } else if (lowerKey === 'annualrevenue' || lowerKey === 'annual revenue' || lowerKey === 'revenue' || 
+                     lowerKey === 'yearly revenue' || lowerKey === 'annual sales' || lowerKey === 'sales') {
+            normalizedRow.annualRevenue = value;
+          } else if (lowerKey === 'requestedamount' || lowerKey === 'requested amount' || lowerKey === 'amount' || 
+                     lowerKey === 'funding amount' || lowerKey === 'loan amount' || lowerKey === 'advance amount') {
+            normalizedRow.requestedAmount = value;
+          } else if (lowerKey === 'timeinbusiness' || lowerKey === 'time in business' || lowerKey === 'years in business' || 
+                     lowerKey === 'business age' || lowerKey === 'months in business' || lowerKey === 'established') {
+            normalizedRow.timeInBusiness = value;
+          } else if (lowerKey === 'creditscore' || lowerKey === 'credit score' || lowerKey === 'fico' || 
+                     lowerKey === 'credit rating' || lowerKey === 'score') {
+            normalizedRow.creditScore = value;
+          } else if (lowerKey === 'statecode' || lowerKey === 'state code' || lowerKey === 'state' || 
+                     lowerKey === 'location' || lowerKey === 'region') {
+            normalizedRow.stateCode = value;
+          } else {
+            // Keep other fields as-is
+            normalizedRow[key] = value;
+          }
+        }
+        return normalizedRow;
+      });
+
+      // Get strictness level from query params or use default
+      const strictnessLevel = (req.query.strictness as StrictnessLevel) || StrictnessLevel.MODERATE;
+      
+      // Create verification session
+      const sessionExpiry = new Date();
+      sessionExpiry.setHours(sessionExpiry.getHours() + 24); // Expires in 24 hours
+      
+      const session: InsertVerificationSession = {
+        uploadedBy: req.user!.id,
+        filename: file.originalname,
+        fileBuffer: file.buffer.toString('base64'), // Store file for potential re-processing
+        totalLeads: normalizedLeads.length,
+        verifiedCount: 0,
+        warningCount: 0,
+        failedCount: 0,
+        duplicateCount: 0,
+        status: 'pending',
+        strictnessLevel,
+        expiresAt: sessionExpiry
+      };
+      
+      const createdSession = await storage.createVerificationSession(session);
+      
+      // Run verification
+      const verificationEngine = new LeadVerificationEngine(strictnessLevel);
+      const verificationResults = await verificationEngine.verifyBatch(normalizedLeads, createdSession.id);
+      
+      // Save verification results
+      await storage.createVerificationResults(verificationResults);
+      
+      // Calculate summary stats
+      const verifiedCount = verificationResults.filter(r => r.status === 'verified').length;
+      const warningCount = verificationResults.filter(r => r.status === 'warning').length;
+      const failedCount = verificationResults.filter(r => r.status === 'failed').length;
+      const duplicateCount = verificationResults.filter(r => r.isDuplicate).length;
+      
+      // Update session with counts
+      await storage.updateVerificationSession(createdSession.id, {
+        verifiedCount,
+        warningCount,
+        failedCount,
+        duplicateCount,
+        status: 'completed'
+      });
+      
+      res.json({
+        success: true,
+        sessionId: createdSession.id,
+        summary: {
+          totalLeads: normalizedLeads.length,
+          verifiedCount,
+          warningCount,
+          failedCount,
+          duplicateCount,
+          strictnessLevel
+        }
+      });
+      
+    } catch (error) {
+      console.error("Verification error:", error);
+      res.status(500).json({ error: "Failed to verify leads" });
+    }
+  });
+  
+  // GET /api/admin/verification-session/:id - Retrieves verification session data
+  app.get("/api/admin/verification-session/:id", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const sessionId = req.params.id;
+      
+      const session = await storage.getVerificationSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Verification session not found" });
+      }
+      
+      // Check if session is expired
+      if (new Date(session.expiresAt) < new Date()) {
+        return res.status(410).json({ error: "Verification session has expired" });
+      }
+      
+      const results = await storage.getVerificationResults(sessionId);
+      
+      res.json({
+        session,
+        results
+      });
+      
+    } catch (error) {
+      console.error("Get verification session error:", error);
+      res.status(500).json({ error: "Failed to retrieve verification session" });
+    }
+  });
+  
+  // POST /api/admin/import-verified - Imports only selected leads from verification
+  app.post("/api/admin/import-verified", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { sessionId, selectedRowNumbers } = req.body;
+      
+      if (!sessionId || !Array.isArray(selectedRowNumbers)) {
+        return res.status(400).json({ error: "Invalid request data" });
+      }
+      
+      // Get session
+      const session = await storage.getVerificationSession(sessionId);
+      if (!session) {
+        return res.status(404).json({ error: "Verification session not found" });
+      }
+      
+      // Check if already imported
+      if (session.status === 'imported') {
+        return res.status(400).json({ error: "This session has already been imported" });
+      }
+      
+      // Get selected results
+      const results = await storage.getVerificationResults(sessionId);
+      const selectedResults = results.filter(r => selectedRowNumbers.includes(r.rowNumber));
+      
+      if (selectedResults.length === 0) {
+        return res.status(400).json({ error: "No leads selected for import" });
+      }
+      
+      // Create lead batch
+      const batch = await storage.createLeadBatch({
+        uploadedBy: req.user!.id,
+        filename: session.filename,
+        storageKey: `verified_${sessionId}`,
+        totalLeads: selectedResults.length,
+        averageQualityScore: "0", // Will calculate below
+        status: "processing"
+      });
+      
+      // Process and import selected leads
+      const leadsToImport: InsertLead[] = [];
+      let totalQualityScore = 0;
+      
+      for (const result of selectedResults) {
+        const leadData = result.leadData as any;
+        
+        // Calculate quality score for this lead
+        const qualityScore = calculateMCAQualityScore(leadData);
+        totalQualityScore += qualityScore;
+        
+        // Determine tier based on quality score
+        let tier: string;
+        if (qualityScore >= 80) {
+          tier = 'diamond';
+        } else if (qualityScore >= 70) {
+          tier = 'platinum';
+        } else {
+          tier = 'gold';
+        }
+        
+        leadsToImport.push({
+          batchId: batch.id,
+          businessName: leadData.businessName?.trim(),
+          ownerName: leadData.ownerName?.trim(),
+          email: leadData.email?.trim().toLowerCase(),
+          phone: result.phoneValidation?.formatted || leadData.phone?.trim(),
+          industry: leadData.industry?.trim() || null,
+          annualRevenue: leadData.annualRevenue?.trim() || null,
+          requestedAmount: leadData.requestedAmount?.trim() || null,
+          timeInBusiness: leadData.timeInBusiness?.trim() || null,
+          creditScore: leadData.creditScore?.trim() || null,
+          dailyBankDeposits: leadData.dailyBankDeposits || false,
+          previousMCAHistory: leadData.previousMCAHistory || 'none',
+          urgencyLevel: leadData.urgencyLevel || 'exploring',
+          stateCode: leadData.stateCode?.trim() || null,
+          leadAge: leadData.leadAge || 0,
+          exclusivityStatus: leadData.exclusivityStatus || 'non_exclusive',
+          qualityScore,
+          tier,
+          sold: false
+        });
+      }
+      
+      // Import leads
+      await storage.createLeads(leadsToImport);
+      
+      // Update batch with average quality score
+      const avgQualityScore = totalQualityScore / leadsToImport.length;
+      await storage.updateLeadBatch(batch.id, {
+        averageQualityScore: avgQualityScore.toFixed(2),
+        status: "ready"
+      });
+      
+      // Mark session as imported
+      await storage.updateVerificationSession(sessionId, {
+        status: 'imported'
+      });
+      
+      res.json({
+        success: true,
+        batchId: batch.id,
+        importedCount: leadsToImport.length,
+        averageQualityScore: avgQualityScore
+      });
+      
+    } catch (error) {
+      console.error("Import verified leads error:", error);
+      res.status(500).json({ error: "Failed to import verified leads" });
     }
   });
 

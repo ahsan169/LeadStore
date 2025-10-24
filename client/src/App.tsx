@@ -17,6 +17,7 @@ import PaymentSuccessPage from "@/pages/payment-success";
 import PaymentCancelPage from "@/pages/payment-cancel";
 import AdminDashboardPage from "@/pages/admin/admin-dashboard";
 import UploadLeadsPage from "@/pages/admin/upload-leads";
+import VerifyLeadsPage from "@/pages/admin/verify-leads";
 import ManageLeadsPage from "@/pages/admin/manage-leads";
 import CustomersPage from "@/pages/admin/customers";
 import TiersPage from "@/pages/admin/tiers";
@@ -198,6 +199,7 @@ function Router() {
                 <>
                   <Route path="/admin/dashboard" component={AdminDashboardPage} />
                   <Route path="/admin/upload" component={UploadLeadsPage} />
+                  <Route path="/admin/verify-leads" component={VerifyLeadsPage} />
                   <Route path="/admin/leads" component={ManageLeadsPage} />
                   <Route path="/admin/tiers" component={TiersPage} />
                   <Route path="/admin/customers" component={CustomersPage} />
