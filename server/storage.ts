@@ -503,6 +503,48 @@ export class DbStorage implements IStorage {
     return availableLeads;
   }
 
+  // Advanced lead queries
+  async getFilteredLeads(filters: {
+    industry?: string;
+    minRevenue?: number;
+    maxRevenue?: number;
+    stateCode?: string;
+    minTimeInBusiness?: number;
+    minCreditScore?: number;
+    maxCreditScore?: number;
+    exclusivityStatus?: string;
+    previousMCAHistory?: string;
+    urgencyLevel?: string;
+    limit: number;
+  }): Promise<Lead[]> {
+    const conditions = [];
+    
+    if (filters.industry) {
+      conditions.push(eq(leads.industry, filters.industry));
+    }
+    if (filters.minRevenue !== undefined) {
+      conditions.push(gte(leads.annualRevenue, filters.minRevenue));
+    }
+    if (filters.maxRevenue !== undefined) {
+      conditions.push(lte(leads.annualRevenue, filters.maxRevenue));
+    }
+    if (filters.stateCode) {
+      conditions.push(eq(leads.stateCode, filters.stateCode));
+    }
+    if (filters.minCreditScore !== undefined) {
+      conditions.push(gte(leads.creditScore, filters.minCreditScore));
+    }
+    if (filters.maxCreditScore !== undefined) {
+      conditions.push(lte(leads.creditScore, filters.maxCreditScore));
+    }
+    
+    const query = conditions.length > 0 
+      ? db.select().from(leads).where(and(...conditions)).limit(filters.limit)
+      : db.select().from(leads).limit(filters.limit);
+    
+    return query;
+  }
+
   // Contact submission operations
   async createContactSubmission(submission: InsertContactSubmission): Promise<ContactSubmission> {
     const result = await db.insert(contactSubmissions).values(submission).returning();
