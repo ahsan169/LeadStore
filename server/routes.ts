@@ -21,6 +21,9 @@ import {
 } from "./email";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
+import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
+import { WebSocketServer } from 'ws';
+import type { WebSocket } from 'ws';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1317,9 +1320,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const createdSession = await storage.createVerificationSession(session);
       
-      // Run AI-powered verification
-      const aiVerificationEngine = new AIVerificationEngine(strictnessLevel);
-      const verificationResults = await aiVerificationEngine.verifyBatchWithAI(normalizedLeads, createdSession.id);
+      // Get WebSocket server for progress updates
+      const wss = app.get('wss') as WebSocket.Server;
+      
+      // Create optimized AI verification engine with progress callback
+      const aiVerificationEngine = new OptimizedAIVerificationEngine(
+        strictnessLevel,
+        (progress) => {
+          // Send progress to all connected WebSocket clients
+          const progressMessage = JSON.stringify({ 
+            type: 'verification-progress', 
+            sessionId: createdSession.id,
+            data: progress 
+          });
+          
+          wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(progressMessage);
+            }
+          });
+        }
+      );
+      
+      // Add WebSocket clients that are connected
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          aiVerificationEngine.addWebSocketClient(client);
+        }
+      });
+      
+      console.log(`Starting AI verification for ${normalizedLeads.length} leads with ${strictnessLevel} strictness`);
+      
+      // Run optimized AI-powered verification with timeout (5 minutes)
+      const verificationResults = await aiVerificationEngine.verifyBatchOptimized(
+        normalizedLeads, 
+        createdSession.id,
+        300000 // 5 minute timeout
+      );
       
       // Save verification results
       await storage.createVerificationResults(verificationResults);
@@ -2755,6 +2792,25 @@ Time: ${preferredTime || 'Any time'}`);
   });
 
   const httpServer = createServer(app);
+  
+  // Set up WebSocket server for real-time verification progress
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  
+  wss.on('connection', (ws: WebSocket) => {
+    console.log('WebSocket client connected for verification progress');
+    
+    ws.on('close', () => {
+      console.log('WebSocket client disconnected');
+    });
+    
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+    });
+  });
+  
+  // Make WebSocket server accessible to routes
+  app.set('wss', wss);
+  
   return httpServer;
 }
 

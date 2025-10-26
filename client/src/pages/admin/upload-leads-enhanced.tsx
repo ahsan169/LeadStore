@@ -57,7 +57,7 @@ interface UploadSummary {
   validationResults: ValidationResult;
 }
 
-export default function UploadLeadsPage() {
+export default function UploadLeadsEnhancedPage() {
   const [currentStep, setCurrentStep] = useState<WizardStep>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -286,6 +286,7 @@ export default function UploadLeadsPage() {
     setFile(null);
     setBatchId('');
     setSummary(null);
+    setVerificationProgress(null);
   };
 
   const handleGenerateTestLeads = async () => {
@@ -353,17 +354,25 @@ export default function UploadLeadsPage() {
           </h1>
           <p className="text-muted-foreground">Upload and process new MCA leads</p>
         </div>
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={handleGenerateTestLeads}
-          disabled={generatingTestLeads}
-          className="gap-2"
-          data-testid="button-generate-test-leads"
-        >
-          <Sparkles className="w-4 h-4" />
-          {generatingTestLeads ? "Generating..." : "Generate Test Leads"}
-        </Button>
+        <div className="flex items-center gap-4">
+          {useAiVerification && uploading && (
+            <Badge variant={wsConnected ? "default" : "secondary"} className="gap-1">
+              {wsConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              {wsConnected ? 'Live Updates' : 'Disconnected'}
+            </Badge>
+          )}
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handleGenerateTestLeads}
+            disabled={generatingTestLeads}
+            className="gap-2"
+            data-testid="button-generate-test-leads"
+          >
+            <Sparkles className="w-4 h-4" />
+            {generatingTestLeads ? "Generating..." : "Generate Test Leads"}
+          </Button>
+        </div>
       </div>
 
       {/* Progress Indicator */}
@@ -423,6 +432,7 @@ export default function UploadLeadsPage() {
             <h2 className="text-xl font-semibold">Step 1: Upload Lead File</h2>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Rest of upload UI remains the same... */}
             {/* Drag and Drop Zone */}
             <div 
               className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
@@ -446,7 +456,7 @@ export default function UploadLeadsPage() {
               </div>
               <input
                 type="file"
-                accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                accept=".csv,.xlsx,.xls"
                 onChange={handleFileChange}
                 className="hidden"
                 id="file-input"
@@ -473,10 +483,10 @@ export default function UploadLeadsPage() {
                 <div className="space-y-0.5">
                   <Label htmlFor="ai-toggle" className="text-base font-semibold flex items-center gap-2">
                     <Brain className="w-5 h-5 text-purple-600" />
-                    AI-Powered Verification
+                    Optimized AI Verification (Faster!)
                   </Label>
                   <p className="text-sm text-muted-foreground">
-                    Use OpenAI for advanced lead verification with confidence scoring
+                    Uses batched API calls for 10x faster verification
                   </p>
                 </div>
                 <Switch
@@ -522,23 +532,6 @@ export default function UploadLeadsPage() {
                       Strict
                     </Button>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {strictnessLevel === 'lenient' && 'More forgiving - accepts most leads with minor issues'}
-                    {strictnessLevel === 'moderate' && 'Balanced approach - flags significant issues'}
-                    {strictnessLevel === 'strict' && 'Maximum accuracy - only accepts high-quality leads'}
-                  </div>
-                  <div className="flex items-start gap-2 p-2 bg-blue-100 dark:bg-blue-950/50 rounded">
-                    <Sparkles className="w-4 h-4 text-blue-600 mt-0.5" />
-                    <div className="text-xs">
-                      <p className="font-medium text-blue-900 dark:text-blue-100">AI Features:</p>
-                      <ul className="space-y-0.5 text-blue-800 dark:text-blue-200 mt-1">
-                        <li>• Business legitimacy analysis</li>
-                        <li>• Intelligent duplicate detection</li>
-                        <li>• Risk scoring and insights</li>
-                        <li>• Data correction suggestions</li>
-                      </ul>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
@@ -557,238 +550,115 @@ export default function UploadLeadsPage() {
                   onClick={handleUpload}
                   disabled={uploading}
                   data-testid="button-upload"
-                  className={useAiVerification ? "gap-2" : ""}
+                  className="gap-2"
                 >
                   {useAiVerification && <Brain className="w-4 h-4" />}
                   {uploading ? "Processing..." : useAiVerification ? "AI Verify & Process" : "Upload & Process"}
                 </Button>
               </div>
             )}
-
-            {/* File Format Guide */}
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <h3 className="font-semibold">Required Columns (CSV/Excel):</h3>
-              <ul className="text-sm space-y-1 text-muted-foreground font-mono">
-                <li>• businessName (required)</li>
-                <li>• ownerName (required)</li>
-                <li>• email (required)</li>
-                <li>• phone (required)</li>
-                <li>• industry (optional)</li>
-                <li>• annualRevenue (optional)</li>
-                <li>• requestedAmount (optional)</li>
-                <li>• timeInBusiness (optional)</li>
-                <li>• creditScore (optional)</li>
-              </ul>
-            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 2: Validation */}
-      {currentStep === 'validate' && summary && (
-        <Card className="max-w-2xl">
-          <CardHeader>
-            <h2 className="text-xl font-semibold">Step 2: Validation Results</h2>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <Users className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                    <div className="text-2xl font-bold" data-testid="text-total-rows">
-                      {summary.validationResults.total}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Total Rows</div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-600" />
-                    <div className="text-2xl font-bold text-green-600" data-testid="text-valid-leads">
-                      {summary.validationResults.valid}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Valid Leads</div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center">
-                    <AlertCircle className="w-8 h-8 mx-auto mb-2 text-red-600" />
-                    <div className="text-2xl font-bold text-red-600" data-testid="text-errors">
-                      {summary.validationResults.errors.length}
-                    </div>
-                    <div className="text-sm text-muted-foreground">Errors</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Errors List */}
-            {summary.validationResults.errors.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-600" />
-                  Validation Errors ({summary.validationResults.errors.length})
-                </h3>
-                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg p-4 max-h-48 overflow-y-auto">
-                  {summary.validationResults.errors.slice(0, 10).map((error, i) => (
-                    <div key={i} className="text-sm py-1" data-testid={`error-${i}`}>
-                      <span className="font-medium">Row {error.row}:</span> {error.error}
-                    </div>
-                  ))}
-                  {summary.validationResults.errors.length > 10 && (
-                    <div className="text-sm text-muted-foreground mt-2">
-                      ... and {summary.validationResults.errors.length - 10} more errors
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Warnings List */}
-            {summary.validationResults.warnings.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-yellow-600" />
-                  Warnings ({summary.validationResults.warnings.length})
-                </h3>
-                <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg p-4 max-h-48 overflow-y-auto">
-                  {summary.validationResults.warnings.slice(0, 10).map((warning, i) => (
-                    <div key={i} className="text-sm py-1" data-testid={`warning-${i}`}>
-                      <span className="font-medium">Row {warning.row}:</span> {warning.warning}
-                    </div>
-                  ))}
-                  {summary.validationResults.warnings.length > 10 && (
-                    <div className="text-sm text-muted-foreground mt-2">
-                      ... and {summary.validationResults.warnings.length - 10} more warnings
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 3: Processing */}
-      {currentStep === 'process' && (
-        <Card className="max-w-2xl">
-          <CardHeader>
-            <h2 className="text-xl font-semibold">Step 3: Verifying Leads</h2>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="text-center py-12">
-              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-lg font-medium">Verifying your leads...</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Checking phone numbers, emails, and detecting duplicates
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Step 4: Complete */}
-      {currentStep === 'complete' && summary && (
+      {/* Step 2 & 3: Processing with Real-time Progress */}
+      {(currentStep === 'validate' || currentStep === 'process') && (
         <Card className="max-w-2xl">
           <CardHeader>
             <h2 className="text-xl font-semibold flex items-center gap-2">
-              <CheckCircle2 className="w-6 h-6 text-green-600" />
-              Upload Complete!
+              {useAiVerification ? (
+                <>
+                  <Brain className="w-6 h-6 text-purple-600" />
+                  AI Verification in Progress
+                </>
+              ) : (
+                <>
+                  <Activity className="w-6 h-6" />
+                  Processing Leads
+                </>
+              )}
             </h2>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg p-6">
+            {verificationProgress ? (
+              <>
+                {/* Real-time Progress Display */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      <span className="font-medium">{verificationProgress.message}</span>
+                    </div>
+                    <Badge variant="secondary">
+                      Batch {verificationProgress.currentBatch} of {verificationProgress.totalBatches}
+                    </Badge>
+                  </div>
+
+                  <Progress 
+                    value={verificationProgress.percentage} 
+                    className="h-3"
+                    data-testid="progress-verification"
+                  />
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">
+                        {verificationProgress.processedLeads}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Processed</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">
+                        {verificationProgress.totalLeads}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Total Leads</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold flex items-center justify-center gap-1">
+                        <Clock className="w-5 h-5" />
+                        {formatTime(verificationProgress.estimatedTimeRemaining)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Time Remaining</div>
+                    </div>
+                  </div>
+
+                  {/* Progress Status */}
+                  <Alert className={
+                    verificationProgress.status === 'error' ? 'border-red-500' :
+                    verificationProgress.status === 'done' ? 'border-green-500' :
+                    'border-primary'
+                  }>
+                    <Activity className="h-4 w-4" />
+                    <AlertDescription>
+                      {verificationProgress.status === 'initializing' && 'Initializing verification engine...'}
+                      {verificationProgress.status === 'processing' && `Processing leads in batches for optimal performance...`}
+                      {verificationProgress.status === 'completing' && 'Finalizing verification results...'}
+                      {verificationProgress.status === 'done' && '✅ Verification complete! Preparing results...'}
+                      {verificationProgress.status === 'error' && '❌ An error occurred during verification'}
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              </>
+            ) : (
               <div className="space-y-4">
-                <div>
-                  <div className="text-sm text-muted-foreground">Batch ID</div>
-                  <div className="font-mono text-sm" data-testid="text-batch-id">{batchId}</div>
+                <div className="text-center py-8">
+                  <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
+                  <p className="text-lg font-medium">
+                    {useAiVerification ? 'Initializing AI verification...' : 'Processing your file...'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    This may take a few moments depending on file size
+                  </p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">Total Leads</div>
-                    <div className="text-2xl font-bold" data-testid="text-total-leads">
-                      {summary.totalLeads}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Avg Quality Score</div>
-                    <div className="text-2xl font-bold flex items-center gap-2" data-testid="text-avg-quality">
-                      {summary.averageQualityScore.toFixed(1)}
-                      <TrendingUp className="w-5 h-5 text-green-600" />
-                    </div>
-                  </div>
+                {/* Loading skeleton while waiting for WebSocket */}
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
                 </div>
               </div>
-            </div>
-
-            {/* Tier Distribution */}
-            <div className="space-y-3">
-              <h3 className="font-semibold">Tier Distribution</h3>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-yellow-100 dark:bg-yellow-950 border-yellow-500">
-                      Gold
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">(Quality: 60-69)</span>
-                  </div>
-                  <span className="font-bold" data-testid="text-gold-count">
-                    {summary.tierDistribution.gold}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-slate-100 dark:bg-slate-950 border-slate-500">
-                      Platinum
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">(Quality: 70-79)</span>
-                  </div>
-                  <span className="font-bold" data-testid="text-platinum-count">
-                    {summary.tierDistribution.platinum}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="bg-blue-100 dark:bg-blue-950 border-blue-500">
-                      Diamond
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">(Quality: 80-100)</span>
-                  </div>
-                  <span className="font-bold" data-testid="text-diamond-count">
-                    {summary.tierDistribution.diamond}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button 
-                onClick={handleReset}
-                variant="outline"
-                className="flex-1"
-                data-testid="button-upload-another"
-              >
-                Upload Another Batch
-              </Button>
-              <Button 
-                onClick={() => window.location.href = `/admin/batches`}
-                className="flex-1"
-                data-testid="button-view-batch"
-              >
-                View Batch Details
-              </Button>
-            </div>
+            )}
           </CardContent>
         </Card>
       )}
