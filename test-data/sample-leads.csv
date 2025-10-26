@@ -1,0 +1,11 @@
+company_name,owner_name,phone1,phone2,industry,urgency,last_contacted
+"ABC Construction LLC","John Smith","555-0100","555-0101","Construction","High","2024-12-20"
+"XYZ Retail Group","Jane Doe","555-0200","555-0201","Retail","Medium","2024-12-19"
+"123 Services Inc","Bob Johnson","555-0300","555-0301","Services","Low","2024-12-18"
+"Tech Solutions Corp","Alice Brown","555-0400","555-0401","Technology","High","2024-12-21"
+"Quick Food Co","Charlie Davis","555-0500","555-0501","Restaurant","Medium","2024-12-17"
+"Auto Parts Plus","Diana Miller","555-0600","555-0601","Automotive","Low","2024-12-16"
+"Fashion Forward LLC","Edward Wilson","555-0700","555-0701","Retail","High","2024-12-15"
+"Green Energy Inc","Fiona Garcia","555-0800","555-0801","Energy","Medium","2024-12-14"
+"Health First Clinic","George Martinez","555-0900","555-0901","Healthcare","Low","2024-12-13"
+"Prime Logistics Ltd","Helen Anderson","555-1000","555-1001","Transportation","High","2024-12-12"

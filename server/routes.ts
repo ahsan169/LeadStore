@@ -22,8 +22,7 @@ import {
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
-import { WebSocketServer } from 'ws';
-import type { WebSocket } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
