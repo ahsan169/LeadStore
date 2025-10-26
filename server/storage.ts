@@ -35,6 +35,10 @@ import {
   type InsertVerificationSession,
   type VerificationResult,
   type InsertVerificationResult,
+  type CrmIntegration,
+  type InsertCrmIntegration,
+  type CrmSyncLog,
+  type InsertCrmSyncLog,
   users,
   subscriptions,
   leadBatches,
@@ -52,6 +56,8 @@ import {
   contactSubmissions,
   verificationSessions,
   verificationResults,
+  crmIntegrations,
+  crmSyncLog,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -205,6 +211,20 @@ export interface IStorage {
   // Duplicate detection
   checkPhoneDuplicate(phone: string): Promise<Lead | undefined>;
   checkBusinessNameDuplicate(businessName: string): Promise<Lead | undefined>;
+  
+  // CRM Integration operations
+  getCrmIntegration(id: string): Promise<CrmIntegration | undefined>;
+  getCrmIntegrationsByUserId(userId: string): Promise<CrmIntegration[]>;
+  createCrmIntegration(integration: InsertCrmIntegration): Promise<CrmIntegration>;
+  updateCrmIntegration(id: string, data: Partial<InsertCrmIntegration>): Promise<CrmIntegration | undefined>;
+  deleteCrmIntegration(id: string): Promise<void>;
+  
+  // CRM Sync Log operations
+  createCrmSyncLog(log: InsertCrmSyncLog): Promise<CrmSyncLog>;
+  getCrmSyncLogsByIntegrationId(integrationId: string): Promise<CrmSyncLog[]>;
+  getCrmSyncLogsByPurchaseId(purchaseId: string): Promise<CrmSyncLog[]>;
+  updateCrmSyncLogStatus(id: string, status: string, errorMessage?: string): Promise<CrmSyncLog | undefined>;
+  getLatestSyncLog(integrationId: string): Promise<CrmSyncLog | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -822,6 +842,74 @@ export class DbStorage implements IStorage {
     const normalizedName = businessName.toLowerCase().trim();
     const result = await db.select().from(leads)
       .where(sql`lower(trim(${leads.businessName})) = ${normalizedName}`)
+      .limit(1);
+    return result[0];
+  }
+
+  // CRM Integration operations
+  async getCrmIntegration(id: string): Promise<CrmIntegration | undefined> {
+    const result = await db.select().from(crmIntegrations)
+      .where(eq(crmIntegrations.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async getCrmIntegrationsByUserId(userId: string): Promise<CrmIntegration[]> {
+    return db.select().from(crmIntegrations)
+      .where(eq(crmIntegrations.userId, userId))
+      .orderBy(desc(crmIntegrations.createdAt));
+  }
+
+  async createCrmIntegration(integration: InsertCrmIntegration): Promise<CrmIntegration> {
+    const [created] = await db.insert(crmIntegrations).values(integration).returning();
+    return created;
+  }
+
+  async updateCrmIntegration(id: string, data: Partial<InsertCrmIntegration>): Promise<CrmIntegration | undefined> {
+    const result = await db.update(crmIntegrations)
+      .set(data)
+      .where(eq(crmIntegrations.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteCrmIntegration(id: string): Promise<void> {
+    await db.delete(crmIntegrations).where(eq(crmIntegrations.id, id));
+  }
+
+  // CRM Sync Log operations
+  async createCrmSyncLog(log: InsertCrmSyncLog): Promise<CrmSyncLog> {
+    const [created] = await db.insert(crmSyncLog).values(log).returning();
+    return created;
+  }
+
+  async getCrmSyncLogsByIntegrationId(integrationId: string): Promise<CrmSyncLog[]> {
+    return db.select().from(crmSyncLog)
+      .where(eq(crmSyncLog.integrationId, integrationId))
+      .orderBy(desc(crmSyncLog.syncedAt));
+  }
+
+  async getCrmSyncLogsByPurchaseId(purchaseId: string): Promise<CrmSyncLog[]> {
+    return db.select().from(crmSyncLog)
+      .where(eq(crmSyncLog.purchaseId, purchaseId))
+      .orderBy(desc(crmSyncLog.syncedAt));
+  }
+
+  async updateCrmSyncLogStatus(id: string, status: string, errorMessage?: string): Promise<CrmSyncLog | undefined> {
+    const data: any = { status };
+    if (errorMessage) data.errorMessage = errorMessage;
+    
+    const result = await db.update(crmSyncLog)
+      .set(data)
+      .where(eq(crmSyncLog.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getLatestSyncLog(integrationId: string): Promise<CrmSyncLog | undefined> {
+    const result = await db.select().from(crmSyncLog)
+      .where(eq(crmSyncLog.integrationId, integrationId))
+      .orderBy(desc(crmSyncLog.syncedAt))
       .limit(1);
     return result[0];
   }

@@ -23,7 +23,8 @@ import CustomersPage from "@/pages/admin/customers";
 import TiersPage from "@/pages/admin/tiers";
 import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
 import AnalyticsPage from "@/pages/analytics";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp } from "lucide-react";
+import IntegrationsPage from "@/pages/integrations";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -62,6 +63,7 @@ function AppSidebar() {
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
+    { title: "Integrations", url: "/integrations", icon: Link2 },
   ];
 
   const adminMenuItems = [
@@ -194,6 +196,7 @@ function Router() {
               <Route path="/pricing" component={PricingPage} />
               <Route path="/purchase" component={PurchaseFlowPage} />
               <Route path="/purchases" component={PurchasesPage} />
+              <Route path="/integrations" component={IntegrationsPage} />
               <Route path="/purchase/:tier" component={PurchaseTierPage} />
               <Route path="/payment-success" component={PaymentSuccessPage} />
               <Route path="/payment-cancel" component={PaymentCancelPage} />

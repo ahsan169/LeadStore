@@ -298,6 +298,30 @@ export const verificationResults = pgTable("verification_results", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// CRM Integrations for lead export
+export const crmIntegrations = pgTable("crm_integrations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  crmType: text("crm_type").notNull(), // 'salesforce', 'hubspot', 'pipedrive', 'custom_api'
+  apiKey: text("api_key").notNull(), // encrypted
+  apiUrl: text("api_url"),
+  mappingConfig: jsonb("mapping_config"), // JSON for field mappings
+  isActive: boolean("is_active").notNull().default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// CRM Sync Log for tracking exports
+export const crmSyncLog = pgTable("crm_sync_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  integrationId: varchar("integration_id").references(() => crmIntegrations.id).notNull(),
+  purchaseId: varchar("purchase_id").references(() => purchases.id),
+  leadIds: text("lead_ids").array(), // array of lead IDs
+  status: text("status").notNull().default("pending"), // 'pending', 'success', 'failed'
+  errorMessage: text("error_message"),
+  syncedAt: timestamp("synced_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -438,6 +462,21 @@ export const insertCreditTransactionSchema = createInsertSchema(creditTransactio
   balanceAfter: z.string().regex(/^\d+(\.\d{1,2})?$/),
 });
 
+export const insertCrmIntegrationSchema = createInsertSchema(crmIntegrations).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  crmType: z.enum(["salesforce", "hubspot", "pipedrive", "custom_api"]),
+});
+
+export const insertCrmSyncLogSchema = createInsertSchema(crmSyncLog).omit({
+  id: true,
+  syncedAt: true,
+}).extend({
+  status: z.enum(["pending", "success", "failed"]).default("pending"),
+  leadIds: z.array(z.string()).optional(),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -489,3 +528,9 @@ export type VerificationSession = typeof verificationSessions.$inferSelect;
 
 export type InsertVerificationResult = z.infer<typeof insertVerificationResultSchema>;
 export type VerificationResult = typeof verificationResults.$inferSelect;
+
+export type InsertCrmIntegration = z.infer<typeof insertCrmIntegrationSchema>;
+export type CrmIntegration = typeof crmIntegrations.$inferSelect;
+
+export type InsertCrmSyncLog = z.infer<typeof insertCrmSyncLogSchema>;
+export type CrmSyncLog = typeof crmSyncLog.$inferSelect;

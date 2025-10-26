@@ -2922,6 +2922,226 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
     }
   });
 
+  // CRM Integration endpoints
+  const { CrmIntegrationService, encryptApiKey } = await import('./services/crm-integration.js');
+
+  // Get user's CRM integrations
+  app.get('/api/integrations', requireAuth, async (req, res) => {
+    try {
+      const integrations = await storage.getCrmIntegrationsByUserId(req.session.userId!);
+      // Don't send decrypted API keys
+      const sanitized = integrations.map(i => ({
+        ...i,
+        apiKey: i.apiKey ? '***' : null
+      }));
+      res.json(sanitized);
+    } catch (error) {
+      console.error('Failed to fetch integrations:', error);
+      res.status(500).json({ error: 'Failed to fetch integrations' });
+    }
+  });
+
+  // Connect new CRM integration
+  app.post('/api/integrations/connect', requireAuth, async (req, res) => {
+    try {
+      const { crmType, apiKey, apiUrl, mappingConfig } = req.body;
+
+      // Validate required fields
+      if (!crmType || !apiKey) {
+        return res.status(400).json({ error: 'CRM type and API key are required' });
+      }
+
+      // Encrypt the API key
+      const encryptedKey = encryptApiKey(apiKey);
+
+      // Create integration
+      const integration = await storage.createCrmIntegration({
+        userId: req.session.userId!,
+        crmType,
+        apiKey: encryptedKey,
+        apiUrl: apiUrl || null,
+        mappingConfig: mappingConfig || null,
+        isActive: true
+      });
+
+      // Test connection
+      const isValid = await CrmIntegrationService.testConnection(integration);
+      if (!isValid) {
+        // Delete the integration if connection test fails
+        await storage.deleteCrmIntegration(integration.id);
+        return res.status(400).json({ error: 'Failed to connect to CRM. Please check your credentials.' });
+      }
+
+      res.json({
+        ...integration,
+        apiKey: '***' // Don't return the encrypted key
+      });
+    } catch (error) {
+      console.error('Failed to create integration:', error);
+      res.status(500).json({ error: 'Failed to create integration' });
+    }
+  });
+
+  // Test CRM connection
+  app.post('/api/integrations/:id/test', requireAuth, async (req, res) => {
+    try {
+      const integration = await storage.getCrmIntegration(req.params.id);
+      
+      if (!integration) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+
+      if (integration.userId !== req.session.userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      const isValid = await CrmIntegrationService.testConnection(integration);
+      res.json({ success: isValid });
+    } catch (error) {
+      console.error('Failed to test connection:', error);
+      res.status(500).json({ error: 'Failed to test connection' });
+    }
+  });
+
+  // Export leads to CRM
+  app.post('/api/integrations/:id/export', requireAuth, async (req, res) => {
+    try {
+      const { leadIds, purchaseId } = req.body;
+
+      if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: 'Lead IDs are required' });
+      }
+
+      const integration = await storage.getCrmIntegration(req.params.id);
+      
+      if (!integration) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+
+      if (integration.userId !== req.session.userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      // Get leads
+      const leads = await Promise.all(leadIds.map(id => storage.getLead(id)));
+      const validLeads = leads.filter(Boolean) as any[];
+
+      if (validLeads.length === 0) {
+        return res.status(404).json({ error: 'No valid leads found' });
+      }
+
+      // Export to CRM
+      const result = await CrmIntegrationService.exportLeadsToCrm(
+        req.params.id,
+        validLeads,
+        purchaseId
+      );
+
+      res.json(result);
+    } catch (error: any) {
+      console.error('Failed to export leads:', error);
+      res.status(500).json({ error: error.message || 'Failed to export leads' });
+    }
+  });
+
+  // Get sync status for an integration
+  app.get('/api/integrations/:id/sync-status', requireAuth, async (req, res) => {
+    try {
+      const integration = await storage.getCrmIntegration(req.params.id);
+      
+      if (!integration) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+
+      if (integration.userId !== req.session.userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      const logs = await storage.getCrmSyncLogsByIntegrationId(req.params.id);
+      const latestSync = await storage.getLatestSyncLog(req.params.id);
+
+      res.json({
+        lastSyncAt: integration.lastSyncAt,
+        latestSync,
+        recentLogs: logs.slice(0, 10)
+      });
+    } catch (error) {
+      console.error('Failed to get sync status:', error);
+      res.status(500).json({ error: 'Failed to get sync status' });
+    }
+  });
+
+  // Update field mappings
+  app.put('/api/integrations/:id/mapping', requireAuth, async (req, res) => {
+    try {
+      const { mappingConfig } = req.body;
+
+      const integration = await storage.getCrmIntegration(req.params.id);
+      
+      if (!integration) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+
+      if (integration.userId !== req.session.userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      const updated = await storage.updateCrmIntegration(req.params.id, {
+        mappingConfig
+      });
+
+      res.json({
+        ...updated,
+        apiKey: '***'
+      });
+    } catch (error) {
+      console.error('Failed to update mapping:', error);
+      res.status(500).json({ error: 'Failed to update field mapping' });
+    }
+  });
+
+  // Delete integration
+  app.delete('/api/integrations/:id', requireAuth, async (req, res) => {
+    try {
+      const integration = await storage.getCrmIntegration(req.params.id);
+      
+      if (!integration) {
+        return res.status(404).json({ error: 'Integration not found' });
+      }
+
+      if (integration.userId !== req.session.userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      await storage.deleteCrmIntegration(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Failed to delete integration:', error);
+      res.status(500).json({ error: 'Failed to delete integration' });
+    }
+  });
+
+  // Get sync logs for a purchase
+  app.get('/api/purchases/:purchaseId/sync-logs', requireAuth, async (req, res) => {
+    try {
+      const purchase = await storage.getPurchase(req.params.purchaseId);
+      
+      if (!purchase) {
+        return res.status(404).json({ error: 'Purchase not found' });
+      }
+
+      if (purchase.userId !== req.session.userId) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+
+      const logs = await storage.getCrmSyncLogsByPurchaseId(req.params.purchaseId);
+      res.json(logs);
+    } catch (error) {
+      console.error('Failed to get sync logs:', error);
+      res.status(500).json({ error: 'Failed to get sync logs' });
+    }
+  });
+
   // Demo scheduling endpoint
   app.post('/api/demo', async (req, res) => {
     try {
