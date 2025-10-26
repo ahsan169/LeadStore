@@ -11,6 +11,8 @@ import {
   type InsertLead,
   type Purchase,
   type InsertPurchase,
+  type LeadPerformance,
+  type InsertLeadPerformance,
   type DownloadHistory,
   type InsertDownloadHistory,
   type AiInsight,
@@ -38,6 +40,7 @@ import {
   leadBatches,
   leads,
   purchases,
+  leadPerformance,
   downloadHistory,
   aiInsights,
   productTiers,
@@ -91,6 +94,34 @@ export interface IStorage {
   getAllPurchases(): Promise<Purchase[]>;
   createPurchase(purchase: InsertPurchase): Promise<Purchase>;
   updatePurchase(id: string, data: Partial<InsertPurchase>): Promise<Purchase | undefined>;
+  
+  // Lead Performance operations
+  createLeadPerformance(performance: InsertLeadPerformance): Promise<LeadPerformance>;
+  updateLeadPerformance(id: string, data: Partial<InsertLeadPerformance>): Promise<LeadPerformance | undefined>;
+  getLeadPerformanceByPurchaseId(purchaseId: string): Promise<LeadPerformance[]>;
+  getLeadPerformanceByLeadId(leadId: string): Promise<LeadPerformance | undefined>;
+  getLeadPerformanceStats(purchaseId?: string): Promise<{
+    totalLeads: number;
+    contacted: number;
+    qualified: number;
+    closedWon: number;
+    closedLost: number;
+    totalRevenue: number;
+    averageConversionRate: number;
+    roi: number;
+  }>;
+  getConversionFunnelData(): Promise<{
+    stage: string;
+    count: number;
+    conversionRate: number;
+  }[]>;
+  getRoiByTier(): Promise<{
+    tier: string;
+    totalSpent: number;
+    totalRevenue: number;
+    roi: number;
+    leadCount: number;
+  }[]>;
   
   // Download history operations
   createDownloadHistory(history: InsertDownloadHistory): Promise<DownloadHistory>;
@@ -371,6 +402,154 @@ export class DbStorage implements IStorage {
       .where(eq(purchases.id, id))
       .returning();
     return result[0];
+  }
+
+  // Lead Performance operations
+  async createLeadPerformance(performance: InsertLeadPerformance): Promise<LeadPerformance> {
+    const result = await db.insert(leadPerformance).values(performance).returning();
+    return result[0];
+  }
+
+  async updateLeadPerformance(id: string, data: Partial<InsertLeadPerformance>): Promise<LeadPerformance | undefined> {
+    const result = await db.update(leadPerformance)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(leadPerformance.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getLeadPerformanceByPurchaseId(purchaseId: string): Promise<LeadPerformance[]> {
+    return db.select().from(leadPerformance)
+      .where(eq(leadPerformance.purchaseId, purchaseId))
+      .orderBy(desc(leadPerformance.createdAt));
+  }
+
+  async getLeadPerformanceByLeadId(leadId: string): Promise<LeadPerformance | undefined> {
+    const result = await db.select().from(leadPerformance)
+      .where(eq(leadPerformance.leadId, leadId))
+      .limit(1);
+    return result[0];
+  }
+
+  async getLeadPerformanceStats(purchaseId?: string): Promise<{
+    totalLeads: number;
+    contacted: number;
+    qualified: number;
+    closedWon: number;
+    closedLost: number;
+    totalRevenue: number;
+    averageConversionRate: number;
+    roi: number;
+  }> {
+    let query = db.select({
+      totalLeads: sql<number>`count(distinct ${leadPerformance.leadId})::int`,
+      contacted: sql<number>`count(*) filter (where ${leadPerformance.status} in ('contacted', 'qualified', 'proposal', 'closed_won', 'closed_lost'))::int`,
+      qualified: sql<number>`count(*) filter (where ${leadPerformance.status} in ('qualified', 'proposal', 'closed_won', 'closed_lost'))::int`,
+      closedWon: sql<number>`count(*) filter (where ${leadPerformance.status} = 'closed_won')::int`,
+      closedLost: sql<number>`count(*) filter (where ${leadPerformance.status} = 'closed_lost')::int`,
+      totalRevenue: sql<number>`COALESCE(sum(${leadPerformance.dealAmount}), 0)::numeric`,
+    }).from(leadPerformance);
+
+    if (purchaseId) {
+      query = query.where(eq(leadPerformance.purchaseId, purchaseId));
+    }
+
+    const [stats] = await query;
+    const conversionRate = stats.totalLeads > 0 
+      ? (stats.closedWon / stats.totalLeads) * 100 
+      : 0;
+
+    // Get total spent for ROI calculation
+    let totalSpent = 0;
+    if (purchaseId) {
+      const purchase = await this.getPurchase(purchaseId);
+      totalSpent = Number(purchase?.totalAmount || 0);
+    } else {
+      const purchaseData = await db.select({
+        totalSpent: sql<number>`sum(${purchases.totalAmount})::numeric`
+      }).from(purchases);
+      totalSpent = Number(purchaseData[0]?.totalSpent || 0);
+    }
+
+    const roi = totalSpent > 0 
+      ? ((Number(stats.totalRevenue) - totalSpent) / totalSpent) * 100 
+      : 0;
+
+    return {
+      totalLeads: stats.totalLeads || 0,
+      contacted: stats.contacted || 0,
+      qualified: stats.qualified || 0,
+      closedWon: stats.closedWon || 0,
+      closedLost: stats.closedLost || 0,
+      totalRevenue: Number(stats.totalRevenue || 0),
+      averageConversionRate: conversionRate,
+      roi: roi
+    };
+  }
+
+  async getConversionFunnelData(): Promise<{
+    stage: string;
+    count: number;
+    conversionRate: number;
+  }[]> {
+    const stages = [
+      { name: 'Total Leads', status: ['new', 'contacted', 'qualified', 'proposal', 'closed_won', 'closed_lost'] },
+      { name: 'Contacted', status: ['contacted', 'qualified', 'proposal', 'closed_won', 'closed_lost'] },
+      { name: 'Qualified', status: ['qualified', 'proposal', 'closed_won', 'closed_lost'] },
+      { name: 'Proposal', status: ['proposal', 'closed_won', 'closed_lost'] },
+      { name: 'Closed Won', status: ['closed_won'] },
+    ];
+
+    const results = [];
+    let totalLeads = 0;
+
+    for (const stage of stages) {
+      const [count] = await db.select({
+        count: sql<number>`count(distinct ${leadPerformance.leadId})::int`
+      })
+      .from(leadPerformance)
+      .where(inArray(leadPerformance.status, stage.status));
+
+      if (stage.name === 'Total Leads') {
+        totalLeads = count.count;
+      }
+
+      results.push({
+        stage: stage.name,
+        count: count.count,
+        conversionRate: totalLeads > 0 ? (count.count / totalLeads) * 100 : 0
+      });
+    }
+
+    return results;
+  }
+
+  async getRoiByTier(): Promise<{
+    tier: string;
+    totalSpent: number;
+    totalRevenue: number;
+    roi: number;
+    leadCount: number;
+  }[]> {
+    const results = await db.select({
+      tier: purchases.tier,
+      totalSpent: sql<number>`sum(${purchases.totalAmount})::numeric`,
+      totalRevenue: sql<number>`COALESCE(sum(${leadPerformance.dealAmount}), 0)::numeric`,
+      leadCount: sql<number>`count(distinct ${leadPerformance.leadId})::int`,
+    })
+    .from(purchases)
+    .leftJoin(leadPerformance, eq(leadPerformance.purchaseId, purchases.id))
+    .groupBy(purchases.tier);
+
+    return results.map(row => ({
+      tier: row.tier,
+      totalSpent: Number(row.totalSpent || 0),
+      totalRevenue: Number(row.totalRevenue || 0),
+      roi: Number(row.totalSpent || 0) > 0 
+        ? ((Number(row.totalRevenue || 0) - Number(row.totalSpent || 0)) / Number(row.totalSpent || 0)) * 100 
+        : 0,
+      leadCount: row.leadCount || 0
+    }));
   }
 
   // Download history operations

@@ -22,7 +22,8 @@ import ManageLeadsPage from "@/pages/admin/manage-leads";
 import CustomersPage from "@/pages/admin/customers";
 import TiersPage from "@/pages/admin/tiers";
 import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves } from "lucide-react";
+import AnalyticsPage from "@/pages/analytics";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -57,6 +58,7 @@ function AppSidebar() {
 
   const buyerMenuItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home },
+    { title: "Analytics", url: "/analytics", icon: TrendingUp },
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
@@ -64,6 +66,7 @@ function AppSidebar() {
 
   const adminMenuItems = [
     { title: "Dashboard", url: "/admin/dashboard", icon: BarChart },
+    { title: "Analytics", url: "/analytics", icon: TrendingUp },
     { title: "Upload Leads", url: "/admin/upload", icon: Upload },
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
     { title: "Pricing Tiers", url: "/admin/tiers", icon: Tags },
@@ -187,6 +190,7 @@ function Router() {
               {/* Buyer routes */}
               <Route path="/" component={DashboardPage} />
               <Route path="/dashboard" component={DashboardPage} />
+              <Route path="/analytics" component={AnalyticsPage} />
               <Route path="/pricing" component={PricingPage} />
               <Route path="/purchase" component={PurchaseFlowPage} />
               <Route path="/purchases" component={PurchasesPage} />

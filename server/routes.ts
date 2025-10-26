@@ -19,6 +19,9 @@ import {
   sendAdminAlert, 
   sendContactFormNotification 
 } from "./email";
+import { db } from "./db";
+import { leadPerformance, purchases } from "@shared/schema";
+import { gte, lte, and } from "drizzle-orm";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
@@ -2148,6 +2151,193 @@ Format your response as JSON with the following structure:
       res.status(500).json({ error: "Failed to generate download URL" });
     }
   });
+
+  // Analytics API endpoints
+  
+  // GET /api/analytics/dashboard - Main dashboard stats
+  app.get("/api/analytics/dashboard", requireAuth, async (req, res) => {
+    try {
+      const stats = await storage.getLeadPerformanceStats();
+      const conversionFunnel = await storage.getConversionFunnelData();
+      const roiByTier = await storage.getRoiByTier();
+      
+      // Calculate additional metrics
+      const leadVelocity = await calculateLeadVelocity();
+      const bestPerformingTier = roiByTier.reduce((best, current) => 
+        current.roi > best.roi ? current : best, 
+        roiByTier[0] || { tier: 'none', roi: 0 }
+      );
+      
+      res.json({
+        stats,
+        conversionFunnel,
+        roiByTier,
+        leadVelocity,
+        bestPerformingTier: bestPerformingTier.tier,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      console.error("Analytics dashboard error:", error);
+      res.status(500).json({ error: "Failed to fetch analytics data" });
+    }
+  });
+  
+  // GET /api/analytics/performance/:purchaseId - Purchase-specific metrics
+  app.get("/api/analytics/performance/:purchaseId", requireAuth, async (req, res) => {
+    try {
+      const { purchaseId } = req.params;
+      
+      // Check purchase ownership
+      const purchase = await storage.getPurchase(purchaseId);
+      if (!purchase) {
+        return res.status(404).json({ error: "Purchase not found" });
+      }
+      
+      if (req.user!.role !== "admin" && purchase.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const stats = await storage.getLeadPerformanceStats(purchaseId);
+      const leadPerformance = await storage.getLeadPerformanceByPurchaseId(purchaseId);
+      
+      res.json({
+        purchase,
+        stats,
+        leadPerformance,
+      });
+    } catch (error) {
+      console.error("Performance analytics error:", error);
+      res.status(500).json({ error: "Failed to fetch performance data" });
+    }
+  });
+  
+  // POST /api/analytics/update-lead-status - Update lead status
+  app.post("/api/analytics/update-lead-status", requireAuth, async (req, res) => {
+    try {
+      const { leadId, purchaseId, status, dealAmount, notes } = req.body;
+      
+      // Validate input
+      if (!leadId || !purchaseId || !status) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+      
+      // Check purchase ownership
+      const purchase = await storage.getPurchase(purchaseId);
+      if (!purchase) {
+        return res.status(404).json({ error: "Purchase not found" });
+      }
+      
+      if (req.user!.role !== "admin" && purchase.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      // Check if lead performance record exists
+      let leadPerformance = await storage.getLeadPerformanceByLeadId(leadId);
+      
+      const updateData: any = {
+        status,
+        notes,
+        dealAmount: dealAmount ? String(dealAmount) : undefined,
+        updatedBy: req.user!.id,
+      };
+      
+      // Set timestamps based on status change
+      const now = new Date();
+      if (status === 'contacted' && !leadPerformance?.contactedAt) {
+        updateData.contactedAt = now;
+      }
+      if (status === 'qualified' && !leadPerformance?.qualifiedAt) {
+        updateData.qualifiedAt = now;
+      }
+      if ((status === 'closed_won' || status === 'closed_lost') && !leadPerformance?.closedAt) {
+        updateData.closedAt = now;
+      }
+      
+      if (leadPerformance) {
+        // Update existing record
+        leadPerformance = await storage.updateLeadPerformance(leadPerformance.id, updateData);
+      } else {
+        // Create new record
+        leadPerformance = await storage.createLeadPerformance({
+          purchaseId,
+          leadId,
+          ...updateData,
+        });
+      }
+      
+      // Update purchase analytics
+      const stats = await storage.getLeadPerformanceStats(purchaseId);
+      await storage.updatePurchase(purchaseId, {
+        totalContacted: stats.contacted,
+        totalQualified: stats.qualified,
+        totalClosed: stats.closedWon + stats.closedLost,
+        totalRevenue: String(stats.totalRevenue),
+        roi: String(stats.roi),
+      });
+      
+      res.json({ leadPerformance, stats });
+    } catch (error) {
+      console.error("Update lead status error:", error);
+      res.status(500).json({ error: "Failed to update lead status" });
+    }
+  });
+  
+  // GET /api/analytics/roi-by-tier - ROI breakdown by tier
+  app.get("/api/analytics/roi-by-tier", requireAuth, async (req, res) => {
+    try {
+      const roiData = await storage.getRoiByTier();
+      res.json(roiData);
+    } catch (error) {
+      console.error("ROI by tier error:", error);
+      res.status(500).json({ error: "Failed to fetch ROI data" });
+    }
+  });
+  
+  // GET /api/analytics/conversion-funnel - Funnel metrics
+  app.get("/api/analytics/conversion-funnel", requireAuth, async (req, res) => {
+    try {
+      const funnelData = await storage.getConversionFunnelData();
+      res.json(funnelData);
+    } catch (error) {
+      console.error("Conversion funnel error:", error);
+      res.status(500).json({ error: "Failed to fetch funnel data" });
+    }
+  });
+  
+  // Helper function to calculate lead velocity
+  async function calculateLeadVelocity(): Promise<number> {
+    try {
+      // Calculate leads processed in the last 30 days vs previous 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+      
+      const recentPurchases = await db.select({
+        count: sql<number>`count(*)::int`
+      })
+      .from(purchases)
+      .where(gte(purchases.createdAt, thirtyDaysAgo));
+      
+      const previousPurchases = await db.select({
+        count: sql<number>`count(*)::int`
+      })
+      .from(purchases)
+      .where(and(
+        gte(purchases.createdAt, sixtyDaysAgo),
+        lte(purchases.createdAt, thirtyDaysAgo)
+      ));
+      
+      const recent = recentPurchases[0]?.count || 0;
+      const previous = previousPurchases[0]?.count || 0;
+      
+      if (previous === 0) return 100; // 100% growth if no previous leads
+      return ((recent - previous) / previous) * 100;
+    } catch (error) {
+      console.error("Lead velocity calculation error:", error);
+      return 0;
+    }
+  }
 
   // Stripe webhook handler
   app.post("/api/webhooks/stripe", async (req, res) => {

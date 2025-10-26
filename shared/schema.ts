@@ -90,7 +90,38 @@ export const purchases = pgTable("purchases", {
   downloadUrl: text("download_url"), // Presigned URL for CSV download
   downloadUrlExpiry: timestamp("download_url_expiry"),
   
+  // Analytics fields
+  totalContacted: integer("total_contacted").notNull().default(0),
+  totalQualified: integer("total_qualified").notNull().default(0),
+  totalClosed: integer("total_closed").notNull().default(0),
+  totalRevenue: decimal("total_revenue", { precision: 12, scale: 2 }).notNull().default("0"),
+  roi: decimal("roi", { precision: 10, scale: 2 }), // ROI percentage
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Lead Performance tracking for ROI and conversion analytics
+export const leadPerformance = pgTable("lead_performance", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  purchaseId: varchar("purchase_id").references(() => purchases.id).notNull(),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  
+  // Status tracking
+  status: text("status").notNull().default("new"), // 'new', 'contacted', 'qualified', 'proposal', 'closed_won', 'closed_lost'
+  
+  // Timestamps for conversion funnel
+  contactedAt: timestamp("contacted_at"),
+  qualifiedAt: timestamp("qualified_at"),
+  closedAt: timestamp("closed_at"),
+  
+  // Deal information
+  dealAmount: decimal("deal_amount", { precision: 12, scale: 2 }),
+  notes: text("notes"),
+  
+  // Metadata
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Download history for audit trail
@@ -308,6 +339,15 @@ export const insertPurchaseSchema = createInsertSchema(purchases).omit({
   paymentStatus: z.enum(["pending", "succeeded", "failed"]).default("pending"),
 });
 
+export const insertLeadPerformanceSchema = createInsertSchema(leadPerformance).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  status: z.enum(["new", "contacted", "qualified", "proposal", "closed_won", "closed_lost"]).default("new"),
+  dealAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+});
+
 export const insertDownloadHistorySchema = createInsertSchema(downloadHistory).omit({
   id: true,
   downloadedAt: true,
@@ -413,6 +453,9 @@ export type Lead = typeof leads.$inferSelect;
 
 export type InsertPurchase = z.infer<typeof insertPurchaseSchema>;
 export type Purchase = typeof purchases.$inferSelect;
+
+export type InsertLeadPerformance = z.infer<typeof insertLeadPerformanceSchema>;
+export type LeadPerformance = typeof leadPerformance.$inferSelect;
 
 export type InsertDownloadHistory = z.infer<typeof insertDownloadHistorySchema>;
 export type DownloadHistory = typeof downloadHistory.$inferSelect;

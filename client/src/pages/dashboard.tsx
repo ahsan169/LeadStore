@@ -4,9 +4,21 @@ import { QualityScoreBadge } from "@/components/QualityScoreBadge";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Package, Download, TrendingUp, DollarSign, ArrowUpRight, Activity, Users, Waves } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Package, Download, TrendingUp, DollarSign, ArrowUpRight, Activity, Users, Waves, Target, ArrowUp, ArrowDown } from "lucide-react";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import { 
+  LineChart, 
+  Line, 
+  AreaChart,
+  Area,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer 
+} from "recharts";
 
 export default function DashboardPage() {
   const { data: purchases, isLoading } = useQuery({
@@ -15,6 +27,10 @@ export default function DashboardPage() {
 
   const { data: user } = useQuery({
     queryKey: ["/api/auth/me"],
+  });
+
+  const { data: analyticsData } = useQuery({
+    queryKey: ["/api/analytics/dashboard"],
   });
 
   const stats = {
@@ -70,6 +86,85 @@ export default function DashboardPage() {
             icon={TrendingUp}
           />
         </div>
+
+        {/* Analytics Widgets */}
+        {analyticsData && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-up">
+            {/* ROI Performance Card */}
+            <Card className="shadow-lg border-primary/10 hover-elevate">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">ROI Performance</h3>
+                  <p className="text-sm text-muted-foreground">Your return on investment</p>
+                </div>
+                <div className={`flex items-center gap-1 ${analyticsData?.stats?.roi > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {analyticsData?.stats?.roi > 0 ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                  <span className="text-2xl font-bold">{analyticsData?.stats?.roi?.toFixed(1) || '0'}%</span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Total Revenue</span>
+                    <span className="font-medium">${analyticsData?.stats?.totalRevenue?.toFixed(2) || '0.00'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Best Tier</span>
+                    <Badge variant="outline" className="capitalize">
+                      {analyticsData?.bestPerformingTier || 'none'}
+                    </Badge>
+                  </div>
+                  <div className="pt-2">
+                    <Link href="/analytics">
+                      <Button variant="outline" size="sm" className="w-full" data-testid="button-view-analytics">
+                        <Activity className="w-4 h-4 mr-2" />
+                        View Full Analytics
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Conversion Rate Card */}
+            <Card className="shadow-lg border-primary/10 hover-elevate">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">Conversion Metrics</h3>
+                  <p className="text-sm text-muted-foreground">Lead conversion performance</p>
+                </div>
+                <div className="text-primary">
+                  <Target className="w-6 h-6" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">Conversion Rate</span>
+                    <span className="text-xl font-bold">{analyticsData?.stats?.averageConversionRate?.toFixed(1) || '0'}%</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">{analyticsData?.stats?.contacted || 0}</div>
+                      <div className="text-xs text-muted-foreground">Contacted</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-purple-600">{analyticsData?.stats?.qualified || 0}</div>
+                      <div className="text-xs text-muted-foreground">Qualified</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">{analyticsData?.stats?.closedWon || 0}</div>
+                      <div className="text-xs text-muted-foreground">Closed</div>
+                    </div>
+                  </div>
+                  <div className="pt-2 text-xs text-muted-foreground text-center">
+                    Lead Velocity: {analyticsData?.leadVelocity > 0 ? '+' : ''}{analyticsData?.leadVelocity?.toFixed(0) || '0'}% monthly growth
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Recent Purchases */}
         <Card className="shadow-lg border-primary/10">
