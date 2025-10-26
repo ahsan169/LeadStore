@@ -702,16 +702,143 @@ export default function UploadLeadsPage() {
       {currentStep === 'process' && (
         <Card className="max-w-2xl">
           <CardHeader>
-            <h2 className="text-xl font-semibold">Step 3: Verifying Leads</h2>
+            <h2 className="text-xl font-semibold flex items-center gap-2">
+              <Brain className="w-5 h-5 text-purple-600 animate-pulse" />
+              Step 3: AI Verification in Progress
+            </h2>
+            {wsConnected && (
+              <Badge variant="outline" className="w-fit gap-1 border-green-500 text-green-600">
+                <Wifi className="w-3 h-3" />
+                Live Updates
+              </Badge>
+            )}
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="text-center py-12">
-              <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-lg font-medium">Verifying your leads...</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Checking phone numbers, emails, and detecting duplicates
-              </p>
-            </div>
+            {/* Enhanced Progress Bar Section */}
+            {verificationProgress ? (
+              <div className="space-y-6">
+                {/* Main Progress Bar */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-primary animate-pulse" />
+                      Processing Leads
+                    </span>
+                    <span className="text-muted-foreground">
+                      {verificationProgress.percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  <Progress 
+                    value={verificationProgress.percentage} 
+                    className="h-3 bg-muted"
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{verificationProgress.processedLeads} / {verificationProgress.totalLeads} leads</span>
+                    <span>Batch {verificationProgress.currentBatch} of {verificationProgress.totalBatches}</span>
+                  </div>
+                </div>
+
+                {/* Status Cards Grid */}
+                <div className="grid grid-cols-3 gap-3">
+                  <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20">
+                    <CardContent className="pt-4 pb-4 px-3">
+                      <div className="flex flex-col items-center space-y-1">
+                        <Users className="w-5 h-5 text-blue-600" />
+                        <div className="text-lg font-bold text-blue-600">
+                          {verificationProgress.processedLeads}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Processed</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-purple-200 dark:border-purple-900 bg-purple-50/50 dark:bg-purple-950/20">
+                    <CardContent className="pt-4 pb-4 px-3">
+                      <div className="flex flex-col items-center space-y-1">
+                        <Sparkles className="w-5 h-5 text-purple-600" />
+                        <div className="text-lg font-bold text-purple-600">
+                          {verificationProgress.totalLeads - verificationProgress.processedLeads}
+                        </div>
+                        <div className="text-xs text-muted-foreground">Remaining</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-950/20">
+                    <CardContent className="pt-4 pb-4 px-3">
+                      <div className="flex flex-col items-center space-y-1">
+                        <Clock className="w-5 h-5 text-green-600" />
+                        <div className="text-lg font-bold text-green-600">
+                          {verificationProgress.estimatedTimeRemaining > 0 
+                            ? Math.ceil(verificationProgress.estimatedTimeRemaining / 60)
+                            : 0}m
+                        </div>
+                        <div className="text-xs text-muted-foreground">Est. Time</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Current Operation */}
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20 rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                        <span className="text-sm font-medium">
+                          {verificationProgress.status === 'processing' 
+                            ? 'AI Analysis in Progress'
+                            : verificationProgress.status === 'completing'
+                            ? 'Finalizing Results'
+                            : verificationProgress.status === 'initializing'
+                            ? 'Preparing Verification'
+                            : 'Processing'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {verificationProgress.message || 'Analyzing lead quality, detecting duplicates, and scoring confidence levels...'}
+                      </p>
+                    </div>
+                    <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
+                  </div>
+                </div>
+
+                {/* Processing Features */}
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                    <span>Business legitimacy verification</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                    <span>Duplicate detection</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                    <span>Contact validation</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                    <span>Quality scoring</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Fallback loading state */
+              <div className="text-center py-12">
+                <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-lg font-medium">Initializing AI Verification...</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Connecting to verification service
+                </p>
+                {!wsConnected && (
+                  <Badge variant="outline" className="mt-4 gap-1 border-yellow-500 text-yellow-600">
+                    <WifiOff className="w-3 h-3" />
+                    Establishing connection...
+                  </Badge>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
