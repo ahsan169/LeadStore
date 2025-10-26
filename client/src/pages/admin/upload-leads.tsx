@@ -201,6 +201,16 @@ export default function UploadLeadsPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      
+      // Add AI enrichment options
+      if (useAiVerification) {
+        formData.append('addQualityScore', 'true');
+        formData.append('addConfidenceScore', 'true');
+        formData.append('addPreviousMCA', 'true');
+        formData.append('addFundingUrgency', 'true');
+        formData.append('addExclusivity', 'true');
+        formData.append('addLeadAge', 'true');
+      }
 
       // Choose endpoint based on AI verification toggle
       const endpoint = useAiVerification 
