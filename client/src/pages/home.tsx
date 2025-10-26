@@ -357,7 +357,7 @@ export default function Home() {
               <img 
                 src={logoUrl} 
                 alt="Lakefront Leadworks"
-                className="w-24 h-24 md:w-32 md:h-32 rounded-2xl shadow-2xl hover-lift"
+                className="w-36 h-36 md:w-48 md:h-48 hover-lift"
               />
             </div>
             
