@@ -17,7 +17,8 @@ import {
   sendOrderConfirmation, 
   sendDownloadReady, 
   sendAdminAlert, 
-  sendContactFormNotification 
+  sendContactFormNotification,
+  sendAlertNotification 
 } from "./email";
 import { db } from "./db";
 import { leadPerformance, purchases } from "@shared/schema";
@@ -26,6 +27,8 @@ import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
 import { WebSocketServer, WebSocket } from 'ws';
+import { leadAlertService, addAlertClient } from "./services/lead-alerts";
+import { insertLeadAlertSchema } from "@shared/schema";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -827,7 +830,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
       
       // Insert leads into database
-      await storage.createLeads(leadsToInsert);
+      const createdLeads = await storage.createLeads(leadsToInsert);
+      
+      // Trigger alert checking for new leads
+      try {
+        console.log(`Checking alerts for ${createdLeads.length} new test leads`);
+        await leadAlertService.checkAlertsForNewLeads(createdLeads, batch.id);
+      } catch (alertError) {
+        console.error('Error checking alerts:', alertError);
+        // Don't fail the upload if alert checking fails
+      }
       
       // Calculate distribution stats
       const distribution = {
@@ -1059,7 +1071,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sold: false,
       }));
 
-      await storage.createLeads(leadsToInsert);
+      const createdLeads = await storage.createLeads(leadsToInsert);
+      
+      // Trigger alert checking for new leads
+      try {
+        console.log(`Checking alerts for ${createdLeads.length} new leads from batch upload`);
+        await leadAlertService.checkAlertsForNewLeads(createdLeads, batch.id);
+      } catch (alertError) {
+        console.error('Error checking alerts:', alertError);
+        // Don't fail the upload if alert checking fails
+      }
 
       // Calculate tier distribution
       const tierDistribution = {
@@ -1677,7 +1698,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Import leads
-      await storage.createLeads(leadsToImport);
+      const createdLeads = await storage.createLeads(leadsToImport);
+      
+      // Trigger alert checking for new leads
+      try {
+        console.log(`Checking alerts for ${createdLeads.length} new verified leads`);
+        await leadAlertService.checkAlertsForNewLeads(createdLeads, batch.id);
+      } catch (alertError) {
+        console.error('Error checking alerts:', alertError);
+        // Don't fail the import if alert checking fails
+      }
       
       // Update batch with average quality score
       const avgQualityScore = totalQualityScore / leadsToImport.length;
@@ -2919,6 +2949,204 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
     } catch (error) {
       console.error('Newsletter signup failed:', error);
       res.status(500).json({ error: 'Failed to subscribe to newsletter' });
+    }
+  });
+
+  // ============================
+  // Lead Alert Routes
+  // ============================
+  
+  // Get all alerts for the current user
+  app.get('/api/alerts', requireAuth, async (req, res) => {
+    try {
+      const alerts = await storage.getLeadAlertsByUserId(req.user!.id);
+      res.json(alerts);
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+      res.status(500).json({ error: 'Failed to fetch alerts' });
+    }
+  });
+  
+  // Create a new alert
+  app.post('/api/alerts', requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertLeadAlertSchema.parse({
+        ...req.body,
+        userId: req.user!.id,
+      });
+      
+      const alert = await storage.createLeadAlert(validatedData);
+      res.json(alert);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: 'Invalid alert data', details: error.errors });
+      }
+      console.error('Error creating alert:', error);
+      res.status(500).json({ error: 'Failed to create alert' });
+    }
+  });
+  
+  // Get a specific alert
+  app.get('/api/alerts/:id', requireAuth, async (req, res) => {
+    try {
+      const alert = await storage.getLeadAlert(req.params.id);
+      
+      if (!alert) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      
+      // Check ownership
+      if (alert.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      res.json(alert);
+    } catch (error) {
+      console.error('Error fetching alert:', error);
+      res.status(500).json({ error: 'Failed to fetch alert' });
+    }
+  });
+  
+  // Update an alert
+  app.put('/api/alerts/:id', requireAuth, async (req, res) => {
+    try {
+      const alert = await storage.getLeadAlert(req.params.id);
+      
+      if (!alert) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      
+      // Check ownership
+      if (alert.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      const updated = await storage.updateLeadAlert(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating alert:', error);
+      res.status(500).json({ error: 'Failed to update alert' });
+    }
+  });
+  
+  // Delete an alert
+  app.delete('/api/alerts/:id', requireAuth, async (req, res) => {
+    try {
+      const alert = await storage.getLeadAlert(req.params.id);
+      
+      if (!alert) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      
+      // Check ownership
+      if (alert.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      await storage.deleteLeadAlert(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting alert:', error);
+      res.status(500).json({ error: 'Failed to delete alert' });
+    }
+  });
+  
+  // Get alert history
+  app.get('/api/alerts/:id/history', requireAuth, async (req, res) => {
+    try {
+      const alert = await storage.getLeadAlert(req.params.id);
+      
+      if (!alert) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      
+      // Check ownership
+      if (alert.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      const history = await storage.getAlertHistoryByAlertId(req.params.id);
+      res.json(history);
+    } catch (error) {
+      console.error('Error fetching alert history:', error);
+      res.status(500).json({ error: 'Failed to fetch alert history' });
+    }
+  });
+  
+  // Test an alert with existing leads
+  app.post('/api/alerts/:id/test', requireAuth, async (req, res) => {
+    try {
+      const alert = await storage.getLeadAlert(req.params.id);
+      
+      if (!alert) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      
+      // Check ownership
+      if (alert.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      const result = await leadAlertService.testAlert(req.params.id);
+      res.json(result);
+    } catch (error) {
+      console.error('Error testing alert:', error);
+      res.status(500).json({ error: 'Failed to test alert' });
+    }
+  });
+  
+  // Get alert statistics
+  app.get('/api/alerts/:id/stats', requireAuth, async (req, res) => {
+    try {
+      const alert = await storage.getLeadAlert(req.params.id);
+      
+      if (!alert) {
+        return res.status(404).json({ error: 'Alert not found' });
+      }
+      
+      // Check ownership
+      if (alert.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      const stats = await leadAlertService.getAlertStats(req.params.id);
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching alert stats:', error);
+      res.status(500).json({ error: 'Failed to fetch alert stats' });
+    }
+  });
+  
+  // Get unviewed alerts count
+  app.get('/api/alerts/unviewed/count', requireAuth, async (req, res) => {
+    try {
+      const count = await storage.getUnviewedAlertsCount(req.user!.id);
+      res.json({ count });
+    } catch (error) {
+      console.error('Error fetching unviewed alerts count:', error);
+      res.status(500).json({ error: 'Failed to fetch unviewed alerts count' });
+    }
+  });
+  
+  // Mark alert history as viewed
+  app.post('/api/alerts/history/:id/viewed', requireAuth, async (req, res) => {
+    try {
+      const history = await storage.getAlertHistory(req.params.id);
+      
+      if (!history) {
+        return res.status(404).json({ error: 'Alert history not found' });
+      }
+      
+      const alert = await storage.getLeadAlert(history.alertId);
+      if (!alert || (alert.userId !== req.user!.id && req.user!.role !== 'admin')) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      await storage.markAlertHistoryViewed(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error marking alert as viewed:', error);
+      res.status(500).json({ error: 'Failed to mark alert as viewed' });
     }
   });
 

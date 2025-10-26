@@ -24,7 +24,8 @@ import TiersPage from "@/pages/admin/tiers";
 import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
 import AnalyticsPage from "@/pages/analytics";
 import IntegrationsPage from "@/pages/integrations";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2 } from "lucide-react";
+import AlertsPage from "@/pages/alerts";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -39,6 +40,39 @@ import { ChatWidget } from "@/components/engagement/ChatWidget";
 import { StickyCTABar } from "@/components/engagement/StickyCTABar";
 import { ProductTour } from "@/components/engagement/ProductTour";
 import { StripeTestModeIndicator } from "@/components/StripeTestModeIndicator";
+import { Badge } from "@/components/ui/badge";
+
+// Alert Indicator Component
+function AlertIndicator() {
+  const [location, setLocation] = useLocation();
+  const { data: unviewedCount } = useQuery({
+    queryKey: ["/api/alerts/unviewed/count"],
+    refetchInterval: 30000, // Check every 30 seconds
+    enabled: !!queryClient.getQueryData(["/api/auth/me"]), // Only run if user is authenticated
+  });
+  
+  if (!unviewedCount?.count || unviewedCount.count === 0) {
+    return null;
+  }
+  
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setLocation("/alerts")}
+      className="relative"
+      data-testid="button-alert-indicator"
+    >
+      <Bell className="w-5 h-5" />
+      <Badge 
+        variant="destructive" 
+        className="absolute -top-1 -right-1 px-1.5 py-0.5 text-xs"
+      >
+        {unviewedCount.count}
+      </Badge>
+    </Button>
+  );
+}
 
 function AppSidebar() {
   const [location, setLocation] = useLocation();
@@ -63,6 +97,7 @@ function AppSidebar() {
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
+    { title: "Alerts", url: "/alerts", icon: Bell },
     { title: "Integrations", url: "/integrations", icon: Link2 },
   ];
 
@@ -186,6 +221,7 @@ function Router() {
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between p-4 border-b">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <AlertIndicator />
           </header>
           <main className="flex-1 overflow-auto">
             <Switch>
@@ -196,6 +232,7 @@ function Router() {
               <Route path="/pricing" component={PricingPage} />
               <Route path="/purchase" component={PurchaseFlowPage} />
               <Route path="/purchases" component={PurchasesPage} />
+              <Route path="/alerts" component={AlertsPage} />
               <Route path="/integrations" component={IntegrationsPage} />
               <Route path="/purchase/:tier" component={PurchaseTierPage} />
               <Route path="/payment-success" component={PaymentSuccessPage} />

@@ -39,6 +39,10 @@ import {
   type InsertCrmIntegration,
   type CrmSyncLog,
   type InsertCrmSyncLog,
+  type LeadAlert,
+  type InsertLeadAlert,
+  type AlertHistory,
+  type InsertAlertHistory,
   users,
   subscriptions,
   leadBatches,
@@ -58,6 +62,8 @@ import {
   verificationResults,
   crmIntegrations,
   crmSyncLog,
+  leadAlerts,
+  alertHistory,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -225,6 +231,22 @@ export interface IStorage {
   getCrmSyncLogsByPurchaseId(purchaseId: string): Promise<CrmSyncLog[]>;
   updateCrmSyncLogStatus(id: string, status: string, errorMessage?: string): Promise<CrmSyncLog | undefined>;
   getLatestSyncLog(integrationId: string): Promise<CrmSyncLog | undefined>;
+  
+  // Lead Alert operations
+  createLeadAlert(alert: InsertLeadAlert): Promise<LeadAlert>;
+  getLeadAlert(id: string): Promise<LeadAlert | undefined>;
+  getLeadAlertsByUserId(userId: string): Promise<LeadAlert[]>;
+  updateLeadAlert(id: string, data: Partial<InsertLeadAlert>): Promise<LeadAlert | undefined>;
+  deleteLeadAlert(id: string): Promise<void>;
+  getActiveAlerts(): Promise<LeadAlert[]>;
+  
+  // Alert History operations
+  createAlertHistory(history: InsertAlertHistory): Promise<AlertHistory>;
+  getAlertHistory(id: string): Promise<AlertHistory | undefined>;
+  getAlertHistoryByAlertId(alertId: string): Promise<AlertHistory[]>;
+  getAlertHistoryByBatchId(batchId: string): Promise<AlertHistory[]>;
+  markAlertHistoryViewed(id: string): Promise<void>;
+  getUnviewedAlertsCount(userId: string): Promise<number>;
 }
 
 export class DbStorage implements IStorage {
@@ -912,6 +934,81 @@ export class DbStorage implements IStorage {
       .orderBy(desc(crmSyncLog.syncedAt))
       .limit(1);
     return result[0];
+  }
+  
+  // Lead Alert operations
+  async createLeadAlert(alert: InsertLeadAlert): Promise<LeadAlert> {
+    const result = await db.insert(leadAlerts).values(alert).returning();
+    return result[0];
+  }
+  
+  async getLeadAlert(id: string): Promise<LeadAlert | undefined> {
+    const result = await db.select().from(leadAlerts).where(eq(leadAlerts.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getLeadAlertsByUserId(userId: string): Promise<LeadAlert[]> {
+    return db.select().from(leadAlerts)
+      .where(eq(leadAlerts.userId, userId))
+      .orderBy(desc(leadAlerts.createdAt));
+  }
+  
+  async updateLeadAlert(id: string, data: Partial<InsertLeadAlert>): Promise<LeadAlert | undefined> {
+    const result = await db.update(leadAlerts)
+      .set(data)
+      .where(eq(leadAlerts.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteLeadAlert(id: string): Promise<void> {
+    await db.delete(leadAlerts).where(eq(leadAlerts.id, id));
+  }
+  
+  async getActiveAlerts(): Promise<LeadAlert[]> {
+    return db.select().from(leadAlerts)
+      .where(eq(leadAlerts.isActive, true))
+      .orderBy(desc(leadAlerts.createdAt));
+  }
+  
+  // Alert History operations
+  async createAlertHistory(history: InsertAlertHistory): Promise<AlertHistory> {
+    const result = await db.insert(alertHistory).values(history).returning();
+    return result[0];
+  }
+  
+  async getAlertHistory(id: string): Promise<AlertHistory | undefined> {
+    const result = await db.select().from(alertHistory).where(eq(alertHistory.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getAlertHistoryByAlertId(alertId: string): Promise<AlertHistory[]> {
+    return db.select().from(alertHistory)
+      .where(eq(alertHistory.alertId, alertId))
+      .orderBy(desc(alertHistory.createdAt));
+  }
+  
+  async getAlertHistoryByBatchId(batchId: string): Promise<AlertHistory[]> {
+    return db.select().from(alertHistory)
+      .where(eq(alertHistory.leadBatchId, batchId))
+      .orderBy(desc(alertHistory.createdAt));
+  }
+  
+  async markAlertHistoryViewed(id: string): Promise<void> {
+    await db.update(alertHistory)
+      .set({ viewedAt: new Date() })
+      .where(eq(alertHistory.id, id));
+  }
+  
+  async getUnviewedAlertsCount(userId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(alertHistory)
+      .innerJoin(leadAlerts, eq(alertHistory.alertId, leadAlerts.id))
+      .where(and(
+        eq(leadAlerts.userId, userId),
+        sql`${alertHistory.viewedAt} IS NULL`
+      ));
+    return Number(result[0]?.count || 0);
   }
 }
 

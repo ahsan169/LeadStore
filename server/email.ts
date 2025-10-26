@@ -216,6 +216,120 @@ export async function sendAdminAlert(subject: string, message: string, details?:
   }
 }
 
+export async function sendAlertNotification(to: string, alertData: any) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from: `Lakefront Leadworks Alerts <${FROM_EMAIL}>`,
+      to: [to],
+      subject: `🔔 New Leads Match Your Alert: ${alertData.alertName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; text-align: center; border-radius: 10px 10px 0 0; }
+              .content { padding: 25px; background: #f8f9fa; }
+              .alert-info { background: white; padding: 20px; border-radius: 8px; margin: 15px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+              .lead-preview { background: white; padding: 15px; border-left: 4px solid #667eea; margin: 10px 0; border-radius: 4px; }
+              .stats { display: flex; justify-content: space-around; padding: 15px 0; }
+              .stat { text-align: center; }
+              .stat-value { font-size: 24px; font-weight: bold; color: #667eea; }
+              .stat-label { color: #666; font-size: 14px; }
+              .footer { padding: 20px; text-align: center; color: #666; background: #f8f9fa; border-radius: 0 0 10px 10px; }
+              .button { 
+                display: inline-block; 
+                padding: 14px 28px; 
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                color: white; 
+                text-decoration: none; 
+                border-radius: 6px;
+                margin: 15px 0;
+                font-weight: bold;
+              }
+              .badge { 
+                display: inline-block; 
+                padding: 4px 8px; 
+                background: #e3f2fd; 
+                color: #1976d2; 
+                border-radius: 4px; 
+                font-size: 12px;
+                margin: 0 4px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🎯 Lead Alert Triggered!</h1>
+                <p style="font-size: 18px; margin: 0;">${alertData.alertName}</p>
+              </div>
+              <div class="content">
+                <div class="alert-info">
+                  <div class="stats">
+                    <div class="stat">
+                      <div class="stat-value">${alertData.matchedCount}</div>
+                      <div class="stat-label">New Matching Leads</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <h3>📊 Sample of Matched Leads:</h3>
+                ${alertData.sampleLeads.map((lead: any) => `
+                  <div class="lead-preview">
+                    <strong>${lead.businessName}</strong>
+                    <div style="margin-top: 8px; color: #666;">
+                      <span class="badge">${lead.industry}</span>
+                      <span class="badge">${lead.state}</span>
+                      <span class="badge">Revenue: ${lead.revenue}</span>
+                      <span class="badge">Quality: ${lead.qualityScore}/100</span>
+                    </div>
+                  </div>
+                `).join('')}
+                
+                ${alertData.matchedCount > 5 ? `
+                  <p style="text-align: center; color: #666; margin-top: 15px;">
+                    ... and ${alertData.matchedCount - 5} more leads
+                  </p>
+                ` : ''}
+                
+                <div style="text-align: center; margin-top: 25px;">
+                  <a href="${alertData.viewUrl}" class="button">
+                    View All Matched Leads
+                  </a>
+                </div>
+                
+                <div style="background: #e8f5e9; padding: 15px; border-radius: 6px; margin-top: 20px;">
+                  <p style="margin: 0; color: #2e7d32;">
+                    <strong>💡 Pro Tip:</strong> Act quickly! High-quality leads are often purchased within hours of becoming available.
+                  </p>
+                </div>
+              </div>
+              <div class="footer">
+                <p>This alert was automatically generated based on your saved criteria.</p>
+                <p>To manage your alerts, visit your <a href="${process.env.VITE_SITE_URL || 'http://localhost:5000'}/alerts" style="color: #667eea;">Alert Dashboard</a></p>
+                <p style="margin-top: 15px; font-size: 12px;">© 2025 Lakefront Leadworks. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+    });
+
+    if (error) {
+      console.error('Failed to send alert notification:', error);
+      return { success: false, error };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    console.error('Error sending alert notification:', err);
+    return { success: false, error: err };
+  }
+}
+
 export async function sendContactFormNotification(contactData: any) {
   try {
     // Send notification to admin

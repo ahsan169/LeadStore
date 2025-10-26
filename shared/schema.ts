@@ -322,6 +322,30 @@ export const crmSyncLog = pgTable("crm_sync_log", {
   syncedAt: timestamp("synced_at").notNull().defaultNow(),
 });
 
+// Lead alerts - smart matching system
+export const leadAlerts = pgTable("lead_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  alertName: text("alert_name").notNull(),
+  criteria: jsonb("criteria").notNull(), // {industries: [], states: [], minRevenue, maxRevenue, minQuality, maxQuality, etc.}
+  isActive: boolean("is_active").notNull().default(true),
+  emailNotifications: boolean("email_notifications").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastTriggeredAt: timestamp("last_triggered_at"),
+});
+
+// Alert history - tracks when alerts triggered
+export const alertHistory = pgTable("alert_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  alertId: varchar("alert_id").references(() => leadAlerts.id).notNull(),
+  leadBatchId: varchar("lead_batch_id").references(() => leadBatches.id).notNull(),
+  matchedLeads: integer("matched_leads").notNull().default(0),
+  leadIds: text("lead_ids").array(), // array of matched lead IDs
+  notificationSent: boolean("notification_sent").notNull().default(false),
+  viewedAt: timestamp("viewed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -477,6 +501,38 @@ export const insertCrmSyncLogSchema = createInsertSchema(crmSyncLog).omit({
   leadIds: z.array(z.string()).optional(),
 });
 
+export const insertLeadAlertSchema = createInsertSchema(leadAlerts).omit({
+  id: true,
+  createdAt: true,
+  lastTriggeredAt: true,
+}).extend({
+  alertName: z.string().min(1).max(100),
+  criteria: z.object({
+    industries: z.array(z.string()).optional(),
+    states: z.array(z.string()).optional(),
+    minRevenue: z.number().optional(),
+    maxRevenue: z.number().optional(),
+    minQuality: z.number().min(0).max(100).optional(),
+    maxQuality: z.number().min(0).max(100).optional(),
+    minTimeInBusiness: z.number().optional(),
+    minCreditScore: z.number().optional(),
+    maxCreditScore: z.number().optional(),
+    exclusivityStatus: z.array(z.string()).optional(),
+    previousMCAHistory: z.array(z.string()).optional(),
+    urgencyLevel: z.array(z.string()).optional(),
+  }),
+  isActive: z.boolean().default(true),
+  emailNotifications: z.boolean().default(true),
+});
+
+export const insertAlertHistorySchema = createInsertSchema(alertHistory).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  matchedLeads: z.number().int().min(0),
+  notificationSent: z.boolean().default(false),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -534,3 +590,9 @@ export type CrmIntegration = typeof crmIntegrations.$inferSelect;
 
 export type InsertCrmSyncLog = z.infer<typeof insertCrmSyncLogSchema>;
 export type CrmSyncLog = typeof crmSyncLog.$inferSelect;
+
+export type InsertLeadAlert = z.infer<typeof insertLeadAlertSchema>;
+export type LeadAlert = typeof leadAlerts.$inferSelect;
+
+export type InsertAlertHistory = z.infer<typeof insertAlertHistorySchema>;
+export type AlertHistory = typeof alertHistory.$inferSelect;
