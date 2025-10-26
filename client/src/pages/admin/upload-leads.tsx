@@ -224,8 +224,20 @@ export default function UploadLeadsPage() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
+        const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+        console.error('Upload error:', error);
+        
+        // Provide specific error messages based on the error
+        let errorMessage = error.error || 'Upload failed';
+        if (errorMessage.includes('File format')) {
+          errorMessage = 'Invalid file format. Please upload a CSV or Excel file.';
+        } else if (errorMessage.includes('WebSocket')) {
+          errorMessage = 'Connection error. Please try again.';
+        } else if (errorMessage.includes('OpenAI')) {
+          errorMessage = 'AI verification service temporarily unavailable. Please try again.';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json() as { 
