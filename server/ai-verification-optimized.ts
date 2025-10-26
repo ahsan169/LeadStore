@@ -120,6 +120,21 @@ export class OptimizedAIVerificationEngine {
     this.processedCount = 0;
     const results: InsertVerificationResult[] = [];
     
+    // Configure batch size dynamically based on total lead count (moved up for scope)
+    // Larger batches for more leads to reduce API calls
+    let BATCH_SIZE: number;
+    if (leads.length < 100) {
+      BATCH_SIZE = 5;  // Small batch for few leads
+    } else if (leads.length < 500) {
+      BATCH_SIZE = 10; // Medium batch for moderate count
+    } else if (leads.length < 1000) {
+      BATCH_SIZE = 20; // Larger batch for many leads
+    } else {
+      BATCH_SIZE = 30; // Maximum batch size for large datasets
+    }
+    
+    const totalBatches = Math.ceil(leads.length / BATCH_SIZE);
+    
     // Load existing leads for duplicate detection
     console.log('Loading existing leads for duplicate detection...');
     this.existingLeads.clear();
@@ -128,9 +143,7 @@ export class OptimizedAIVerificationEngine {
       this.existingLeads.set(lead.id, lead);
     });
     
-    // Configure batch size based on lead count and API limits
-    const BATCH_SIZE = Math.min(10, Math.max(5, Math.floor(100 / leads.length))); // Dynamic batch size
-    const totalBatches = Math.ceil(leads.length / BATCH_SIZE);
+    console.log(`[AI Verification] Using batch size of ${BATCH_SIZE} for ${leads.length} leads`);
     
     console.log(`Processing ${leads.length} leads in ${totalBatches} batches of up to ${BATCH_SIZE} leads each`);
     
@@ -146,11 +159,17 @@ export class OptimizedAIVerificationEngine {
       message: 'Starting AI verification...'
     });
 
-    // Set up timeout
+    // Set up timeout with clearer error message
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
         this.abortController.abort();
-        reject(new Error(`Verification timeout after ${timeoutMs}ms`));
+        const timeoutMinutes = Math.round(timeoutMs / 60000);
+        const processedPercentage = Math.round((this.processedCount / leads.length) * 100);
+        reject(new Error(
+          `Verification timeout after ${timeoutMinutes} minutes. ` +
+          `Processed ${this.processedCount} of ${leads.length} leads (${processedPercentage}%). ` +
+          `Consider using smaller batch sizes or increasing the timeout for large datasets.`
+        ));
       }, timeoutMs);
     });
 
@@ -203,7 +222,31 @@ export class OptimizedAIVerificationEngine {
           console.log(`[AI Verification] Batch ${batchIndex + 1} completed successfully`);
         } catch (batchError: any) {
           console.error(`[AI Verification] Error in batch ${batchIndex + 1}:`, batchError.message);
-          throw batchError;
+          
+          // Provide more detailed error information
+          const batchLeadsInfo = batch.slice(0, 3).map(l => l.businessName || 'Unknown').join(', ');
+          const errorMessage = batchError.message || 'Unknown error';
+          
+          // Check for specific error types and provide helpful messages
+          if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+            throw new Error(
+              `Batch ${batchIndex + 1} timed out while processing leads: ${batchLeadsInfo}... ` +
+              `Try reducing batch size or increasing timeout.`
+            );
+          } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+            throw new Error(
+              `API rate limit reached at batch ${batchIndex + 1}. ` +
+              `Please wait a few minutes and try again with smaller batch sizes.`
+            );
+          } else if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
+            throw new Error(
+              `OpenAI API authentication failed. Please check your API key configuration.`
+            );
+          } else {
+            throw new Error(
+              `Failed to process batch ${batchIndex + 1} (leads ${startIdx + 1}-${endIdx}): ${errorMessage}`
+            );
+          }
         }
         
         // Convert to database format and add to results
@@ -275,6 +318,26 @@ export class OptimizedAIVerificationEngine {
         
         this.processedCount = endIdx;
         
+        // Send updated progress after batch completion with more accurate percentage
+        const actualPercentage = Math.round((endIdx / leads.length) * 100);
+        const newElapsedTime = (Date.now() - this.startTime) / 1000;
+        const newAvgTimePerBatch = newElapsedTime / (batchIndex + 1);
+        const newRemainingBatches = totalBatches - batchIndex - 1;
+        const newEstimatedTimeRemaining = Math.round(newAvgTimePerBatch * newRemainingBatches);
+        
+        this.sendProgress({
+          totalLeads: leads.length,
+          processedLeads: endIdx,
+          percentage: actualPercentage,
+          currentBatch: batchIndex + 1,
+          totalBatches,
+          estimatedTimeRemaining: newEstimatedTimeRemaining,
+          status: 'processing',
+          message: `Completed batch ${batchIndex + 1} of ${totalBatches} (${actualPercentage}% done, ${batch.length} leads verified)`
+        });
+        
+        console.log(`[AI Verification] Progress: ${actualPercentage}% (${endIdx}/${leads.length} leads processed)`);
+        
         // Add a small delay between batches to avoid rate limiting
         if (batchIndex < totalBatches - 1) {
           await new Promise(resolve => setTimeout(resolve, 500));
@@ -300,16 +363,34 @@ export class OptimizedAIVerificationEngine {
     } catch (error: any) {
       console.error('Verification error:', error);
       
-      // Send error progress
+      // Provide more helpful error message based on error type
+      let userFriendlyMessage = error.message || 'Verification failed';
+      
+      // Add context about what was successfully processed
+      if (this.processedCount > 0) {
+        userFriendlyMessage += ` (Successfully processed ${this.processedCount} of ${leads.length} leads before error)`;
+      }
+      
+      // Send error progress with detailed message
       this.sendProgress({
         totalLeads: leads.length,
         processedLeads: this.processedCount,
         percentage: Math.round((this.processedCount / leads.length) * 100),
-        currentBatch: 0,
+        currentBatch: Math.ceil(this.processedCount / BATCH_SIZE),
         totalBatches,
         estimatedTimeRemaining: 0,
         status: 'error',
-        message: error.message || 'Verification failed'
+        message: userFriendlyMessage
+      });
+      
+      // Log additional debugging information
+      console.error(`[AI Verification] Error details:`, {
+        totalLeads: leads.length,
+        processedLeads: this.processedCount,
+        batchSize: BATCH_SIZE,
+        totalBatches,
+        elapsedTime: `${(Date.now() - this.startTime) / 1000}s`,
+        errorMessage: error.message
       });
       
       throw error;

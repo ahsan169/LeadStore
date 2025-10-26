@@ -1350,11 +1350,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Starting AI verification for ${normalizedLeads.length} leads with ${strictnessLevel} strictness`);
       
-      // Run optimized AI-powered verification with timeout (5 minutes)
+      // Dynamic timeout based on lead count - more time for larger batches
+      let timeoutMs: number;
+      if (normalizedLeads.length < 100) {
+        timeoutMs = 300000;    // 5 minutes for small batches
+      } else if (normalizedLeads.length < 500) {
+        timeoutMs = 600000;    // 10 minutes for medium batches
+      } else if (normalizedLeads.length < 1000) {
+        timeoutMs = 900000;    // 15 minutes for large batches
+      } else {
+        timeoutMs = 1800000;   // 30 minutes for very large batches
+      }
+      
+      console.log(`[AI Verification] Timeout set to ${timeoutMs / 60000} minutes for ${normalizedLeads.length} leads`);
+      
+      // Run optimized AI-powered verification with dynamic timeout
       const verificationResults = await aiVerificationEngine.verifyBatchOptimized(
         normalizedLeads, 
         createdSession.id,
-        300000 // 5 minute timeout
+        timeoutMs
       );
       
       // Save verification results
