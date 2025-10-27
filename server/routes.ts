@@ -36,6 +36,7 @@ import { bulkOperationsService } from "./services/bulk-operations";
 import { perplexityResearch } from "./services/perplexity-research";
 import { revenueDiscovery } from "./services/revenue-discovery";
 import { uccParser } from "./services/ucc-parser";
+import { googleDriveService } from "./services/google-drive-service";
 import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema, insertApiKeySchema, insertWebhookSchema } from "@shared/schema";
 import { campaignService } from "./services/campaign-tools";
 import { apiAuthMiddleware, rateLimitMiddleware, usageTrackingMiddleware, apiResponse, apiError, parsePagination, paginatedResponse, apiKeyManager, webhookDispatcher, cleanup as cleanupEnterpriseApi } from "./services/enterprise-api";
@@ -1857,6 +1858,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
           message: "No leads were saved due to processing or database errors"
         });
       }
+    }
+  });
+  
+  // POST /api/admin/upload-ucc-drive - Upload UCC data from Google Drive
+  app.post("/api/admin/upload-ucc-drive", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { driveLink } = req.body;
+      
+      if (!driveLink) {
+        return res.status(400).json({ error: "No Google Drive link provided" });
+      }
+
+      // Extract file ID from the Google Drive URL
+      const fileId = googleDriveService.extractFileId(driveLink);
+      if (!fileId) {
+        return res.status(400).json({ 
+          error: "Invalid Google Drive link",
+          details: "Please provide a valid Google Drive sharing link"
+        });
+      }
+
+      console.log(`Processing Google Drive file: ${fileId}`);
+
+      // Create a WebSocket connection for progress updates
+      const progressCallback = (progress: any) => {
+        // Send progress via WebSocket if connected
+        wss.clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: 'google-drive-progress',
+              data: progress
+            }));
+          }
+        });
+      };
+
+      // Download the file from Google Drive
+      let localFilePath: string;
+      try {
+        localFilePath = await googleDriveService.downloadFile(fileId, progressCallback);
+        console.log(`File downloaded to: ${localFilePath}`);
+      } catch (downloadError: any) {
+        console.error('Google Drive download error:', downloadError);
+        
+        // Provide specific error messages
+        if (downloadError.message?.includes('Permission denied')) {
+          return res.status(403).json({ 
+            error: "Permission denied",
+            details: "Make sure the file is shared with 'Anyone with the link' permission"
+          });
+        } else if (downloadError.message?.includes('File too large')) {
+          return res.status(413).json({ 
+            error: "File too large",
+            details: downloadError.message
+          });
+        } else if (downloadError.message?.includes('not connected')) {
+          return res.status(401).json({ 
+            error: "Google Drive not connected",
+            details: "Please connect Google Drive from the integrations panel first"
+          });
+        }
+        
+        return res.status(500).json({ 
+          error: "Failed to download file from Google Drive",
+          details: downloadError.message
+        });
+      }
+
+      try {
+        // Read the downloaded file
+        const fileBuffer = await require('fs').promises.readFile(localFilePath);
+        const fileName = require('path').basename(localFilePath);
+        
+        // Determine file type and parse accordingly
+        let parseResult;
+        if (fileName.endsWith('.csv')) {
+          const csvContent = fileBuffer.toString('utf8');
+          parseResult = await uccParser.parseUccCsv(csvContent);
+        } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+          parseResult = await uccParser.parseUccExcel(fileBuffer);
+        } else if (fileName.endsWith('.pdf')) {
+          // For PDF files, we'll need to handle them differently
+          // For now, return an error as PDF parsing for UCC data needs special handling
+          throw new Error('PDF parsing for UCC data is not yet implemented');
+        } else {
+          throw new Error(`Unsupported file format: ${fileName}`);
+        }
+
+        if (!parseResult.success) {
+          throw new Error(`Failed to parse UCC data: ${parseResult.errors.join(', ')}`);
+        }
+
+        // Match UCC records to existing leads
+        const matches = await uccParser.matchToLeads(parseResult.records);
+        
+        // Process matched records
+        const matchedRecords = [];
+        const unmatchedRecords = [];
+        const enrichedLeads = [];
+        
+        for (const [record, lead] of matches.entries()) {
+          if (lead) {
+            // Create matched record info
+            const matchedRecord = {
+              uccRecord: record,
+              matchedLead: {
+                id: lead.id,
+                businessName: lead.businessName,
+                ownerName: lead.ownerName,
+                stateCode: lead.stateCode
+              }
+            };
+            matchedRecords.push(matchedRecord);
+            
+            // Calculate MCA eligibility signals for this filing
+            const signals = uccParser.calculateMcaSignals([{
+              id: `temp-${Date.now()}`,
+              leadId: lead.id,
+              debtorName: record.debtorName,
+              securedParty: record.securedParty,
+              filingDate: record.filingDate,
+              fileNumber: record.fileNumber,
+              collateralDescription: record.collateralDescription,
+              loanAmount: record.loanAmount,
+              filingType: record.filingType || 'original',
+              jurisdiction: record.jurisdiction || lead.stateCode,
+              source: 'google_drive',
+              sourceFileId: fileId
+            } as any]);
+            
+            // Add enriched lead info
+            enrichedLeads.push({
+              leadId: lead.id,
+              businessName: lead.businessName,
+              uccData: {
+                hasRecentFiling: record.filingDate > new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
+                filingDate: record.filingDate,
+                securedParty: record.securedParty,
+                loanAmount: record.loanAmount,
+                mcaSignals: signals
+              }
+            });
+          } else {
+            unmatchedRecords.push(record);
+          }
+        }
+
+        // Update summary stats
+        parseResult.summary.matchedLeads = matchedRecords.length;
+        parseResult.summary.unmatchedRecords = unmatchedRecords.length;
+
+        // Send success response
+        res.json({
+          success: true,
+          summary: parseResult.summary,
+          matchedLeads: enrichedLeads.length,
+          enrichedLeads: enrichedLeads.slice(0, 100), // Return first 100 enriched leads
+          unmatchedCount: unmatchedRecords.length,
+          message: `Successfully processed ${parseResult.records.length} UCC records from Google Drive. Matched ${matchedRecords.length} records to existing leads.`
+        });
+
+        // Clean up temporary file
+        await googleDriveService.cleanupTempFile(localFilePath);
+        
+      } catch (processingError: any) {
+        // Clean up temporary file even on error
+        try {
+          await googleDriveService.cleanupTempFile(localFilePath);
+        } catch (cleanupError) {
+          console.error('Failed to clean up temporary file:', cleanupError);
+        }
+        
+        console.error('UCC processing error:', processingError);
+        return res.status(500).json({ 
+          error: "Failed to process UCC data",
+          details: processingError.message
+        });
+      }
+      
+    } catch (error: any) {
+      console.error("Google Drive UCC upload error:", error);
+      res.status(500).json({ 
+        error: "Failed to process Google Drive UCC upload",
+        details: error.message
+      });
+    }
+  });
+
+  // GET /api/admin/google-drive/validate - Validate Google Drive connection
+  app.get("/api/admin/google-drive/validate", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const isConnected = await googleDriveService.validateConnection();
+      res.json({ 
+        connected: isConnected,
+        message: isConnected 
+          ? "Google Drive is connected and ready" 
+          : "Google Drive is not connected. Please connect from integrations panel."
+      });
+    } catch (error: any) {
+      console.error("Google Drive validation error:", error);
+      res.status(500).json({ 
+        connected: false,
+        error: "Failed to validate Google Drive connection",
+        details: error.message
+      });
     }
   });
   

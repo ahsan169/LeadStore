@@ -22,9 +22,14 @@ import {
   Activity,
   Loader2,
   Wifi,
-  WifiOff
+  WifiOff,
+  Cloud,
+  Link,
+  Download
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type WizardStep = 'upload' | 'validate' | 'process' | 'complete';
 
@@ -71,12 +76,30 @@ export default function UploadLeadsPage() {
   const [useEnrichment, setUseEnrichment] = useState(false);
   const [verificationProgress, setVerificationProgress] = useState<VerificationProgress | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
+  const [driveLink, setDriveLink] = useState('');
+  const [driveProgress, setDriveProgress] = useState<any>(null);
+  const [googleDriveConnected, setGoogleDriveConnected] = useState<boolean | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const { toast } = useToast();
 
+  // Check Google Drive connection status on mount
+  useEffect(() => {
+    fetch('/api/admin/google-drive/validate', {
+      credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+      setGoogleDriveConnected(data.connected);
+    })
+    .catch(err => {
+      console.error('Failed to check Google Drive connection:', err);
+      setGoogleDriveConnected(false);
+    });
+  }, []);
+
   // Setup WebSocket connection for real-time progress
   useEffect(() => {
-    if (!uploading || !useAiVerification) return;
+    if (!uploading) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
@@ -105,6 +128,8 @@ export default function UploadLeadsPage() {
               variant: "destructive",
             });
           }
+        } else if (message.type === 'google-drive-progress') {
+          setDriveProgress(message.data);
         }
       } catch (error) {
         console.error('Failed to parse WebSocket message:', error);
@@ -128,7 +153,7 @@ export default function UploadLeadsPage() {
         ws.close();
       }
     };
-  }, [uploading, useAiVerification, sessionId, toast]);
+  }, [uploading, sessionId, toast]);
 
   const steps: WizardStep[] = ['upload', 'validate', 'process', 'complete'];
   const stepLabels = {
@@ -182,6 +207,77 @@ export default function UploadLeadsPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
+    }
+  };
+
+  const handleGoogleDriveUpload = async () => {
+    if (!driveLink) {
+      toast({
+        title: "No Google Drive link provided",
+        description: "Please enter a valid Google Drive sharing link",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploading(true);
+    setCurrentStep('validate');
+    setDriveProgress(null);
+
+    try {
+      const response = await fetch('/api/admin/upload-ucc-drive', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ driveLink }),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+        console.error('Google Drive upload error:', error);
+        
+        throw new Error(error.details || error.error || 'Upload failed');
+      }
+
+      const data = await response.json();
+      
+      toast({
+        title: "✅ UCC Data Imported Successfully",
+        description: data.message || `Processed ${data.summary.totalRecords} UCC records`,
+      });
+
+      // Show summary
+      setSummary({
+        totalLeads: data.summary.totalRecords,
+        averageQualityScore: 0,
+        tierDistribution: {
+          gold: 0,
+          platinum: 0,
+          diamond: 0,
+        },
+        validationResults: {
+          total: data.summary.totalRecords,
+          valid: data.summary.validRecords,
+          errors: [],
+          warnings: [],
+        },
+      });
+      
+      setCurrentStep('complete');
+      
+    } catch (error: any) {
+      console.error("Google Drive upload error:", error);
+      setCurrentStep('upload');
+      toast({
+        title: "Upload failed",
+        description: error.message || "An error occurred while processing your Google Drive file",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+      setDriveProgress(null);
     }
   };
 
@@ -443,11 +539,24 @@ export default function UploadLeadsPage() {
       {currentStep === 'upload' && (
         <Card className="max-w-2xl">
           <CardHeader>
-            <h2 className="text-xl font-semibold">Step 1: Upload Lead File</h2>
+            <h2 className="text-xl font-semibold">Step 1: Import UCC Data</h2>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Drag and Drop Zone */}
-            <div 
+            <Tabs defaultValue="local" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="local" className="gap-2">
+                  <Upload className="w-4 h-4" />
+                  Local File Upload
+                </TabsTrigger>
+                <TabsTrigger value="drive" className="gap-2">
+                  <Cloud className="w-4 h-4" />
+                  Google Drive Import
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="local" className="space-y-6 mt-6">
+                {/* Drag and Drop Zone */}
+                <div 
               className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
                 isDragging 
                   ? 'border-primary bg-primary/5' 
@@ -651,6 +760,123 @@ export default function UploadLeadsPage() {
                 <li>• creditScore (optional)</li>
               </ul>
             </div>
+              </TabsContent>
+
+              <TabsContent value="drive" className="space-y-6 mt-6">
+                {/* Google Drive Connection Status */}
+                {googleDriveConnected === false && (
+                  <Alert className="border-orange-200 bg-orange-50 dark:bg-orange-950/20">
+                    <AlertTriangle className="h-4 w-4 text-orange-600" />
+                    <AlertDescription>
+                      Google Drive is not connected. Please connect Google Drive from the integrations panel to use this feature.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Google Drive Link Input */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="drive-link">Google Drive Link</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="drive-link"
+                        placeholder="https://drive.google.com/file/d/..."
+                        value={driveLink}
+                        onChange={(e) => setDriveLink(e.target.value)}
+                        disabled={uploading}
+                        className="flex-1"
+                        data-testid="input-drive-link"
+                      />
+                      <Button
+                        onClick={handleGoogleDriveUpload}
+                        disabled={!driveLink || uploading || googleDriveConnected === false}
+                        className="gap-2"
+                        data-testid="button-drive-import"
+                      >
+                        {uploading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Importing...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4" />
+                            Import UCC Data
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Share the file with "Anyone with the link" permission
+                    </p>
+                  </div>
+
+                  {/* Download Progress */}
+                  {driveProgress && (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">
+                              {driveProgress.status === 'downloading' ? 'Downloading...' : 
+                               driveProgress.status === 'complete' ? 'Download Complete' :
+                               'Error'}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              {driveProgress.percentage}%
+                            </span>
+                          </div>
+                          <Progress value={driveProgress.percentage} />
+                          {driveProgress.bytesDownloaded > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                              {(driveProgress.bytesDownloaded / 1024 / 1024).toFixed(1)} MB / 
+                              {(driveProgress.totalBytes / 1024 / 1024).toFixed(1)} MB
+                            </p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Supported Formats */}
+                  <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                    <h3 className="font-semibold">Supported File Formats:</h3>
+                    <ul className="text-sm space-y-1 text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        CSV files (.csv)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Excel files (.xlsx, .xls)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        ZIP archives (containing CSV/Excel files)
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* UCC Data Info */}
+                  <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 space-y-2">
+                    <h3 className="font-semibold flex items-center gap-2">
+                      <Link className="w-4 h-4 text-blue-600" />
+                      UCC Filing Data
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Import UCC filing records to match against existing leads and analyze MCA eligibility signals.
+                    </p>
+                    <ul className="text-sm space-y-1 text-muted-foreground">
+                      <li>• Debtor name matching</li>
+                      <li>• Filing date analysis</li>
+                      <li>• Secured party identification</li>
+                      <li>• Collateral assessment</li>
+                      <li>• MCA eligibility scoring</li>
+                    </ul>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
       )}
