@@ -97,6 +97,9 @@ import {
   type InsertWebhook,
   type ApiUsage,
   type InsertApiUsage,
+  uccFilings,
+  type UccFiling,
+  type InsertUccFiling,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -443,6 +446,19 @@ export interface IStorage {
     successRate: number;
     averageResponseTime: number;
     topEndpoints: { endpoint: string; count: number }[];
+  }>;
+  
+  // UCC Filing operations
+  createUccFiling(filing: InsertUccFiling): Promise<UccFiling>;
+  createUccFilings(filings: InsertUccFiling[]): Promise<UccFiling[]>;
+  getUccFiling(id: string): Promise<UccFiling | undefined>;
+  getUccFilingsByLeadId(leadId: string): Promise<UccFiling[]>;
+  getUccFilingsByDebtor(debtorName: string): Promise<UccFiling[]>;
+  matchUccFilingToLead(filing: UccFiling): Promise<Lead | undefined>;
+  getUccFilingStats(): Promise<{
+    totalFilings: number;
+    recentFilings: number;
+    filingsByType: Record<string, number>;
   }>;
 }
 
@@ -2096,6 +2112,81 @@ export class DbStorage implements IStorage {
       successRate,
       averageResponseTime,
       topEndpoints
+    };
+  }
+  
+  // UCC Filing operations
+  async createUccFiling(filing: InsertUccFiling): Promise<UccFiling> {
+    const result = await db.insert(uccFilings).values(filing).returning();
+    return result[0];
+  }
+
+  async createUccFilings(filings: InsertUccFiling[]): Promise<UccFiling[]> {
+    if (filings.length === 0) return [];
+    const result = await db.insert(uccFilings).values(filings).returning();
+    return result;
+  }
+
+  async getUccFiling(id: string): Promise<UccFiling | undefined> {
+    const result = await db.select().from(uccFilings).where(eq(uccFilings.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUccFilingsByLeadId(leadId: string): Promise<UccFiling[]> {
+    return db.select().from(uccFilings)
+      .where(eq(uccFilings.leadId, leadId))
+      .orderBy(desc(uccFilings.filingDate));
+  }
+
+  async getUccFilingsByDebtor(debtorName: string): Promise<UccFiling[]> {
+    return db.select().from(uccFilings)
+      .where(like(uccFilings.debtorName, `%${debtorName}%`))
+      .orderBy(desc(uccFilings.filingDate));
+  }
+
+  async matchUccFilingToLead(filing: UccFiling): Promise<Lead | undefined> {
+    // Try to match by business name (fuzzy match)
+    const debtorNameParts = filing.debtorName.toLowerCase().split(/\s+/);
+    const potentialLeads = await db.select().from(leads).limit(100);
+    
+    for (const lead of potentialLeads) {
+      const businessNameLower = lead.businessName.toLowerCase();
+      // Check if all major parts of debtor name are in business name
+      const matchCount = debtorNameParts.filter(part => 
+        part.length > 2 && businessNameLower.includes(part)
+      ).length;
+      
+      if (matchCount >= Math.ceil(debtorNameParts.length * 0.7)) {
+        return lead;
+      }
+    }
+    
+    return undefined;
+  }
+
+  async getUccFilingStats(): Promise<{
+    totalFilings: number;
+    recentFilings: number;
+    filingsByType: Record<string, number>;
+  }> {
+    const allFilings = await db.select().from(uccFilings);
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    const recentFilings = allFilings.filter(f => 
+      f.filingDate >= sixMonthsAgo
+    ).length;
+    
+    const filingsByType = allFilings.reduce((acc, f) => {
+      const type = f.filingType || 'original';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return {
+      totalFilings: allFilings.length,
+      recentFilings,
+      filingsByType
     };
   }
 }

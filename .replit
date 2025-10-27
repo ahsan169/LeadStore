@@ -28,10 +28,6 @@ localPort = 34433
 externalPort = 4200
 
 [[ports]]
-localPort = 34913
-externalPort = 6800
-
-[[ports]]
 localPort = 35459
 externalPort = 3003
 
@@ -46,6 +42,10 @@ externalPort = 6000
 [[ports]]
 localPort = 41511
 externalPort = 3000
+
+[[ports]]
+localPort = 42807
+externalPort = 6800
 
 [[ports]]
 localPort = 44385
@@ -89,4 +89,4 @@ task = "shell.exec"
 args = "npm run dev"
 
 [agent]
-integrations = ["javascript_database:1.0.0", "javascript_object_storage:1.0.0", "javascript_stripe:1.0.0", "javascript_openai_ai_integrations:1.0.0", "javascript_log_in_with_replit:1.0.0"]
+integrations = ["javascript_database:1.0.0", "javascript_object_storage:1.0.0", "javascript_stripe:1.0.0", "javascript_openai_ai_integrations:1.0.0", "javascript_log_in_with_replit:1.0.0", "perplexity_v0:1.0.0"]

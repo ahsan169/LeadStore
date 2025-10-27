@@ -33,6 +33,9 @@ import { qualityGuaranteeService } from "./services/quality-guarantee";
 import { numverifyService } from "./numverify-service";
 import { leadFreshnessService, FreshnessCategory } from "./services/lead-freshness";
 import { bulkOperationsService } from "./services/bulk-operations";
+import { perplexityResearch } from "./services/perplexity-research";
+import { revenueDiscovery } from "./services/revenue-discovery";
+import { uccParser } from "./services/ucc-parser";
 import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema, insertApiKeySchema, insertWebhookSchema } from "@shared/schema";
 import { campaignService } from "./services/campaign-tools";
 import { apiAuthMiddleware, rateLimitMiddleware, usageTrackingMiddleware, apiResponse, apiError, parsePagination, paginatedResponse, apiKeyManager, webhookDispatcher, cleanup as cleanupEnterpriseApi } from "./services/enterprise-api";
@@ -1644,10 +1647,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[AI Verification] Completed: ${batchStats.totalImported} leads imported into batch ${leadBatch.id}`);
       
+      // Perform enrichment if enabled
+      const enrichmentEnabled = req.body?.enableEnrichment === 'true' || req.body?.enableEnrichment === true;
+      let enrichmentResults = null;
+      
+      if (enrichmentEnabled) {
+        console.log(`[Lead Enrichment] Starting enrichment for ${batchStats.totalImported} leads`);
+        
+        try {
+          // Get all leads for this batch
+          const leadsToEnrich = await storage.getLeadsByBatchId(leadBatch.id);
+          const enrichmentProgress = { current: 0, total: leadsToEnrich.length };
+          
+          // Send enrichment progress updates via WebSocket
+          if (wsClients.has(createdSession.id)) {
+            const ws = wsClients.get(createdSession.id)!;
+            ws.send(JSON.stringify({
+              type: 'enrichment-progress',
+              sessionId: createdSession.id,
+              message: 'Starting lead enrichment...',
+              progress: 0
+            }));
+          }
+          
+          for (let i = 0; i < leadsToEnrich.length; i++) {
+            const lead = leadsToEnrich[i];
+            
+            try {
+              // Research the lead using Perplexity
+              const research = await perplexityResearch.researchLead(lead);
+              
+              // Discover revenue using multiple methods
+              const revenueEstimate = await revenueDiscovery.discoverRevenue(lead);
+              
+              // Update the lead with enriched data
+              const enrichedData: any = {
+                isEnriched: true,
+                lastEnrichedAt: new Date()
+              };
+              
+              if (research.estimatedRevenue) {
+                enrichedData.estimatedRevenue = research.estimatedRevenue;
+                enrichedData.revenueConfidence = research.revenueConfidence || 'medium';
+              } else if (revenueEstimate) {
+                enrichedData.estimatedRevenue = revenueEstimate.amount;
+                enrichedData.revenueConfidence = revenueEstimate.confidence;
+              }
+              
+              if (research.employeeCount) enrichedData.employeeCount = research.employeeCount;
+              if (research.yearsInBusiness) enrichedData.yearsInBusiness = research.yearsInBusiness;
+              if (research.ownerBackground) enrichedData.ownerBackground = research.ownerBackground;
+              
+              if (research.businessDescription || research.keyActivities || research.sources) {
+                enrichedData.researchInsights = {
+                  businessDescription: research.businessDescription,
+                  keyActivities: research.keyActivities,
+                  sources: research.sources
+                };
+              }
+              
+              // Update the lead with enriched data
+              await storage.updateLead(lead.id, enrichedData);
+              
+              enrichmentProgress.current++;
+              
+              // Send progress update every 5 leads or on completion
+              if (enrichmentProgress.current % 5 === 0 || enrichmentProgress.current === enrichmentProgress.total) {
+                const progressPercent = Math.round((enrichmentProgress.current / enrichmentProgress.total) * 100);
+                
+                if (wsClients.has(createdSession.id)) {
+                  const ws = wsClients.get(createdSession.id)!;
+                  ws.send(JSON.stringify({
+                    type: 'enrichment-progress',
+                    sessionId: createdSession.id,
+                    message: `Enriching leads: ${enrichmentProgress.current}/${enrichmentProgress.total}`,
+                    progress: progressPercent
+                  }));
+                }
+              }
+            } catch (enrichError) {
+              console.error(`[Lead Enrichment] Error enriching lead ${lead.id}:`, enrichError);
+              // Continue with other leads even if one fails
+            }
+          }
+          
+          enrichmentResults = {
+            enrichedCount: enrichmentProgress.current,
+            totalLeads: enrichmentProgress.total,
+            success: true
+          };
+          
+          console.log(`[Lead Enrichment] Completed: ${enrichmentProgress.current}/${enrichmentProgress.total} leads enriched`);
+        } catch (enrichmentError) {
+          console.error('[Lead Enrichment] Error during enrichment:', enrichmentError);
+          enrichmentResults = {
+            enrichedCount: 0,
+            totalLeads: batchStats.totalImported,
+            success: false,
+            error: 'Enrichment failed but leads were imported successfully'
+          };
+        }
+      }
+      
       res.json({
         success: true,
         sessionId: createdSession.id,
         batchId: leadBatch.id, // Include batch ID in response
+        enrichment: enrichmentResults,
         summary: {
           totalLeads: normalizedLeads.length,
           verifiedCount,
@@ -2512,6 +2618,105 @@ Format your response as JSON with the following structure:
       res.json(insight);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch insights" });
+    }
+  });
+
+  // UCC Filing endpoints
+  // POST /api/admin/upload-ucc - Upload and process UCC filing data
+  app.post("/api/admin/upload-ucc", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const file = req.file;
+      console.log('[UCC Upload] File received:', file.originalname, file.mimetype, file.size);
+
+      // Determine file type
+      const isExcel = file.originalname.endsWith('.xlsx') || 
+                      file.originalname.endsWith('.xls') || 
+                      file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                      file.mimetype === 'application/vnd.ms-excel';
+
+      const fileType = isExcel ? 'excel' : 'csv';
+
+      // Process the UCC file
+      const result = await uccParser.processUccUpload(file.buffer, fileType);
+
+      if (!result.success) {
+        return res.status(400).json({
+          error: result.message,
+          summary: result.summary
+        });
+      }
+
+      // Get UCC filing statistics
+      const stats = await storage.getUccFilingStats();
+
+      // Create response with comprehensive summary
+      const response = {
+        success: true,
+        message: result.message,
+        summary: {
+          ...result.summary,
+          filingStats: stats
+        },
+        signals: result.signals ? Object.fromEntries(result.signals) : {}
+      };
+
+      console.log(`[UCC Upload] Processing complete:`, {
+        totalRecords: result.summary.totalRecords,
+        validRecords: result.summary.validRecords,
+        matchedLeads: result.summary.matchedLeads,
+        unmatchedRecords: result.summary.unmatchedRecords
+      });
+
+      res.json(response);
+    } catch (error) {
+      console.error("[UCC Upload] Error:", error);
+      res.status(500).json({ error: "Failed to process UCC file" });
+    }
+  });
+
+  // GET /api/admin/ucc/:leadId - Get UCC filings for a specific lead
+  app.get("/api/admin/ucc/:leadId", requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      
+      // Get UCC filings for this lead
+      const filings = await storage.getUccFilingsByLeadId(leadId);
+      
+      // Calculate MCA eligibility signals
+      const signals = uccParser.calculateMcaSignals(filings);
+      
+      res.json({
+        filings,
+        signals,
+        summary: {
+          totalFilings: filings.length,
+          recentFilings: filings.filter(f => {
+            const sixMonthsAgo = new Date();
+            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+            return f.filingDate >= sixMonthsAgo;
+          }).length,
+          oldestFiling: filings.length > 0 ? filings[filings.length - 1].filingDate : null,
+          newestFiling: filings.length > 0 ? filings[0].filingDate : null
+        }
+      });
+    } catch (error) {
+      console.error("[UCC Fetch] Error:", error);
+      res.status(500).json({ error: "Failed to fetch UCC filings" });
+    }
+  });
+
+  // GET /api/admin/ucc/stats - Get overall UCC filing statistics
+  app.get("/api/admin/ucc/stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await storage.getUccFilingStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("[UCC Stats] Error:", error);
+      res.status(500).json({ error: "Failed to fetch UCC statistics" });
     }
   });
 

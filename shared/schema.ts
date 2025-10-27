@@ -83,12 +83,36 @@ export const leads = pgTable("leads", {
   yearFounded: integer("year_founded"),
   naicsCode: text("naics_code"), // NAICS industry classification code
   
+  // Revenue discovery fields
+  estimatedRevenue: integer("estimated_revenue"),
+  revenueConfidence: text("revenue_confidence"), // 'high', 'medium', 'low'
+  employeeCount: integer("employee_count"),
+  yearsInBusiness: integer("years_in_business"),
+  ownerBackground: text("owner_background"),
+  researchInsights: jsonb("research_insights"),
+  lastEnrichedAt: timestamp("last_enriched_at"),
+  
   // ML scoring fields
   mlQualityScore: integer("ml_quality_score").default(0), // 0-100
   conversionProbability: decimal("conversion_probability", { precision: 5, scale: 4 }), // 0.0000-1.0000
   expectedDealSize: decimal("expected_deal_size", { precision: 12, scale: 2 }),
   scoringFactors: jsonb("scoring_factors"), // Detailed breakdown of scoring factors
   
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// UCC filings table for tracking business financing history
+export const uccFilings = pgTable("ucc_filings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  debtorName: text("debtor_name").notNull(),
+  securedParty: text("secured_party").notNull(),
+  filingDate: timestamp("filing_date").notNull(),
+  fileNumber: text("file_number").notNull(),
+  collateralDescription: text("collateral_description"),
+  loanAmount: integer("loan_amount"), // in cents if available
+  filingType: text("filing_type"), // 'original', 'amendment', 'termination'
+  jurisdiction: text("jurisdiction"), // State where filed
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -571,6 +595,15 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   tier: z.enum(["gold", "platinum", "diamond", "elite"]).optional(),
 });
 
+export const insertUccFilingSchema = createInsertSchema(uccFilings).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  filingDate: z.string().datetime(),
+  loanAmount: z.number().optional(),
+  filingType: z.enum(["original", "amendment", "termination"]).optional(),
+});
+
 export const insertLeadAgingSchema = createInsertSchema(leadAging).omit({
   id: true,
   calculatedAt: true,
@@ -994,6 +1027,9 @@ export type LeadBatch = typeof leadBatches.$inferSelect;
 
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
+
+export type InsertUccFiling = z.infer<typeof insertUccFilingSchema>;
+export type UccFiling = typeof uccFilings.$inferSelect;
 
 export type InsertLeadAging = z.infer<typeof insertLeadAgingSchema>;
 export type LeadAging = typeof leadAging.$inferSelect;
