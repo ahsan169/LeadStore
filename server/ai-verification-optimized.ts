@@ -212,6 +212,7 @@ export class OptimizedAIVerificationEngine {
         console.log(`[AI Verification] ETA: ${estimatedTimeRemaining}s, Elapsed: ${elapsedTime.toFixed(1)}s`);
         
         let batchResults: any[];
+        let usedFallback = false;
         try {
           // Verify batch with timeout
           batchResults = await Promise.race([
@@ -219,34 +220,31 @@ export class OptimizedAIVerificationEngine {
             timeoutPromise
           ]);
           
-          console.log(`[AI Verification] Batch ${batchIndex + 1} completed successfully`);
+          console.log(`[AI Verification] ✅ Batch ${batchIndex + 1} completed successfully`);
         } catch (batchError: any) {
-          console.error(`[AI Verification] Error in batch ${batchIndex + 1}:`, batchError.message);
+          console.error(`[AI Verification] ❌ Error in batch ${batchIndex + 1}:`, batchError.message);
           
           // Provide more detailed error information
           const batchLeadsInfo = batch.slice(0, 3).map(l => l.businessName || 'Unknown').join(', ');
           const errorMessage = batchError.message || 'Unknown error';
           
-          // Check for specific error types and provide helpful messages
-          if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+          // Check for specific error types that should stop the entire process
+          if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
             throw new Error(
-              `Batch ${batchIndex + 1} timed out while processing leads: ${batchLeadsInfo}... ` +
-              `Try reducing batch size or increasing timeout.`
+              `OpenAI API authentication failed. Please check your API key configuration.`
             );
           } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
             throw new Error(
               `API rate limit reached at batch ${batchIndex + 1}. ` +
               `Please wait a few minutes and try again with smaller batch sizes.`
             );
-          } else if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
-            throw new Error(
-              `OpenAI API authentication failed. Please check your API key configuration.`
-            );
-          } else {
-            throw new Error(
-              `Failed to process batch ${batchIndex + 1} (leads ${startIdx + 1}-${endIdx}): ${errorMessage}`
-            );
           }
+          
+          // For other errors (timeout, JSON parsing, etc.), use fallback and continue
+          console.warn(`[AI Verification] ⚠️  Using fallback verification for batch ${batchIndex + 1}`);
+          console.warn(`[AI Verification] Affected leads: ${batchLeadsInfo}...`);
+          batchResults = batch.map((_, idx) => this.getDefaultVerification(startIdx + idx + 1));
+          usedFallback = true;
         }
         
         // Convert to database format and add to results
@@ -475,25 +473,39 @@ Return a JSON array with one object per lead:
         ],
         response_format: { type: "json_object" },
         temperature: 0.1,
-        max_tokens: 4000 // Enough for detailed batch response
+        max_tokens: 16000 // Increased to handle large batches (30 leads × ~500 tokens = 15000 tokens)
       });
 
       const apiTime = Date.now() - apiStartTime;
       console.log(`[AI API] OpenAI API call completed in ${apiTime}ms`);
       console.log(`[AI API] Tokens used - Prompt: ${response.usage?.prompt_tokens}, Completion: ${response.usage?.completion_tokens}, Total: ${response.usage?.total_tokens}`);
       
-      const result = JSON.parse(response.choices[0].message.content || '{}');
+      // Check if we hit the token limit
+      const completionTokens = response.usage?.completion_tokens || 0;
+      if (completionTokens >= 15900) { // Close to 16000 limit
+        console.warn(`[AI API] WARNING: Approaching max_tokens limit (${completionTokens}/16000). Response may be truncated.`);
+      }
+      
+      let result;
+      try {
+        result = JSON.parse(response.choices[0].message.content || '{}');
+      } catch (parseError: any) {
+        console.error(`[AI API] JSON parsing failed: ${parseError.message}`);
+        console.error(`[AI API] Response was likely truncated due to token limit`);
+        console.error(`[AI API] Completion tokens: ${completionTokens}, Max allowed: 16000`);
+        throw new Error(`AI response parsing failed (likely token limit exceeded): ${parseError.message}`);
+      }
+      
       console.log(`[AI API] Received verification results for ${Array.isArray(result) ? result.length : (result.results?.length || 0)} leads`);
       
       // Ensure we have an array of results
       const results = Array.isArray(result) ? result : result.results || [];
       
-      // If we didn't get enough results, fill in with defaults
+      // If we didn't get enough results, this is an error
       if (results.length < batch.length) {
-        console.warn(`[AI API] Expected ${batch.length} results but got ${results.length}, filling with defaults`);
-        while (results.length < batch.length) {
-          results.push(this.getDefaultVerification(startIdx + results.length + 1));
-        }
+        const errorMsg = `Expected ${batch.length} results but got ${results.length}. Response may be incomplete.`;
+        console.error(`[AI API] ${errorMsg}`);
+        throw new Error(errorMsg);
       }
       
       return results;
@@ -506,8 +518,8 @@ Return a JSON array with one object per lead:
         status: error.status
       });
       
-      // Return fallback verification for all leads in batch
-      return batch.map((_, idx) => this.getDefaultVerification(startIdx + idx + 1));
+      // Re-throw the error instead of silently using fallback data
+      throw error;
     }
   }
 
