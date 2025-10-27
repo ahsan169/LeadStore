@@ -1158,7 +1158,7 @@ Return JSON: {
     
     // Load existing leads for duplicate detection
     this.existingLeads.clear();
-    const existingLeadsData = await storage.getFilteredLeads({ limit: 10000 });
+    const { leads: existingLeadsData } = await storage.getFilteredLeads({ limit: 10000 });
     existingLeadsData.forEach(lead => {
       this.existingLeads.set(lead.id, lead);
     });

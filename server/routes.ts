@@ -4716,11 +4716,11 @@ Time: ${preferredTime || 'Any time'}`);
           sold: req.query.sold === "true" ? true : req.query.sold === "false" ? false : undefined,
         };
 
-        const leads = await storage.getFilteredLeads(filters);
+        const { leads, total } = await storage.getFilteredLeads(filters);
         const offset = (options.page! - 1) * options.limit!;
         const paginatedLeads = leads.slice(offset, offset + options.limit!);
 
-        paginatedResponse(res, paginatedLeads, leads.length, options);
+        paginatedResponse(res, paginatedLeads, total, options);
       } catch (error) {
         console.error("API v1 - Error fetching leads:", error);
         apiError(res, "Failed to fetch leads", 500);
