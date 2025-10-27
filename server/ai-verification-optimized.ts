@@ -121,16 +121,19 @@ export class OptimizedAIVerificationEngine {
     const results: InsertVerificationResult[] = [];
     
     // Configure batch size dynamically based on total lead count (moved up for scope)
-    // Larger batches for more leads to reduce API calls
+    // Start with smaller batches if we've had issues
     let BATCH_SIZE: number;
+    let errorCount = 0;
+    const MAX_ERRORS_BEFORE_REDUCTION = 2;
+    
     if (leads.length < 100) {
       BATCH_SIZE = 5;  // Small batch for few leads
     } else if (leads.length < 500) {
       BATCH_SIZE = 10; // Medium batch for moderate count
     } else if (leads.length < 1000) {
-      BATCH_SIZE = 20; // Larger batch for many leads
+      BATCH_SIZE = 15; // Reduced from 20 for better reliability
     } else {
-      BATCH_SIZE = 30; // Maximum batch size for large datasets
+      BATCH_SIZE = 20; // Reduced from 30 for better reliability
     }
     
     const totalBatches = Math.ceil(leads.length / BATCH_SIZE);
@@ -240,9 +243,16 @@ export class OptimizedAIVerificationEngine {
             );
           }
           
-          // For other errors (timeout, JSON parsing, etc.), use fallback and continue
-          console.warn(`[AI Verification] ⚠️  Using fallback verification for batch ${batchIndex + 1}`);
+          // For other errors, track and potentially reduce batch size
+          errorCount++;
+          console.warn(`[AI Verification] ⚠️  Using fallback verification for batch ${batchIndex + 1} (error count: ${errorCount})`);
           console.warn(`[AI Verification] Affected leads: ${batchLeadsInfo}...`);
+          
+          // If we're getting too many errors, suggest reducing batch size
+          if (errorCount >= MAX_ERRORS_BEFORE_REDUCTION && BATCH_SIZE > 5) {
+            console.warn(`[AI Verification] ⚠️  Consider reducing batch size from ${BATCH_SIZE} to improve reliability`);
+          }
+          
           batchResults = batch.map((_, idx) => this.getDefaultVerification(startIdx + idx + 1));
           usedFallback = true;
         }
@@ -442,31 +452,39 @@ For each lead, evaluate:
 
 Strictness level: ${this.strictnessLevel}
 
-Return a JSON array with one object per lead:
+IMPORTANT: You must return a JSON object with a single key "results" containing an array of verification objects.
+The response must follow this exact structure:
+
 {
-  "rowNumber": number,
-  "status": "verified" | "warning" | "failed",
-  "verificationScore": number (0-100),
-  "confidenceScore": number (0-100),
-  "issues": string[], // Critical problems that should prevent import
-  "warnings": string[], // Minor issues that don't prevent import
-  "suggestions": string[], // Improvements that could be made
-  "isDuplicate": boolean, // If similar to another lead in batch
-  "duplicateType": string | null,
-  "aiInsights": {
-    "businessLegitimacy": boolean,
-    "dataQuality": "high" | "medium" | "low",
-    "riskLevel": "low" | "medium" | "high",
-    "recommendation": string // Brief recommendation for this lead
-  },
-  "correctedData": { // Only include fields that need correction
-    "businessName": string | null,
-    "phone": string | null, // Format as (XXX) XXX-XXXX
-    "email": string | null,
-    "ownerName": string | null,
-    "address": string | null
-  }
-}`
+  "results": [
+    {
+      "rowNumber": number,
+      "status": "verified" | "warning" | "failed",
+      "verificationScore": number (0-100),
+      "confidenceScore": number (0-100),
+      "issues": [], // Array of strings - Critical problems that should prevent import
+      "warnings": [], // Array of strings - Minor issues that don't prevent import
+      "suggestions": [], // Array of strings - Improvements that could be made
+      "isDuplicate": false,
+      "duplicateType": null,
+      "aiInsights": {
+        "businessLegitimacy": true,
+        "dataQuality": "high",
+        "riskLevel": "low",
+        "recommendation": "string"
+      },
+      "correctedData": {
+        "businessName": null,
+        "phone": null,
+        "email": null,
+        "ownerName": null,
+        "address": null
+      }
+    }
+  ]
+}
+
+CRITICAL: The response MUST include ALL ${batch.length} leads from the input. Each lead must have a corresponding verification object in the results array.`
           },
           {
             role: "user",
@@ -490,7 +508,19 @@ Return a JSON array with one object per lead:
       
       let result;
       try {
-        result = JSON.parse(response.choices[0].message.content || '{}');
+        const rawContent = response.choices[0].message.content || '{}';
+        result = JSON.parse(rawContent);
+        
+        // Log the actual structure received
+        console.log(`[AI API] Response structure type: ${typeof result}, isArray: ${Array.isArray(result)}`);
+        if (typeof result === 'object' && !Array.isArray(result)) {
+          console.log(`[AI API] Response keys: ${Object.keys(result).join(', ')}`);
+          // If it has a single key that might contain the array
+          const keys = Object.keys(result);
+          if (keys.length === 1) {
+            console.log(`[AI API] Single key found: "${keys[0]}", value isArray: ${Array.isArray(result[keys[0]])}`);
+          }
+        }
       } catch (parseError: any) {
         console.error(`[AI API] JSON parsing failed: ${parseError.message}`);
         console.error(`[AI API] Response was likely truncated due to token limit`);
@@ -498,10 +528,28 @@ Return a JSON array with one object per lead:
         throw new Error(`AI response parsing failed (likely token limit exceeded): ${parseError.message}`);
       }
       
-      console.log(`[AI API] Received verification results for ${Array.isArray(result) ? result.length : (result.results?.length || 0)} leads`);
+      // Try multiple possible structures
+      let results;
+      if (Array.isArray(result)) {
+        results = result;
+      } else if (result.results && Array.isArray(result.results)) {
+        results = result.results;
+      } else if (result.leads && Array.isArray(result.leads)) {
+        results = result.leads;
+      } else if (result.verifications && Array.isArray(result.verifications)) {
+        results = result.verifications;
+      } else {
+        // Check if there's a single key containing an array
+        const keys = Object.keys(result);
+        if (keys.length === 1 && Array.isArray(result[keys[0]])) {
+          results = result[keys[0]];
+          console.log(`[AI API] Found results in key "${keys[0]}"`);
+        } else {
+          results = [];
+        }
+      }
       
-      // Ensure we have an array of results
-      const results = Array.isArray(result) ? result : result.results || [];
+      console.log(`[AI API] Received verification results for ${results.length} leads`);
       
       // If we didn't get enough results, this is an error
       if (results.length < batch.length) {
