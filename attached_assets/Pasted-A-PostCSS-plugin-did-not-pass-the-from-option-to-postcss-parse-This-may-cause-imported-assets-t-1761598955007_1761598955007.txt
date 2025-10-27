@@ -1,0 +1,65 @@
+A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+8:56:45 PM [express] GET /api/auth/me 401 in 2ms :: {"error":"Not authenticated"}
+8:56:45 PM [express] GET /api/auth/me 401 in 1ms :: {"error":"Not authenticated"}
+[LeadFreshness] Freshness scores updated successfully
+9:00:58 PM [express] GET /api/auth/me 304 in 1ms :: {"id":"72446c30-ca0d-4c25-b63b-2cba582f3324","us…
+9:00:58 PM [express] GET /api/alerts/unviewed/count 304 in 100ms :: {"count":0}
+9:00:59 PM [express] GET /api/analytics/dashboard 200 in 807ms :: {"stats":{"totalLeads":0,"contacte…
+9:01:00 PM [express] GET /api/purchases 304 in 77ms :: []
+WebSocket client connected for verification progress
+AI verify-upload file received: mca_top_2000_enriched 2.csv text/csv 1492337
+Detected binary/compressed file format (Numbers/Excel), will use Excel parser
+Using Excel parser for file
+Using sheet: mca_top_2000_no_duplicates (1).
+AI verify-upload headers found: [ 'businessName', 'industry', 'ownerName', 'email', 'phone' ]
+AI verify-upload total rows: 1982
+AI verify-upload sample row: { businessName: 'NORTHWEST FREIGHTWAY INC', industry: 'logistics' }
+Column mapping result: {
+  mapped: [
+    'businessName',
+    'industry',
+    'previousMCAHistory',
+    'urgencyLevel',
+    'exclusivityStatus',
+    'leadAge'
+  ],
+  unmapped: []
+}
+AI verify-upload column mappings applied: [
+  'businessName',
+  'industry',
+  'previousMCAHistory',
+  'urgencyLevel',
+  'exclusivityStatus',
+  'leadAge',
+  '_unmapped'
+]
+[AI Verification] Created leadBatch ecc753ee-c63a-4920-a060-e26f557fb1ba with status 'processing'
+Starting AI verification for 1982 leads with strict strictness
+[AI Verification] Timeout set to 30 minutes for 1982 leads
+Loading existing leads for duplicate detection...
+[AI Verification] Using batch size of 20 for 1982 leads
+Processing 1982 leads in 100 batches of up to 20 leads each
+[AI Verification] Starting verification with 100 batches
+[AI Verification] Strictness level: strict
+[AI Verification] Timeout: 1800000ms
+[AI Verification] Processing batch 1/100 (leads 1-20)
+[AI Verification] ETA: 73s, Elapsed: 0.7s
+[AI API] Making OpenAI API call for 20 leads
+9:01:28 PM [express] GET /api/alerts/unviewed/count 304 in 68ms :: {"count":0}
+[AI API] OpenAI API call completed in 63051ms
+[AI API] Tokens used - Prompt: 1062, Completion: 3848, Total: 4910
+[AI API] Response structure type: object, isArray: false
+[AI API] Response keys: results
+[AI API] Single key found: "results", value isArray: true
+[AI API] Received verification results for 20 leads
+[AI Verification] ✅ Batch 1 completed successfully
+[AI Verification] Saving batch 1 results to database...
+[AI Verification] Processing batch 1 results for incremental save
+[AI Verification] Batch 1: Successfully saved 7 leads (total saved: 7)
+[AI Verification] ✅ Batch 1 saved successfully
+[AI Verification] Progress: 1% (20/1982 leads processed)
+[AI Verification] Processing batch 2/100 (leads 21-40)
+[AI Verification] ETA: 6385s, Elapsed: 65.2s
+[AI API] Making OpenAI API call for 20 leads
+9:02:29 PM [express] GET /api/alerts/unviewed/count 304 in 66ms :: {"count":0}
