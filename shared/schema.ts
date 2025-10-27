@@ -472,6 +472,38 @@ export const bulkOrders = pgTable("bulk_orders", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Campaign Templates table for email/SMS templates
+export const campaignTemplates = pgTable("campaign_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id), // null for system templates
+  templateName: text("template_name").notNull(),
+  templateType: text("template_type").notNull(), // 'email', 'sms'
+  subject: text("subject"), // For email templates
+  content: text("content").notNull(),
+  variables: jsonb("variables"), // JSON array of placeholders like ['businessName', 'ownerName', 'amount']
+  category: text("category").notNull(), // 'intro', 'follow_up', 'offer', 'reminder'
+  isPublic: boolean("is_public").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Campaigns table for tracking email/SMS campaigns
+export const campaigns = pgTable("campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  purchaseId: varchar("purchase_id").references(() => purchases.id).notNull(),
+  campaignName: text("campaign_name").notNull(),
+  templateId: varchar("template_id").references(() => campaignTemplates.id).notNull(),
+  recipientCount: integer("recipient_count").notNull().default(0),
+  status: text("status").notNull().default("draft"), // 'draft', 'scheduled', 'sent', 'cancelled'
+  scheduledAt: timestamp("scheduled_at"),
+  sentAt: timestamp("sent_at"),
+  // Analytics fields
+  openCount: integer("open_count").notNull().default(0),
+  clickCount: integer("click_count").notNull().default(0),
+  responseCount: integer("response_count").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -778,6 +810,31 @@ export const insertBulkOrderSchema = createInsertSchema(bulkOrders).omit({
   notes: z.string().optional(),
 });
 
+export const insertCampaignTemplateSchema = createInsertSchema(campaignTemplates).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  templateName: z.string().min(1),
+  templateType: z.enum(["email", "sms"]),
+  subject: z.string().optional(),
+  content: z.string().min(1),
+  variables: z.array(z.string()).optional(),
+  category: z.enum(["intro", "follow_up", "offer", "reminder"]),
+  isPublic: z.boolean().default(false),
+});
+
+export const insertCampaignSchema = createInsertSchema(campaigns).omit({
+  id: true,
+  createdAt: true,
+  openCount: true,
+  clickCount: true,
+  responseCount: true,
+}).extend({
+  campaignName: z.string().min(1),
+  status: z.enum(["draft", "scheduled", "sent", "cancelled"]).default("draft"),
+  recipientCount: z.number().min(0).default(0),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -859,3 +916,9 @@ export type BulkDiscount = typeof bulkDiscounts.$inferSelect;
 
 export type InsertBulkOrder = z.infer<typeof insertBulkOrderSchema>;
 export type BulkOrder = typeof bulkOrders.$inferSelect;
+
+export type InsertCampaignTemplate = z.infer<typeof insertCampaignTemplateSchema>;
+export type CampaignTemplate = typeof campaignTemplates.$inferSelect;
+
+export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
+export type Campaign = typeof campaigns.$inferSelect;

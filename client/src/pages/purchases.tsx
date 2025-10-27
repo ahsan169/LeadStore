@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Send, Link2, Loader2, CheckCircle, AlertCircle, ShieldAlert, ShieldCheck, Clock } from "lucide-react";
+import { Download, FileText, Send, Link2, Loader2, CheckCircle, AlertCircle, ShieldAlert, ShieldCheck, Clock, Mail } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -259,6 +259,18 @@ export default function PurchasesPage() {
                           >
                             <Send className="w-4 h-4 mr-2" />
                             Export to CRM
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              // Store purchase info in localStorage for the campaigns page
+                              localStorage.setItem('selectedPurchaseId', purchase.id);
+                              setLocation('/campaigns');
+                            }}
+                            data-testid={`button-create-campaign-${purchase.id}`}
+                          >
+                            <Mail className="w-4 h-4 mr-2" />
+                            Create Campaign
                           </Button>
                           <Button
                             variant="outline"

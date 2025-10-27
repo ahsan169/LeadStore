@@ -29,7 +29,8 @@ import IntegrationsPage from "@/pages/integrations";
 import AlertsPage from "@/pages/alerts";
 import LeadsPage from "@/pages/leads";
 import GuaranteeReportsPage from "@/pages/guarantee-reports";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator } from "lucide-react";
+import CampaignsPage from "@/pages/campaigns";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -102,6 +103,7 @@ function AppSidebar() {
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
+    { title: "Campaigns", url: "/campaigns", icon: Send },
     { title: "Quality Guarantee", url: "/guarantee-reports", icon: ShieldCheck },
     { title: "Alerts", url: "/alerts", icon: Bell },
     { title: "Integrations", url: "/integrations", icon: Link2 },
@@ -242,6 +244,7 @@ function Router() {
               <Route path="/pricing" component={PricingPage} />
               <Route path="/purchase" component={PurchaseFlowPage} />
               <Route path="/purchases" component={PurchasesPage} />
+              <Route path="/campaigns" component={CampaignsPage} />
               <Route path="/guarantee-reports" component={GuaranteeReportsPage} />
               <Route path="/alerts" component={AlertsPage} />
               <Route path="/integrations" component={IntegrationsPage} />

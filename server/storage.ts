@@ -55,6 +55,10 @@ import {
   type InsertBulkDiscount,
   type BulkOrder,
   type InsertBulkOrder,
+  type CampaignTemplate,
+  type InsertCampaignTemplate,
+  type Campaign,
+  type InsertCampaign,
   users,
   subscriptions,
   leadBatches,
@@ -82,6 +86,8 @@ import {
   qualityGuarantee,
   bulkDiscounts,
   bulkOrders,
+  campaignTemplates,
+  campaigns,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -384,6 +390,23 @@ export interface IStorage {
     averageConfidence: number;
     sourceBreakdown: Record<string, number>;
   }>;
+  
+  // Campaign Template operations
+  getCampaignTemplate(id: string): Promise<CampaignTemplate | undefined>;
+  getCampaignTemplates(userId?: string): Promise<CampaignTemplate[]>;
+  getCampaignTemplatesByCategory(category: string, userId?: string): Promise<CampaignTemplate[]>;
+  createCampaignTemplate(template: InsertCampaignTemplate): Promise<CampaignTemplate>;
+  updateCampaignTemplate(id: string, data: Partial<InsertCampaignTemplate>): Promise<CampaignTemplate | undefined>;
+  deleteCampaignTemplate(id: string): Promise<void>;
+  
+  // Campaign operations
+  getCampaign(id: string): Promise<Campaign | undefined>;
+  getCampaignsByUserId(userId: string): Promise<Campaign[]>;
+  getCampaignsByPurchaseId(purchaseId: string): Promise<Campaign[]>;
+  createCampaign(campaign: InsertCampaign): Promise<Campaign>;
+  updateCampaign(id: string, data: Partial<InsertCampaign>): Promise<Campaign | undefined>;
+  sendCampaign(id: string): Promise<Campaign | undefined>;
+  cancelCampaign(id: string): Promise<Campaign | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -1785,6 +1808,107 @@ export class DbStorage implements IStorage {
       finalPrice,
       discountTier: discount.tierName
     };
+  }
+  
+  // Campaign Template operations
+  async getCampaignTemplate(id: string): Promise<CampaignTemplate | undefined> {
+    const result = await db.select().from(campaignTemplates).where(eq(campaignTemplates.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getCampaignTemplates(userId?: string): Promise<CampaignTemplate[]> {
+    if (userId) {
+      return db.select().from(campaignTemplates)
+        .where(or(eq(campaignTemplates.userId, userId), eq(campaignTemplates.isPublic, true)))
+        .orderBy(desc(campaignTemplates.createdAt));
+    }
+    return db.select().from(campaignTemplates)
+      .where(eq(campaignTemplates.isPublic, true))
+      .orderBy(desc(campaignTemplates.createdAt));
+  }
+  
+  async getCampaignTemplatesByCategory(category: string, userId?: string): Promise<CampaignTemplate[]> {
+    if (userId) {
+      return db.select().from(campaignTemplates)
+        .where(and(
+          eq(campaignTemplates.category, category),
+          or(eq(campaignTemplates.userId, userId), eq(campaignTemplates.isPublic, true))
+        ))
+        .orderBy(desc(campaignTemplates.createdAt));
+    }
+    return db.select().from(campaignTemplates)
+      .where(and(
+        eq(campaignTemplates.category, category),
+        eq(campaignTemplates.isPublic, true)
+      ))
+      .orderBy(desc(campaignTemplates.createdAt));
+  }
+  
+  async createCampaignTemplate(template: InsertCampaignTemplate): Promise<CampaignTemplate> {
+    const result = await db.insert(campaignTemplates).values(template).returning();
+    return result[0];
+  }
+  
+  async updateCampaignTemplate(id: string, data: Partial<InsertCampaignTemplate>): Promise<CampaignTemplate | undefined> {
+    const result = await db.update(campaignTemplates)
+      .set(data)
+      .where(eq(campaignTemplates.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteCampaignTemplate(id: string): Promise<void> {
+    await db.delete(campaignTemplates).where(eq(campaignTemplates.id, id));
+  }
+  
+  // Campaign operations
+  async getCampaign(id: string): Promise<Campaign | undefined> {
+    const result = await db.select().from(campaigns).where(eq(campaigns.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getCampaignsByUserId(userId: string): Promise<Campaign[]> {
+    return db.select().from(campaigns)
+      .where(eq(campaigns.userId, userId))
+      .orderBy(desc(campaigns.createdAt));
+  }
+  
+  async getCampaignsByPurchaseId(purchaseId: string): Promise<Campaign[]> {
+    return db.select().from(campaigns)
+      .where(eq(campaigns.purchaseId, purchaseId))
+      .orderBy(desc(campaigns.createdAt));
+  }
+  
+  async createCampaign(campaign: InsertCampaign): Promise<Campaign> {
+    const result = await db.insert(campaigns).values(campaign).returning();
+    return result[0];
+  }
+  
+  async updateCampaign(id: string, data: Partial<InsertCampaign>): Promise<Campaign | undefined> {
+    const result = await db.update(campaigns)
+      .set(data)
+      .where(eq(campaigns.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async sendCampaign(id: string): Promise<Campaign | undefined> {
+    const result = await db.update(campaigns)
+      .set({ 
+        status: 'sent',
+        sentAt: new Date()
+      })
+      .where(eq(campaigns.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async cancelCampaign(id: string): Promise<Campaign | undefined> {
+    const result = await db.update(campaigns)
+      .set({ status: 'cancelled' })
+      .where(eq(campaigns.id, id))
+      .returning();
+    return result[0];
   }
 }
 

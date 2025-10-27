@@ -32,7 +32,8 @@ import { leadEnrichmentService } from "./services/lead-enrichment";
 import { qualityGuaranteeService } from "./services/quality-guarantee";
 import { leadFreshnessService, FreshnessCategory } from "./services/lead-freshness";
 import { bulkOperationsService } from "./services/bulk-operations";
-import { insertLeadAlertSchema, insertQualityGuaranteeSchema } from "@shared/schema";
+import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema } from "@shared/schema";
+import { campaignService } from "./services/campaign-tools";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -4669,3 +4670,238 @@ function generateTestLeads(count: number, qualityRange: { min: number; max: numb
   
   return leads;
 }
+
+// Campaign Template endpoints
+app.get("/api/templates", requireAuth, async (req, res) => {
+  try {
+    const { category } = req.query;
+    
+    // Initialize default templates if needed
+    await campaignService.initializeDefaultTemplates();
+    
+    let templates;
+    if (category) {
+      templates = await storage.getCampaignTemplatesByCategory(
+        category as string,
+        req.user!.id
+      );
+    } else {
+      templates = await storage.getCampaignTemplates(req.user!.id);
+    }
+    
+    res.json(templates);
+  } catch (error) {
+    console.error("Error fetching templates:", error);
+    res.status(500).json({ error: "Failed to fetch templates" });
+  }
+});
+
+app.post("/api/templates", requireAuth, async (req, res) => {
+  try {
+    const validation = insertCampaignTemplateSchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: validation.error.message });
+    }
+    
+    const templateData = {
+      ...validation.data,
+      userId: req.user!.id,
+      variables: campaignService.extractVariables(
+        validation.data.content,
+        validation.data.subject
+      )
+    };
+    
+    const template = await storage.createCampaignTemplate(templateData);
+    res.json(template);
+  } catch (error) {
+    console.error("Error creating template:", error);
+    res.status(500).json({ error: "Failed to create template" });
+  }
+});
+
+app.put("/api/templates/:id", requireAuth, async (req, res) => {
+  try {
+    const template = await storage.getCampaignTemplate(req.params.id);
+    
+    if (!template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+    
+    // Check ownership
+    if (template.userId && template.userId !== req.user!.id && req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const updatedData = {
+      ...req.body,
+      variables: campaignService.extractVariables(
+        req.body.content,
+        req.body.subject
+      )
+    };
+    
+    const updated = await storage.updateCampaignTemplate(req.params.id, updatedData);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating template:", error);
+    res.status(500).json({ error: "Failed to update template" });
+  }
+});
+
+app.delete("/api/templates/:id", requireAuth, async (req, res) => {
+  try {
+    const template = await storage.getCampaignTemplate(req.params.id);
+    
+    if (!template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+    
+    // Check ownership
+    if (template.userId !== req.user!.id && req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    await storage.deleteCampaignTemplate(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting template:", error);
+    res.status(500).json({ error: "Failed to delete template" });
+  }
+});
+
+// Campaign endpoints
+app.post("/api/campaigns/preview", requireAuth, async (req, res) => {
+  try {
+    const { templateId, purchaseId } = req.body;
+    
+    if (!templateId || !purchaseId) {
+      return res.status(400).json({ error: "Template ID and Purchase ID are required" });
+    }
+    
+    // Get purchase and verify ownership
+    const purchase = await storage.getPurchase(purchaseId);
+    if (!purchase) {
+      return res.status(404).json({ error: "Purchase not found" });
+    }
+    
+    if (purchase.userId !== req.user!.id && req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    const leadIds = purchase.leadIds || [];
+    const preview = await campaignService.previewTemplate(templateId, leadIds);
+    
+    res.json(preview);
+  } catch (error) {
+    console.error("Error generating preview:", error);
+    res.status(500).json({ error: "Failed to generate preview" });
+  }
+});
+
+app.post("/api/campaigns/create", requireAuth, async (req, res) => {
+  try {
+    const { purchaseId, templateId, campaignName, scheduledAt } = req.body;
+    
+    if (!purchaseId || !templateId || !campaignName) {
+      return res.status(400).json({ 
+        error: "Purchase ID, Template ID, and Campaign Name are required" 
+      });
+    }
+    
+    const campaign = await campaignService.createCampaign(
+      req.user!.id,
+      purchaseId,
+      templateId,
+      campaignName,
+      scheduledAt ? new Date(scheduledAt) : undefined
+    );
+    
+    res.json(campaign);
+  } catch (error) {
+    console.error("Error creating campaign:", error);
+    res.status(500).json({ error: "Failed to create campaign" });
+  }
+});
+
+app.get("/api/campaigns", requireAuth, async (req, res) => {
+  try {
+    const campaigns = await storage.getCampaignsByUserId(req.user!.id);
+    res.json(campaigns);
+  } catch (error) {
+    console.error("Error fetching campaigns:", error);
+    res.status(500).json({ error: "Failed to fetch campaigns" });
+  }
+});
+
+app.get("/api/campaigns/stats", requireAuth, async (req, res) => {
+  try {
+    const stats = await campaignService.getCampaignStats(req.user!.id);
+    res.json(stats);
+  } catch (error) {
+    console.error("Error fetching campaign stats:", error);
+    res.status(500).json({ error: "Failed to fetch campaign statistics" });
+  }
+});
+
+app.post("/api/campaigns/:id/send", requireAuth, async (req, res) => {
+  try {
+    const campaign = await storage.getCampaign(req.params.id);
+    
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+    
+    if (campaign.userId !== req.user!.id && req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    if (campaign.status !== "draft") {
+      return res.status(400).json({ error: "Campaign has already been sent or scheduled" });
+    }
+    
+    await campaignService.processCampaign(req.params.id);
+    const updated = await storage.getCampaign(req.params.id);
+    
+    res.json(updated);
+  } catch (error) {
+    console.error("Error sending campaign:", error);
+    res.status(500).json({ error: "Failed to send campaign" });
+  }
+});
+
+app.post("/api/campaigns/:id/cancel", requireAuth, async (req, res) => {
+  try {
+    const campaign = await storage.getCampaign(req.params.id);
+    
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+    
+    if (campaign.userId !== req.user!.id && req.user!.role !== "admin") {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    if (campaign.status !== "scheduled") {
+      return res.status(400).json({ error: "Only scheduled campaigns can be cancelled" });
+    }
+    
+    const updated = await storage.cancelCampaign(req.params.id);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error cancelling campaign:", error);
+    res.status(500).json({ error: "Failed to cancel campaign" });
+  }
+});
+
+// Get available variables for template creation
+app.get("/api/campaigns/variables", requireAuth, async (req, res) => {
+  try {
+    // Import CampaignService class directly to access static properties
+    const { CampaignService } = await import("./services/campaign-tools");
+    res.json(CampaignService.AVAILABLE_VARIABLES);
+  } catch (error) {
+    console.error("Error fetching variables:", error);
+    res.status(500).json({ error: "Failed to fetch available variables" });
+  }
+});
