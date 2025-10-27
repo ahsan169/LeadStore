@@ -22,7 +22,7 @@ import {
 } from "./email";
 import { db } from "./db";
 import { leadPerformance, purchases, leadScoringModels } from "@shared/schema";
-import { gte, lte, and, sql } from "drizzle-orm";
+import { gte, lte, and, sql, eq } from "drizzle-orm";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";

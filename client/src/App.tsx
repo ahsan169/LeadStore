@@ -32,6 +32,9 @@ import GuaranteeReportsPage from "@/pages/guarantee-reports";
 import CampaignsPage from "@/pages/campaigns";
 import DeveloperPage from "@/pages/developer";
 import ApiDocsPage from "@/pages/api-docs";
+import SmartMatchingPage from "@/pages/smart-matching";
+import AdvancedFilteringPage from "@/pages/advanced-filtering";
+import MLScoringPage from "@/pages/ml-scoring";
 import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -102,13 +105,16 @@ function AppSidebar() {
     { title: "Dashboard", url: "/dashboard", icon: Home },
     { title: "Analytics", url: "/analytics", icon: TrendingUp },
     { title: "Lead Discovery", url: "/leads", icon: Search },
+    { title: "Advanced Filtering", url: "/advanced-filtering", icon: Search },
+    { title: "Smart Matching", url: "/smart-matching", icon: Bell },
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
     { title: "Campaigns", url: "/campaigns", icon: Send },
     { title: "Quality Guarantee", url: "/guarantee-reports", icon: ShieldCheck },
     { title: "Alerts", url: "/alerts", icon: Bell },
-    { title: "Integrations", url: "/integrations", icon: Link2 },
+    { title: "CRM Integrations", url: "/integrations", icon: Link2 },
+    { title: "ML Scoring", url: "/ml-scoring", icon: TrendingUp },
     { title: "Developer Portal", url: "/developer", icon: Key },
     { title: "API Docs", url: "/api-docs", icon: Book },
   ];
@@ -117,11 +123,16 @@ function AppSidebar() {
     { title: "Dashboard", url: "/admin/dashboard", icon: BarChart },
     { title: "Analytics", url: "/analytics", icon: TrendingUp },
     { title: "Lead Discovery", url: "/leads", icon: Search },
+    { title: "Advanced Filtering", url: "/advanced-filtering", icon: Search },
+    { title: "Smart Matching", url: "/smart-matching", icon: Bell },
     { title: "Upload Leads", url: "/admin/upload", icon: Upload },
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
     { title: "Quality Guarantees", url: "/admin/manage-guarantees", icon: ShieldCheck },
     { title: "Pricing Tiers", url: "/admin/tiers", icon: Tags },
     { title: "Bulk Operations", url: "/admin/bulk-management", icon: Calculator },
+    { title: "CRM Integrations", url: "/integrations", icon: Link2 },
+    { title: "ML Scoring", url: "/ml-scoring", icon: TrendingUp },
+    { title: "Campaigns", url: "/campaigns", icon: Send },
     { title: "Customers", url: "/admin/customers", icon: Users },
     { title: "Contact Forms", url: "/admin/contact-submissions", icon: MessageSquare },
   ];
@@ -250,8 +261,13 @@ function Router() {
               <Route path="/purchases" component={PurchasesPage} />
               <Route path="/campaigns" component={CampaignsPage} />
               <Route path="/guarantee-reports" component={GuaranteeReportsPage} />
+              <Route path="/quality-guarantee" component={GuaranteeReportsPage} />
               <Route path="/alerts" component={AlertsPage} />
               <Route path="/integrations" component={IntegrationsPage} />
+              <Route path="/crm-integrations" component={IntegrationsPage} />
+              <Route path="/smart-matching" component={SmartMatchingPage} />
+              <Route path="/advanced-filtering" component={AdvancedFilteringPage} />
+              <Route path="/ml-scoring" component={MLScoringPage} />
               <Route path="/developer" component={DeveloperPage} />
               <Route path="/api-docs" component={ApiDocsPage} />
               <Route path="/purchase/:tier" component={PurchaseTierPage} />
@@ -261,6 +277,7 @@ function Router() {
               {/* Admin routes */}
               {user.role === "admin" && (
                 <>
+                  <Route path="/admin" component={AdminDashboardPage} />
                   <Route path="/admin/dashboard" component={AdminDashboardPage} />
                   <Route path="/admin/upload" component={UploadLeadsPage} />
                   <Route path="/admin/verify-leads" component={VerifyLeadsPage} />

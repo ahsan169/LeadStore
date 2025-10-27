@@ -3,7 +3,12 @@ import { storage } from "../storage";
 import type { Lead, CrmIntegration, CrmSyncLog } from "@shared/schema";
 
 // Encryption utility functions
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex').slice(0, 32);
+// Generate a stable key for development if not provided
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || (
+  process.env.NODE_ENV === 'development' 
+    ? 'dev-key-32-bytes-long-1234567890' // Fixed 32-byte key for development
+    : (() => { throw new Error('ENCRYPTION_KEY environment variable is required for CRM integrations in production'); })()
+);
 const ALGORITHM = 'aes-256-cbc';
 
 export function encryptApiKey(apiKey: string): string {
