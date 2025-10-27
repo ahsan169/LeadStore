@@ -1,0 +1,41 @@
+[AI API] Response keys: results
+[AI API] Single key found: "results", value isArray: true
+[AI API] Received verification results for 20 leads
+[AI Verification] ✅ Batch 31 completed successfully
+[AI Verification] Progress: 31% (620/1982 leads processed)
+[AI Verification] Processing batch 32/100 (leads 621-640)
+[AI Verification] ETA: 3916s, Elapsed: 1785.0s
+[AI API] Making OpenAI API call for 20 leads
+[AI Verification] ❌ Error in batch 32: Verification timeout after 30 minutes. Processed 620 of 1982 leads (31%). Consider using smaller batch sizes or increasing the timeout for large datasets.
+[AI Verification] ⚠️  Using fallback verification for batch 32 (error count: 1)
+[AI Verification] Affected leads: PROHEALTH MEDICAL GROUP, INC., STIMPSON MANUFACTURING INC, STIMPSON MANUFACTURING INC...
+[AI Verification] Progress: 32% (640/1982 leads processed)
+[AI Verification] Process aborted at batch 33
+Verification error: Error: Verification aborted
+    at OptimizedAIVerificationEngine.verifyBatchOptimized (/home/runner/workspace/server/ai-verification-optimized.ts:189:17)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:1418:35)
+[AI Verification] Error details: {
+  totalLeads: 1982,
+  processedLeads: 640,
+  batchSize: 20,
+  totalBatches: 100,
+  elapsedTime: '1801.1s',
+  errorMessage: 'Verification aborted'
+}
+AI Verification error: Error: Verification aborted
+    at OptimizedAIVerificationEngine.verifyBatchOptimized (/home/runner/workspace/server/ai-verification-optimized.ts:189:17)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:1418:35)
+8:30:06 AM [express] GET /api/auth/me 304 in 1ms :: {"id":"72446c30-ca0d-4c25-b63b-2cba582f3324","us…
+8:30:07 AM [express] GET /api/purchases 304 in 90ms :: []
+8:30:07 AM [express] GET /api/alerts/unviewed/count 304 in 282ms :: {"count":0}
+8:30:07 AM [express] GET /api/analytics/dashboard 200 in 869ms :: {"stats":{"totalLeads":0,"contacte…
+8:30:37 AM [express] GET /api/alerts/unviewed/count 304 in 67ms :: {"count":0}
+[AI API] OpenAI API call completed in 52928ms
+[AI API] Tokens used - Prompt: 1109, Completion: 3673, Total: 4782
+[AI API] Response structure type: object, isArray: false
+[AI API] Response keys: results
+[AI API] Single key found: "results", value isArray: true
+[AI API] Received verification results for 20 leads
+8:31:08 AM [express] GET /api/alerts/unviewed/count 304 in 67ms :: {"count":0}
+8:31:38 AM [express] GET /api/alerts/unviewed/count 304 in 68ms :: {"count":0}
+8:32:09 AM [express] GET /api/ale
