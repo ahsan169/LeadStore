@@ -51,18 +51,13 @@ export default function AdvancedFilteringPage() {
   // Fetch saved searches
   const { data: savedSearches, isLoading: savedSearchesLoading } = useQuery({
     queryKey: ["/api/saved-searches"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/saved-searches");
-      return response.json();
-    },
+    queryFn: () => apiRequest("GET", "/api/saved-searches").then(res => res.json()),
   });
 
   // Search mutation
   const searchMutation = useMutation({
-    mutationFn: async (searchFilters: any) => {
-      const response = await apiRequest("POST", "/api/leads/search", searchFilters);
-      return response.json();
-    },
+    mutationFn: (searchFilters: any) => 
+      apiRequest("POST", "/api/leads/search", searchFilters).then(res => res.json()),
     onSuccess: (data) => {
       setSearchResults(data.leads || []);
       toast({ title: `Found ${data.leads?.length || 0} matching leads` });
@@ -74,10 +69,8 @@ export default function AdvancedFilteringPage() {
 
   // Save search mutation
   const saveSearchMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await apiRequest("POST", "/api/saved-searches", data);
-      return response.json();
-    },
+    mutationFn: (data: any) => 
+      apiRequest("POST", "/api/saved-searches", data).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saved-searches"] });
       toast({ title: "Search saved successfully" });
@@ -88,10 +81,8 @@ export default function AdvancedFilteringPage() {
 
   // Delete saved search mutation
   const deleteSearchMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await apiRequest("DELETE", `/api/saved-searches/${id}`);
-      return response.json();
-    },
+    mutationFn: (id: string) => 
+      apiRequest("DELETE", `/api/saved-searches/${id}`).then(res => res.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saved-searches"] });
       toast({ title: "Saved search deleted" });

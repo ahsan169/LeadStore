@@ -52,10 +52,7 @@ export default function SmartMatchingPage() {
   // Fetch matching criteria
   const { data: criteriaList, isLoading } = useQuery({
     queryKey: ["/api/lead-matching/criteria"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/lead-matching/criteria");
-      return response.json();
-    },
+    queryFn: () => apiRequest("GET", "/api/lead-matching/criteria").then(res => res.json()),
   });
 
   // Create mutation

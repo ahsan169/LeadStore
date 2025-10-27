@@ -68,28 +68,20 @@ export default function MLScoringPage() {
   // Fetch model info
   const { data: modelInfo, isLoading: modelLoading } = useQuery({
     queryKey: ["/api/scoring/model"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/scoring/model");
-      return response.json();
-    },
+    queryFn: () => apiRequest("GET", "/api/scoring/model").then(res => res.json()),
   });
 
   // Fetch market insights
   const { data: marketInsights, isLoading: insightsLoading } = useQuery({
     queryKey: ["/api/scoring/insights"],
-    queryFn: async () => {
-      const response = await apiRequest("GET", "/api/scoring/insights");
-      return response.json();
-    },
+    queryFn: () => apiRequest("GET", "/api/scoring/insights").then(res => res.json()),
     refetchInterval: 300000, // Refresh every 5 minutes
   });
 
   // Score leads mutation
   const scoreMutation = useMutation({
-    mutationFn: async (leadIds: string[]) => {
-      const response = await apiRequest("POST", "/api/scoring/analyze", { leadIds });
-      return response.json();
-    },
+    mutationFn: (leadIds: string[]) => 
+      apiRequest("POST", "/api/scoring/analyze", { leadIds }).then(res => res.json()),
     onSuccess: (data) => {
       toast({ title: `Scored ${data.scoredLeads} leads successfully` });
       queryClient.invalidateQueries({ queryKey: ["/api/scoring/insights"] });
@@ -101,10 +93,8 @@ export default function MLScoringPage() {
 
   // Get scoring factors for a specific lead
   const factorsMutation = useMutation({
-    mutationFn: async (leadId: string) => {
-      const response = await apiRequest("GET", `/api/scoring/factors/${leadId}`);
-      return response.json();
-    },
+    mutationFn: (leadId: string) => 
+      apiRequest("GET", `/api/scoring/factors/${leadId}`).then(res => res.json()),
     onSuccess: (data) => {
       setScoringResult(data);
     },
@@ -115,10 +105,7 @@ export default function MLScoringPage() {
 
   // Retrain model mutation (admin only)
   const retrainMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/scoring/retrain");
-      return response.json();
-    },
+    mutationFn: () => apiRequest("POST", "/api/scoring/retrain").then(res => res.json()),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/scoring/model"] });
       toast({
