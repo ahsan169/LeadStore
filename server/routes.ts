@@ -1269,6 +1269,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // POST /api/admin/verify-upload-ai - AI-powered lead verification
   app.post("/api/admin/verify-upload-ai", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
+    // Track batch save status for accurate error reporting (defined outside to be available in catch block)
+    const batchSaveStatus: { [key: number]: { saved: boolean; error?: string; leadsSaved: number } } = {};
+    
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -1350,6 +1353,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get strictness level from query params or use default
       const strictnessLevel = (req.query.strictness as 'strict' | 'moderate' | 'lenient') || 'moderate';
       
+      // Create lead batch at the START with processing status
+      const leadBatch = await storage.createLeadBatch({
+        uploadedBy: req.user!.id,
+        filename: file.originalname + ' (AI Verified)',
+        storageKey: `ai_verified_${Date.now()}`,
+        totalLeads: normalizedLeads.length,
+        averageQualityScore: "0", // Will be updated incrementally
+        status: "processing" // Start as processing
+      });
+      
+      console.log(`[AI Verification] Created leadBatch ${leadBatch.id} with status 'processing'`);
+      
       // Create verification session
       const sessionExpiry = new Date();
       sessionExpiry.setHours(sessionExpiry.getHours() + 24); // Expires in 24 hours
@@ -1370,6 +1385,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const createdSession = await storage.createVerificationSession(session);
       
+      // Track batch statistics for incremental updates
+      let batchStats = {
+        totalImported: 0,
+        totalQualityScore: 0,
+        verifiedCount: 0,
+        warningCount: 0,
+        failedCount: 0,
+        duplicateCount: 0,
+        lastBatchSaved: -1
+      };
+      
       // Get WebSocket server for progress updates
       const wss = app.get('wss') as WebSocket.Server;
       
@@ -1381,7 +1407,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const progressMessage = JSON.stringify({ 
             type: 'verification-progress', 
             sessionId: createdSession.id,
-            data: progress 
+            data: {
+              ...progress,
+              savedLeads: batchStats.totalImported, // Add saved count to progress
+              message: progress.message + ` (${batchStats.totalImported} leads saved)`
+            }
           });
           
           wss.clients.forEach((client) => {
@@ -1415,17 +1445,165 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[AI Verification] Timeout set to ${timeoutMs / 60000} minutes for ${normalizedLeads.length} leads`);
       
-      // Run optimized AI-powered verification with dynamic timeout
+      // Define callback to save leads after each batch completes
+      const onBatchComplete = async (batchResults: InsertVerificationResult[], batchIndex: number, totalBatches: number) => {
+        // Initialize batch status
+        batchSaveStatus[batchIndex] = { saved: false, leadsSaved: 0 };
+        
+        console.log(`[AI Verification] Processing batch ${batchIndex + 1} results for incremental save`);
+        
+        // Track what operations succeeded for potential rollback
+        let verificationResultsSaved = false;
+        let leadsSaved: any[] = [];
+        let batchUpdated = false;
+        
+        try {
+          // Step 1: Save verification results for this batch
+          await storage.createVerificationResults(batchResults);
+          verificationResultsSaved = true;
+          
+          // Process and save leads that passed verification
+          const leadsToImport: InsertLead[] = [];
+          let batchQualityScore = 0;
+          let batchImportedCount = 0;
+          
+          for (const result of batchResults) {
+            // Update batch statistics
+            if (result.status === 'verified') batchStats.verifiedCount++;
+            else if (result.status === 'warning') batchStats.warningCount++;
+            else if (result.status === 'failed') batchStats.failedCount++;
+            if (result.isDuplicate) batchStats.duplicateCount++;
+            
+            // Only import leads that are selected for import
+            if (result.selectedForImport) {
+              const leadData = result.leadData as any;
+              
+              // Calculate quality score for this lead
+              const qualityScore = calculateMCAQualityScore(leadData);
+              batchQualityScore += qualityScore;
+              batchImportedCount++;
+              
+              // Determine tier based on quality score
+              let tier: string;
+              if (qualityScore >= 80) {
+                tier = 'diamond';
+              } else if (qualityScore >= 70) {
+                tier = 'platinum';
+              } else {
+                tier = 'gold';
+              }
+              
+              leadsToImport.push({
+                batchId: leadBatch.id,
+                businessName: leadData.businessName?.trim(),
+                ownerName: leadData.ownerName?.trim(),
+                email: leadData.email?.trim().toLowerCase(),
+                phone: leadData.phone?.trim(),
+                industry: leadData.industry?.trim() || null,
+                annualRevenue: leadData.annualRevenue?.trim() || null,
+                requestedAmount: leadData.requestedAmount?.trim() || null,
+                timeInBusiness: leadData.timeInBusiness?.trim() || null,
+                creditScore: leadData.creditScore?.trim() || null,
+                dailyBankDeposits: leadData.dailyBankDeposits || false,
+                previousMCAHistory: leadData.previousMCAHistory || 'none',
+                urgencyLevel: leadData.urgencyLevel || 'exploring',
+                stateCode: leadData.stateCode?.trim() || null,
+                leadAge: leadData.leadAge || 0,
+                exclusivityStatus: leadData.exclusivityStatus || 'non_exclusive',
+                qualityScore,
+                tier: tier as "gold" | "platinum" | "diamond" | "elite",
+                sold: false
+              });
+            }
+          }
+          
+          // Step 2: Save leads to database if there are any to import
+          if (leadsToImport.length > 0) {
+            const createdLeads = await storage.createLeads(leadsToImport);
+            leadsSaved = createdLeads;
+            
+            // Only update stats if leads were successfully saved
+            batchStats.totalImported += createdLeads.length;
+            batchStats.totalQualityScore += batchQualityScore;
+            batchSaveStatus[batchIndex].leadsSaved = createdLeads.length;
+            
+            // Step 3: Update batch with current statistics incrementally
+            const avgQualityScore = batchStats.totalImported > 0 
+              ? (batchStats.totalQualityScore / batchStats.totalImported).toFixed(2)
+              : "0";
+            
+            await storage.updateLeadBatch(leadBatch.id, {
+              totalLeads: batchStats.totalImported,
+              averageQualityScore: avgQualityScore,
+              status: "processing" // Keep as processing until all done
+            });
+            batchUpdated = true;
+            
+            console.log(`[AI Verification] Batch ${batchIndex + 1}: Successfully saved ${createdLeads.length} leads (total saved: ${batchStats.totalImported})`);
+            
+            // Trigger alert checking for new batch (non-blocking)
+            leadAlertService.processNewBatch(leadBatch.id).catch(err => {
+              console.error('Error checking alerts:', err);
+            });
+          }
+          
+          // Mark batch as successfully saved
+          batchStats.lastBatchSaved = batchIndex;
+          batchSaveStatus[batchIndex].saved = true;
+          
+          // Send progress update with actual saved counts
+          wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'batch-save-complete',
+                data: {
+                  batchIndex: batchIndex + 1,
+                  totalBatches,
+                  leadsSaved: batchSaveStatus[batchIndex].leadsSaved,
+                  totalSaved: batchStats.totalImported,
+                  totalProcessed: (batchIndex + 1) * batchResults.length
+                }
+              }));
+            }
+          });
+          
+        } catch (saveError: any) {
+          // Record the error for this batch
+          batchSaveStatus[batchIndex].error = saveError.message;
+          
+          console.error(`[AI Verification] CRITICAL ERROR saving batch ${batchIndex + 1}:`, saveError);
+          console.error(`[AI Verification] Batch ${batchIndex + 1} status: verificationResults=${verificationResultsSaved}, leads=${leadsSaved.length}, batchUpdate=${batchUpdated}`);
+          
+          // Send error notification via WebSocket
+          wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'batch-save-error',
+                data: {
+                  batchIndex: batchIndex + 1,
+                  totalBatches,
+                  error: saveError.message,
+                  partialSave: verificationResultsSaved || leadsSaved.length > 0
+                }
+              }));
+            }
+          });
+          
+          // Re-throw the error to abort further processing
+          // The AI engine will catch this and stop processing remaining batches
+          throw new Error(`Database save failed for batch ${batchIndex + 1}: ${saveError.message}`);
+        }
+      };
+      
+      // Run optimized AI-powered verification with dynamic timeout and incremental saving
       const verificationResults = await aiVerificationEngine.verifyBatchOptimized(
         normalizedLeads, 
         createdSession.id,
-        timeoutMs
+        timeoutMs,
+        onBatchComplete
       );
       
-      // Save verification results
-      await storage.createVerificationResults(verificationResults);
-      
-      // Calculate summary stats including AI insights
+      // Final stats calculation (from all results)
       const verifiedCount = verificationResults.filter(r => r.status === 'verified').length;
       const warningCount = verificationResults.filter(r => r.status === 'warning').length;
       const failedCount = verificationResults.filter(r => r.status === 'failed').length;
@@ -1447,24 +1625,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'completed'
       });
       
+      // Mark batch as ready since all processing is complete
+      const finalAvgQualityScore = batchStats.totalImported > 0 
+        ? (batchStats.totalQualityScore / batchStats.totalImported).toFixed(2)
+        : "0";
+      
+      await storage.updateLeadBatch(leadBatch.id, {
+        totalLeads: batchStats.totalImported,
+        averageQualityScore: finalAvgQualityScore,
+        status: "ready" // Mark as ready now that all processing is complete
+      });
+      
+      console.log(`[AI Verification] Completed: ${batchStats.totalImported} leads imported into batch ${leadBatch.id}`);
+      
       res.json({
         success: true,
         sessionId: createdSession.id,
+        batchId: leadBatch.id, // Include batch ID in response
         summary: {
           totalLeads: normalizedLeads.length,
           verifiedCount,
           warningCount,
           failedCount,
           duplicateCount,
+          importedCount: batchStats.totalImported,
           strictnessLevel,
           averageConfidenceScore: Math.round(avgConfidence),
+          averageQualityScore: parseFloat(finalAvgQualityScore),
           aiPowered: true
         }
       });
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("AI Verification error:", error);
-      res.status(500).json({ error: "Failed to verify leads with AI" });
+      
+      // Check if any batches were successfully saved
+      const savedBatches = Object.entries(batchSaveStatus).filter(([_, status]) => status.saved);
+      const failedBatches = Object.entries(batchSaveStatus).filter(([_, status]) => !status.saved && status.error);
+      
+      if (leadBatch && batchStats.totalImported > 0) {
+        // Partial success - some batches were saved
+        const partialAvgQualityScore = batchStats.totalImported > 0 
+          ? (batchStats.totalQualityScore / batchStats.totalImported).toFixed(2)
+          : "0";
+        
+        // Update batch status to reflect partial completion
+        await storage.updateLeadBatch(leadBatch.id, {
+          totalLeads: batchStats.totalImported,
+          averageQualityScore: partialAvgQualityScore,
+          status: failedBatches.length > 0 ? "partial" : "ready" // Mark as partial if some batches failed
+        });
+        
+        // Update session to reflect partial completion
+        if (createdSession) {
+          await storage.updateVerificationSession(createdSession.id, {
+            status: 'partial_failure',
+            failedCount: failedBatches.length
+          });
+        }
+        
+        console.log(`[AI Verification] Partial completion: ${batchStats.totalImported} leads saved in ${savedBatches.length} batches before error`);
+        
+        // Build detailed batch status report
+        const batchDetails = Object.entries(batchSaveStatus).map(([index, status]) => ({
+          batch: parseInt(index) + 1,
+          status: status.saved ? 'saved' : 'failed',
+          leadsSaved: status.leadsSaved,
+          error: status.error
+        }));
+        
+        // Return 207 Multi-Status with detailed batch information
+        res.status(207).json({
+          success: false,
+          partial: true,
+          sessionId: createdSession?.id,
+          batchId: leadBatch.id,
+          error: "Verification partially completed due to database save failures",
+          details: error.message,
+          summary: {
+            totalLeads: normalizedLeads.length,
+            processedLeads: batchStats.verifiedCount + batchStats.warningCount + batchStats.failedCount,
+            importedCount: batchStats.totalImported,
+            savedBatches: savedBatches.length,
+            failedBatches: failedBatches.length,
+            lastSuccessfulBatch: batchStats.lastBatchSaved + 1,
+            message: `${batchStats.totalImported} leads were successfully saved in ${savedBatches.length} batches. ${failedBatches.length} batch(es) failed to save.`,
+            averageQualityScore: parseFloat(partialAvgQualityScore)
+          },
+          batches: batchDetails,
+          recommendations: [
+            "Review the failed batches and their error messages",
+            "Consider retrying with smaller batch sizes",
+            "Check database connection and storage capacity"
+          ]
+        });
+      } else {
+        // Complete failure - no leads saved
+        // Update batch status to failed if it was created
+        if (leadBatch) {
+          await storage.updateLeadBatch(leadBatch.id, {
+            status: "failed",
+            totalLeads: 0,
+            averageQualityScore: "0"
+          });
+        }
+        
+        // Update session status to failed if it was created
+        if (createdSession) {
+          await storage.updateVerificationSession(createdSession.id, {
+            status: 'failed'
+          });
+        }
+        
+        res.status(500).json({ 
+          error: "Failed to verify and save leads with AI",
+          details: error.message,
+          batchId: leadBatch?.id,
+          sessionId: createdSession?.id,
+          message: "No leads were saved due to processing or database errors"
+        });
+      }
     }
   });
   

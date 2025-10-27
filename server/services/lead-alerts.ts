@@ -1,7 +1,7 @@
 import { storage } from "../storage";
 import { db } from "../db";
-import { leads } from "@shared/schema";
-import { and, gte, lte, inArray, sql, or } from "drizzle-orm";
+import { leads, alertHistory } from "@shared/schema";
+import { and, gte, lte, inArray, sql, or, eq } from "drizzle-orm";
 import { sendAlertNotification } from "../email";
 import type { Lead, LeadAlert, LeadBatch } from "@shared/schema";
 import { WebSocket } from "ws";
@@ -337,6 +337,3 @@ declare module "../storage" {
   const result = await db.update(alertHistory).set(data).where(eq(alertHistory.id, id)).returning();
   return result[0];
 };
-
-import { eq } from "drizzle-orm";
-import { alertHistory } from "@shared/schema";

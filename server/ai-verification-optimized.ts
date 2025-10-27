@@ -114,7 +114,8 @@ export class OptimizedAIVerificationEngine {
   async verifyBatchOptimized(
     leads: any[],
     sessionId: string,
-    timeoutMs: number = 300000 // 5 minute timeout
+    timeoutMs: number = 300000, // 5 minute timeout
+    onBatchComplete?: (batchResults: InsertVerificationResult[], batchIndex: number, totalBatches: number) => Promise<void>
   ): Promise<InsertVerificationResult[]> {
     this.startTime = Date.now();
     this.processedCount = 0;
@@ -334,6 +335,17 @@ export class OptimizedAIVerificationEngine {
         const newAvgTimePerBatch = newElapsedTime / (batchIndex + 1);
         const newRemainingBatches = totalBatches - batchIndex - 1;
         const newEstimatedTimeRemaining = Math.round(newAvgTimePerBatch * newRemainingBatches);
+        
+        // Call the onBatchComplete callback if provided to save this batch's results incrementally
+        if (onBatchComplete) {
+          console.log(`[AI Verification] Saving batch ${batchIndex + 1} results to database...`);
+          const batchResults = results.slice(results.length - batch.length); // Get just this batch's results
+          
+          // Propagate errors - don't catch them here
+          // This ensures batch save failures will abort the verification process
+          await onBatchComplete(batchResults, batchIndex, totalBatches);
+          console.log(`[AI Verification] ✅ Batch ${batchIndex + 1} saved successfully`);
+        }
         
         this.sendProgress({
           totalLeads: leads.length,
