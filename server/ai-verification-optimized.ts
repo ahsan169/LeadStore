@@ -269,30 +269,30 @@ export class OptimizedAIVerificationEngine {
             status: aiResult.status,
             verificationScore: aiResult.verificationScore,
             phoneValidation: {
-              valid: !aiResult.issues.some(i => i.includes('phone')),
-              issues: aiResult.issues.filter(i => i.includes('phone')),
-              warnings: aiResult.warnings.filter(w => w.includes('phone')),
+              valid: !aiResult.issues.some((i: string) => i.includes('phone')),
+              issues: aiResult.issues.filter((i: string) => i.includes('phone')),
+              warnings: aiResult.warnings.filter((w: string) => w.includes('phone')),
               formatted: aiResult.correctedData?.phone
             },
             emailValidation: {
-              valid: !aiResult.issues.some(i => i.includes('email')),
-              issues: aiResult.issues.filter(i => i.includes('email')),
-              warnings: aiResult.warnings.filter(w => w.includes('email'))
+              valid: !aiResult.issues.some((i: string) => i.includes('email')),
+              issues: aiResult.issues.filter((i: string) => i.includes('email')),
+              warnings: aiResult.warnings.filter((w: string) => w.includes('email'))
             },
             businessNameValidation: {
-              valid: !aiResult.issues.some(i => i.includes('business')),
-              issues: aiResult.issues.filter(i => i.includes('business')),
-              warnings: aiResult.warnings.filter(w => w.includes('business'))
+              valid: !aiResult.issues.some((i: string) => i.includes('business')),
+              issues: aiResult.issues.filter((i: string) => i.includes('business')),
+              warnings: aiResult.warnings.filter((w: string) => w.includes('business'))
             },
             ownerNameValidation: {
-              valid: !aiResult.issues.some(i => i.includes('owner') || i.includes('name')),
-              issues: aiResult.issues.filter(i => i.includes('owner') || i.includes('name')),
-              warnings: aiResult.warnings.filter(w => w.includes('owner') || w.includes('name'))
+              valid: !aiResult.issues.some((i: string) => i.includes('owner') || i.includes('name')),
+              issues: aiResult.issues.filter((i: string) => i.includes('owner') || i.includes('name')),
+              warnings: aiResult.warnings.filter((w: string) => w.includes('owner') || w.includes('name'))
             },
             addressValidation: {
-              valid: !aiResult.issues.some(i => i.includes('address')),
-              issues: aiResult.issues.filter(i => i.includes('address')),
-              warnings: aiResult.warnings.filter(w => w.includes('address'))
+              valid: !aiResult.issues.some((i: string) => i.includes('address')),
+              issues: aiResult.issues.filter((i: string) => i.includes('address')),
+              warnings: aiResult.warnings.filter((w: string) => w.includes('address'))
             },
             isDuplicate: duplicateCheck.isDuplicate || aiResult.isDuplicate,
             duplicateType: duplicateCheck.type || aiResult.duplicateType,
@@ -303,13 +303,15 @@ export class OptimizedAIVerificationEngine {
           };
           
           // Store AI insights in leadData for display
-          result.leadData.aiInsights = {
-            confidenceScore: aiResult.confidenceScore,
-            riskLevel: aiResult.aiInsights.riskLevel,
-            dataQuality: aiResult.aiInsights.dataQuality,
-            recommendation: aiResult.aiInsights.recommendation,
-            suggestions: aiResult.suggestions
-          };
+          if (result.leadData && typeof result.leadData === 'object') {
+            (result.leadData as any).aiInsights = {
+              confidenceScore: aiResult.confidenceScore,
+              riskLevel: aiResult.aiInsights.riskLevel,
+              dataQuality: aiResult.aiInsights.dataQuality,
+              recommendation: aiResult.aiInsights.recommendation,
+              suggestions: aiResult.suggestions
+            };
+          }
           
           results.push(result);
         }
@@ -534,7 +536,7 @@ Return a JSON array with one object per lead:
     // Check phone number duplicates
     if (leadData.phone) {
       const cleanPhone = leadData.phone.replace(/\D/g, '');
-      for (const [id, existingLead] of this.existingLeads) {
+      for (const [id, existingLead] of Array.from(this.existingLeads)) {
         const existingPhone = existingLead.phone?.replace(/\D/g, '');
         if (existingPhone === cleanPhone) {
           return {
@@ -549,7 +551,7 @@ Return a JSON array with one object per lead:
     // Check email duplicates
     if (leadData.email) {
       const emailLower = leadData.email.toLowerCase();
-      for (const [id, existingLead] of this.existingLeads) {
+      for (const [id, existingLead] of Array.from(this.existingLeads)) {
         if (existingLead.email?.toLowerCase() === emailLower) {
           return {
             isDuplicate: true,
@@ -563,7 +565,7 @@ Return a JSON array with one object per lead:
     // Check business name similarity (fuzzy match)
     if (leadData.businessName) {
       const businessLower = leadData.businessName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      for (const [id, existingLead] of this.existingLeads) {
+      for (const [id, existingLead] of Array.from(this.existingLeads)) {
         const existingBusiness = existingLead.businessName?.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (existingBusiness && businessLower.length > 5 && existingBusiness.length > 5) {
           // Simple similarity check
