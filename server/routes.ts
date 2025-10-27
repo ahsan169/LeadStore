@@ -30,6 +30,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { leadAlertService, addAlertClient } from "./services/lead-alerts";
 import { leadEnrichmentService } from "./services/lead-enrichment";
 import { qualityGuaranteeService } from "./services/quality-guarantee";
+import { leadFreshnessService, FreshnessCategory } from "./services/lead-freshness";
 import { insertLeadAlertSchema, insertQualityGuaranteeSchema } from "@shared/schema";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -1795,6 +1796,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isEnriched: req.query.isEnriched ? req.query.isEnriched === 'true' : undefined,
         sold: req.query.sold ? req.query.sold === 'true' : undefined,
         
+        // Freshness filters
+        freshnessCategory: req.query.freshnessCategory as string | undefined,
+        minFreshnessScore: req.query.minFreshnessScore ? Number(req.query.minFreshnessScore) : undefined,
+        maxFreshnessScore: req.query.maxFreshnessScore ? Number(req.query.maxFreshnessScore) : undefined,
+        
         // Advanced filters
         naicsCode: req.query.naicsCode ? (req.query.naicsCode as string).split(',') : undefined,
         sicCode: req.query.sicCode ? (req.query.sicCode as string).split(',') : undefined,
@@ -2196,6 +2202,94 @@ Format your response as JSON with the following structure:
       res.json(insight);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch insights" });
+    }
+  });
+
+  // Freshness tracking endpoints
+  app.post("/api/leads/:id/viewed", requireAuth, async (req, res) => {
+    try {
+      const leadId = req.params.id;
+      
+      // Track the lead view
+      const updatedLead = await leadFreshnessService.trackLeadView(leadId);
+      
+      if (!updatedLead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      res.json({ 
+        success: true,
+        viewCount: updatedLead.viewCount,
+        lastViewedAt: updatedLead.lastViewedAt 
+      });
+    } catch (error) {
+      console.error("Track lead view error:", error);
+      res.status(500).json({ error: "Failed to track lead view" });
+    }
+  });
+  
+  app.get("/api/freshness/stats", requireAuth, async (req, res) => {
+    try {
+      const stats = await leadFreshnessService.getFreshnessStats();
+      
+      // Add badge info for hot leads
+      const hotLeadsWithBadges = stats.hotLeads.map(lead => ({
+        ...lead,
+        badge: leadFreshnessService.getLeadBadge(lead),
+        urgency: leadFreshnessService.getUrgencyLevel(lead)
+      }));
+      
+      // Add urgency info for expiring leads
+      const expiringLeadsWithUrgency = stats.expiringLeads.map(lead => ({
+        ...lead,
+        badge: leadFreshnessService.getLeadBadge(lead),
+        urgency: leadFreshnessService.getUrgencyLevel(lead)
+      }));
+      
+      res.json({
+        ...stats,
+        hotLeads: hotLeadsWithBadges,
+        expiringLeads: expiringLeadsWithUrgency
+      });
+    } catch (error) {
+      console.error("Freshness stats error:", error);
+      res.status(500).json({ error: "Failed to fetch freshness statistics" });
+    }
+  });
+  
+  app.get("/api/freshness/categories/:category", requireAuth, async (req, res) => {
+    try {
+      const category = req.params.category as FreshnessCategory;
+      const validCategories = Object.values(FreshnessCategory);
+      
+      if (!validCategories.includes(category)) {
+        return res.status(400).json({ error: "Invalid freshness category" });
+      }
+      
+      const leads = await leadFreshnessService.getLeadsByFreshness(category);
+      
+      // Add badges and urgency info
+      const leadsWithBadges = leads.map(lead => ({
+        ...lead,
+        badge: leadFreshnessService.getLeadBadge(lead),
+        urgency: leadFreshnessService.getUrgencyLevel(lead)
+      }));
+      
+      res.json(leadsWithBadges);
+    } catch (error) {
+      console.error("Freshness category error:", error);
+      res.status(500).json({ error: "Failed to fetch leads by freshness" });
+    }
+  });
+  
+  app.post("/api/freshness/update", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      // Manually trigger freshness score update (admin only)
+      await leadFreshnessService.updateAllFreshnessScores();
+      res.json({ success: true, message: "Freshness scores updated successfully" });
+    } catch (error) {
+      console.error("Manual freshness update error:", error);
+      res.status(500).json({ error: "Failed to update freshness scores" });
     }
   });
 

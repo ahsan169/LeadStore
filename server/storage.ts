@@ -49,10 +49,13 @@ import {
   type InsertSavedSearch,
   type QualityGuarantee,
   type InsertQualityGuarantee,
+  type LeadAging,
+  type InsertLeadAging,
   users,
   subscriptions,
   leadBatches,
   leads,
+  leadAging,
   purchases,
   leadPerformance,
   downloadHistory,
@@ -108,6 +111,21 @@ export interface IStorage {
     sold: number;
     available: number;
     avgQualityScore: number;
+  }>;
+  trackLeadView(leadId: string): Promise<Lead | undefined>;
+  updateFreshnessScores(): Promise<void>;
+  getLeadsByFreshness(category: string): Promise<Lead[]>;
+  
+  // Lead Aging operations
+  createLeadAging(aging: InsertLeadAging): Promise<LeadAging>;
+  getLeadAgingByBatchId(batchId: string): Promise<LeadAging[]>;
+  getLatestLeadAging(): Promise<LeadAging[]>;
+  getFreshnessStats(): Promise<{
+    new: number;
+    fresh: number;
+    aging: number;
+    stale: number;
+    avgFreshnessScore: number;
   }>;
   
   // Purchase operations
@@ -510,6 +528,114 @@ export class DbStorage implements IStorage {
       sold: result[0]?.sold || 0,
       available: result[0]?.available || 0,
       avgQualityScore: Number(result[0]?.avgQualityScore || 0),
+    };
+  }
+
+  async trackLeadView(leadId: string): Promise<Lead | undefined> {
+    const result = await db.update(leads)
+      .set({
+        lastViewedAt: new Date(),
+        viewCount: sql`${leads.viewCount} + 1`,
+      })
+      .where(eq(leads.id, leadId))
+      .returning();
+    return result[0];
+  }
+
+  async updateFreshnessScores(): Promise<void> {
+    // Update freshness scores based on upload date
+    await db.update(leads)
+      .set({
+        freshnessScore: sql`
+          CASE 
+            WHEN EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) <= 3 THEN 100
+            WHEN EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) <= 7 THEN 85
+            WHEN EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) <= 14 THEN 60
+            WHEN EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) <= 30 THEN 30
+            ELSE 10
+          END
+        `,
+      });
+  }
+
+  async getLeadsByFreshness(category: string): Promise<Lead[]> {
+    let daysCondition;
+    switch (category) {
+      case "new":
+        daysCondition = sql`EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) <= 3`;
+        break;
+      case "fresh":
+        daysCondition = sql`EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) BETWEEN 4 AND 7`;
+        break;
+      case "aging":
+        daysCondition = sql`EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) BETWEEN 8 AND 14`;
+        break;
+      case "stale":
+        daysCondition = sql`EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) > 14`;
+        break;
+      default:
+        return [];
+    }
+    
+    return db.select().from(leads)
+      .where(and(daysCondition, eq(leads.sold, false)))
+      .orderBy(desc(leads.uploadedAt));
+  }
+
+  // Lead Aging operations
+  async createLeadAging(aging: InsertLeadAging): Promise<LeadAging> {
+    const result = await db.insert(leadAging).values(aging).returning();
+    return result[0];
+  }
+
+  async getLeadAgingByBatchId(batchId: string): Promise<LeadAging[]> {
+    return db.select().from(leadAging)
+      .where(eq(leadAging.leadBatchId, batchId))
+      .orderBy(desc(leadAging.calculatedAt));
+  }
+
+  async getLatestLeadAging(): Promise<LeadAging[]> {
+    // Get the most recent aging record for each batch
+    const subquery = db.select({
+      leadBatchId: leadAging.leadBatchId,
+      maxDate: sql<Date>`MAX(${leadAging.calculatedAt})`.as('max_date'),
+    })
+    .from(leadAging)
+    .groupBy(leadAging.leadBatchId)
+    .as('latest');
+
+    return db.select()
+      .from(leadAging)
+      .innerJoin(
+        subquery,
+        and(
+          eq(leadAging.leadBatchId, subquery.leadBatchId),
+          eq(leadAging.calculatedAt, subquery.maxDate)
+        )
+      );
+  }
+
+  async getFreshnessStats(): Promise<{
+    new: number;
+    fresh: number;
+    aging: number;
+    stale: number;
+    avgFreshnessScore: number;
+  }> {
+    const result = await db.select({
+      new: sql<number>`count(*) filter (where EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) <= 3 and ${leads.sold} = false)::int`,
+      fresh: sql<number>`count(*) filter (where EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) BETWEEN 4 AND 7 and ${leads.sold} = false)::int`,
+      aging: sql<number>`count(*) filter (where EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) BETWEEN 8 AND 14 and ${leads.sold} = false)::int`,
+      stale: sql<number>`count(*) filter (where EXTRACT(DAY FROM NOW() - ${leads.uploadedAt}) > 14 and ${leads.sold} = false)::int`,
+      avgFreshnessScore: sql<number>`avg(${leads.freshnessScore})::numeric`,
+    }).from(leads);
+
+    return {
+      new: result[0]?.new || 0,
+      fresh: result[0]?.fresh || 0,
+      aging: result[0]?.aging || 0,
+      stale: result[0]?.stale || 0,
+      avgFreshnessScore: Number(result[0]?.avgFreshnessScore || 0),
     };
   }
 

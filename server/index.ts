@@ -6,6 +6,7 @@ import bcrypt from "bcrypt";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { storage } from "./storage";
+import { leadFreshnessService } from "./services/lead-freshness";
 import type { User } from "@shared/schema";
 
 const app = express();
@@ -168,5 +169,9 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Start the lead freshness auto-update service
+    leadFreshnessService.startAutoUpdate();
+    log(`Lead freshness service started`);
   });
 })();

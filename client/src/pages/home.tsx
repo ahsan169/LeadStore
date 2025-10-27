@@ -39,6 +39,8 @@ import {
   Anchor,
   Calculator,
   PieChart,
+  Flame,
+  Timer,
 } from "lucide-react";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 import { Slider } from "@/components/ui/slider";
@@ -558,6 +560,171 @@ export default function Home() {
               </Button>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Hot Leads Section - Urgency Feature */}
+      <section className="py-16 bg-gradient-to-r from-red-500/5 to-orange-500/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <div className="flex justify-center items-center gap-2 mb-4">
+              <div className="p-2 bg-red-500/20 rounded-full animate-pulse">
+                <Flame className="w-8 h-8 text-red-500" />
+              </div>
+              <h2 className="text-4xl font-bold">
+                <span className="text-gradient">Hot Leads</span>
+              </h2>
+              <div className="p-2 bg-red-500/20 rounded-full animate-pulse">
+                <Flame className="w-8 h-8 text-red-500" />
+              </div>
+            </div>
+            <p className="text-xl text-muted-foreground">
+              Just uploaded! Get them before they're gone
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Hot Lead Card 1 */}
+            <Card className="relative overflow-hidden border-red-500/20 bg-gradient-to-br from-red-500/5 to-transparent hover-lift">
+              <div className="absolute top-3 right-3">
+                <Badge className="bg-red-500 text-white animate-pulse">
+                  NEW TODAY
+                </Badge>
+              </div>
+              <CardHeader>
+                <CardTitle>Restaurant Package</CardTitle>
+                <CardDescription>50 Fresh Restaurant Leads</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-red-500" />
+                    <span className="text-sm font-medium">Uploaded 2 hours ago</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                    <span className="text-sm">Avg Quality Score: 85</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-500" />
+                    <span className="text-sm">3 buyers viewing now</span>
+                  </div>
+                  <div className="mt-4 p-2 bg-red-500/10 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Limited Time Price</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-lg line-through text-muted-foreground">$600</span>
+                        <span className="text-xl font-bold text-red-600">$499</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full" variant="destructive">
+                  Get These Hot Leads
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Hot Lead Card 2 */}
+            <Card className="relative overflow-hidden border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-transparent hover-lift">
+              <div className="absolute top-3 right-3">
+                <Badge className="bg-orange-500 text-white">
+                  LIMITED TIME
+                </Badge>
+              </div>
+              <CardHeader>
+                <CardTitle>Retail Special</CardTitle>
+                <CardDescription>75 High-Score Retail Leads</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-orange-500" />
+                    <span className="text-sm font-medium">24 hours remaining</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                    <span className="text-sm">Avg Quality Score: 82</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Award className="w-4 h-4 text-yellow-500" />
+                    <span className="text-sm">Premium verified leads</span>
+                  </div>
+                  <div className="mt-4 p-2 bg-orange-500/10 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Flash Sale</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-lg line-through text-muted-foreground">$750</span>
+                        <span className="text-xl font-bold text-orange-600">$599</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full" variant="default">
+                  Secure These Leads
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* Hot Lead Card 3 */}
+            <Card className="relative overflow-hidden border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent hover-lift">
+              <div className="absolute top-3 right-3">
+                <Badge className="bg-green-500 text-white">
+                  FRESH
+                </Badge>
+              </div>
+              <CardHeader>
+                <CardTitle>Construction Bundle</CardTitle>
+                <CardDescription>100 Fresh Construction Leads</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-green-500" />
+                    <span className="text-sm font-medium">Updated yesterday</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                    <span className="text-sm">Avg Quality Score: 78</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="text-sm">TCPA Compliant</span>
+                  </div>
+                  <div className="mt-4 p-2 bg-green-500/10 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Early Bird Price</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-lg line-through text-muted-foreground">$1,000</span>
+                        <span className="text-xl font-bold text-green-600">$799</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full" variant="outline">
+                  View Fresh Leads
+                </Button>
+              </CardFooter>
+            </Card>
+          </div>
+
+          <div className="mt-12 text-center">
+            <Alert className="max-w-2xl mx-auto border-orange-500/20 bg-gradient-to-r from-orange-500/5 to-red-500/5">
+              <AlertDescription className="flex items-center justify-center gap-4">
+                <Timer className="w-5 h-5 text-orange-500" />
+                <span className="text-base font-medium">
+                  ⚡ Flash Sale: All hot leads have 20% automatic discount for the next 24 hours!
+                </span>
+                <Timer className="w-5 h-5 text-orange-500" />
+              </AlertDescription>
+            </Alert>
+          </div>
         </div>
       </section>
 

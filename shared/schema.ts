@@ -54,6 +54,12 @@ export const leads = pgTable("leads", {
   timeInBusiness: text("time_in_business"),
   creditScore: text("credit_score"),
   
+  // Freshness tracking fields
+  uploadedAt: timestamp("uploaded_at").notNull().defaultNow(),
+  lastViewedAt: timestamp("last_viewed_at"),
+  viewCount: integer("view_count").notNull().default(0),
+  freshnessScore: integer("freshness_score").notNull().default(100), // 0-100
+  
   // MCA-specific fields
   dailyBankDeposits: boolean("daily_bank_deposits").default(false),
   previousMCAHistory: text("previous_mca_history").default("none"), // 'none', 'current', 'previous_paid', 'multiple'
@@ -78,6 +84,17 @@ export const leads = pgTable("leads", {
   naicsCode: text("naics_code"), // NAICS industry classification code
   
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Lead aging tracking for freshness analytics
+export const leadAging = pgTable("lead_aging", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadBatchId: varchar("lead_batch_id").references(() => leadBatches.id).notNull(),
+  ageInDays: integer("age_in_days").notNull(),
+  freshnessCategory: text("freshness_category").notNull(), // 'new', 'fresh', 'aging', 'stale'
+  leadCount: integer("lead_count").notNull().default(0),
+  averageFreshnessScore: decimal("average_freshness_score", { precision: 5, scale: 2 }),
+  calculatedAt: timestamp("calculated_at").notNull().defaultNow(),
 });
 
 // Purchase transactions
@@ -448,9 +465,22 @@ export const insertLeadBatchSchema = createInsertSchema(leadBatches).omit({
 export const insertLeadSchema = createInsertSchema(leads).omit({
   id: true,
   createdAt: true,
+  uploadedAt: true,
+  freshnessScore: true,
+  viewCount: true,
 }).extend({
   qualityScore: z.number().min(0).max(100),
   tier: z.enum(["gold", "platinum", "diamond", "elite"]).optional(),
+});
+
+export const insertLeadAgingSchema = createInsertSchema(leadAging).omit({
+  id: true,
+  calculatedAt: true,
+}).extend({
+  freshnessCategory: z.enum(["new", "fresh", "aging", "stale"]),
+  ageInDays: z.number().min(0),
+  leadCount: z.number().min(0),
+  averageFreshnessScore: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
 });
 
 export const insertPurchaseSchema = createInsertSchema(purchases).omit({
@@ -698,6 +728,9 @@ export type LeadBatch = typeof leadBatches.$inferSelect;
 
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
+
+export type InsertLeadAging = z.infer<typeof insertLeadAgingSchema>;
+export type LeadAging = typeof leadAging.$inferSelect;
 
 export type InsertPurchase = z.infer<typeof insertPurchaseSchema>;
 export type Purchase = typeof purchases.$inferSelect;

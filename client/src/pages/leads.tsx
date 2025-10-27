@@ -20,10 +20,11 @@ import {
   Search, Filter, Save, Download, ChevronDown, ChevronUp, X, Plus, Star,
   MapPin, Building, DollarSign, User, Phone, Mail, Calendar, TrendingUp,
   Clock, Shield, Globe, Hash, AlertCircle, CheckCircle2, XCircle,
-  Database, FileText, Settings, Bookmark, BookmarkCheck, Share2
+  Database, FileText, Settings, Bookmark, BookmarkCheck, Share2, Sparkles
 } from "lucide-react";
 import { QualityScoreBadge } from "@/components/QualityScoreBadge";
 import { EnrichmentBadge } from "@/components/EnrichmentBadge";
+import { FreshnessBadge, UrgencyIndicator, FreshnessInfo } from "@/components/FreshnessBadge";
 import type { Lead, SavedSearch } from "@shared/schema";
 
 // Filter presets
@@ -34,9 +35,19 @@ const FILTER_PRESETS = [
     filters: { minQualityScore: 80, maxQualityScore: 100 }
   },
   { 
-    name: "Recent Leads", 
+    name: "New Today", 
+    icon: Sparkles,
+    filters: { freshnessCategory: "new", sold: false }
+  },
+  { 
+    name: "Fresh Leads", 
     icon: Clock,
-    filters: { leadAgeMax: 7, sold: false }
+    filters: { minFreshnessScore: 60, sold: false }
+  },
+  { 
+    name: "Last Chance", 
+    icon: AlertCircle,
+    filters: { freshnessCategory: "stale", sold: false }
   },
   { 
     name: "Enriched Only", 
@@ -218,6 +229,15 @@ export default function LeadsPage() {
     setFilters({});
     setSelectedSearch(null);
     setPage(0);
+  };
+
+  // Track lead view
+  const trackLeadView = async (leadId: string) => {
+    try {
+      await apiRequest("POST", `/api/leads/${leadId}/viewed`, {});
+    } catch (error) {
+      console.error("Failed to track lead view:", error);
+    }
   };
 
   // Handle filter changes
@@ -638,6 +658,57 @@ export default function LeadsPage() {
                   </div>
                 </div>
 
+                {/* Freshness Category */}
+                <div>
+                  <Label className="text-sm">Freshness Category</Label>
+                  <div className="mt-2 space-y-1">
+                    {[
+                      { value: "new", label: "HOT (0-3 days)" },
+                      { value: "fresh", label: "FRESH (4-7 days)" },
+                      { value: "aging", label: "AGING (8-14 days)" },
+                      { value: "stale", label: "STALE (15+ days)" }
+                    ].map((option) => (
+                      <div key={option.value} className="flex items-center">
+                        <input
+                          type="checkbox"
+                          id={`freshness-${option.value}`}
+                          checked={(filters.freshnessCategory || []).includes(option.value)}
+                          onChange={() => toggleMultiSelect("freshnessCategory", option.value)}
+                          className="mr-2"
+                        />
+                        <label htmlFor={`freshness-${option.value}`} className="text-sm cursor-pointer">
+                          {option.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Freshness Score */}
+                <div>
+                  <Label className="text-sm">
+                    Freshness Score: {filters.minFreshnessScore || 0} - {filters.maxFreshnessScore || 100}
+                  </Label>
+                  <div className="flex gap-2 mt-1">
+                    <Slider
+                      value={[filters.minFreshnessScore || 0]}
+                      onValueChange={(value) => updateFilter("minFreshnessScore", value[0])}
+                      min={0}
+                      max={100}
+                      step={10}
+                      className="flex-1"
+                    />
+                    <Slider
+                      value={[filters.maxFreshnessScore || 100]}
+                      onValueChange={(value) => updateFilter("maxFreshnessScore", value[0])}
+                      min={0}
+                      max={100}
+                      step={10}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
                 {/* Lead Age */}
                 <div>
                   <Label className="text-sm">Lead Age (days)</Label>
@@ -774,6 +845,7 @@ export default function LeadsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="createdAt">Date Added</SelectItem>
+                  <SelectItem value="freshnessScore">Freshness Score</SelectItem>
                   <SelectItem value="qualityScore">Quality Score</SelectItem>
                   <SelectItem value="annualRevenue">Revenue</SelectItem>
                   <SelectItem value="creditScore">Credit Score</SelectItem>
@@ -834,8 +906,13 @@ export default function LeadsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {leads.map((lead: Lead) => (
-                <Card key={lead.id} className="hover-elevate">
+              {leads.map((lead: any) => (
+                <Card key={lead.id} className="hover-elevate relative overflow-hidden">
+                  {lead.badge && (
+                    <div className="absolute top-2 left-2 z-10">
+                      <FreshnessBadge badge={lead.badge} />
+                    </div>
+                  )}
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -848,6 +925,10 @@ export default function LeadsPage() {
                       </div>
                       <QualityScoreBadge score={lead.qualityScore} />
                     </div>
+                    
+                    {lead.urgency && (
+                      <UrgencyIndicator urgency={lead.urgency} className="mt-2" />
+                    )}
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
@@ -896,6 +977,15 @@ export default function LeadsPage() {
                         )}
                         {lead.isEnriched && <EnrichmentBadge />}
                       </div>
+                      
+                      <Separator className="my-2" />
+                      
+                      <FreshnessInfo
+                        uploadedAt={lead.uploadedAt}
+                        viewCount={lead.viewCount}
+                        lastViewedAt={lead.lastViewedAt}
+                        freshnessScore={lead.freshnessScore}
+                      />
                     </div>
                   </CardContent>
                   <CardFooter className="pt-0">
@@ -904,6 +994,7 @@ export default function LeadsPage() {
                       size="sm"
                       disabled={lead.sold}
                       data-testid={`button-view-lead-${lead.id}`}
+                      onClick={() => trackLeadView(lead.id)}
                     >
                       {lead.sold ? "Sold" : "View Details"}
                     </Button>

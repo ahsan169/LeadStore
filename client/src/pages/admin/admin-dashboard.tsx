@@ -2,7 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { LeadStatsCard } from "@/components/LeadStatsCard";
 import { InsightsCard } from "@/components/InsightsCard";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
-import { Package, DollarSign, Users, TrendingUp, Sparkles, Waves, Activity, BarChart3 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Package, DollarSign, Users, TrendingUp, Sparkles, Waves, Activity, BarChart3, Clock, Flame, Timer } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { AiInsight } from "@shared/schema";
 
@@ -21,6 +23,10 @@ export default function AdminDashboardPage() {
 
   const { data: batches } = useQuery({
     queryKey: ["/api/batches"],
+  });
+
+  const { data: freshnessStats } = useQuery({
+    queryKey: ["/api/freshness/stats"],
   });
 
   const mostRecentBatchId = batches?.[0]?.id;
@@ -70,6 +76,104 @@ export default function AdminDashboardPage() {
           value={leadStats?.avgQualityScore?.toFixed(1) || "N/A"}
           icon={TrendingUp}
         />
+      </div>
+
+      {/* Freshness Widgets */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
+        {/* Fresh Leads Counter */}
+        <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Flame className="w-5 h-5 text-green-500" />
+                Fresh Leads Available
+              </h3>
+              <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+                HOT
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-green-600">
+              {freshnessStats?.freshLeadsCount || 0}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Uploaded in the last 7 days
+            </p>
+            {freshnessStats?.newTodayCount > 0 && (
+              <div className="mt-3 p-2 bg-green-500/10 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-green-500 animate-pulse" />
+                  <span className="text-sm font-medium">
+                    {freshnessStats.newTodayCount} new today!
+                  </span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Freshness Distribution */}
+        <Card>
+          <CardHeader className="pb-3">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              <Clock className="w-5 h-5 text-primary" />
+              Lead Freshness Distribution
+            </h3>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[
+                { label: "HOT (0-3 days)", value: freshnessStats?.distribution?.hot || 0, color: "bg-red-500" },
+                { label: "FRESH (4-7 days)", value: freshnessStats?.distribution?.fresh || 0, color: "bg-green-500" },
+                { label: "AGING (8-14 days)", value: freshnessStats?.distribution?.aging || 0, color: "bg-yellow-500" },
+                { label: "STALE (15+ days)", value: freshnessStats?.distribution?.stale || 0, color: "bg-gray-500" }
+              ].map((item, index) => (
+                <div key={index}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="font-medium">{item.label}</span>
+                    <span className="text-muted-foreground">{item.value}</span>
+                  </div>
+                  <Progress 
+                    value={leadStats?.total > 0 ? (item.value / leadStats.total) * 100 : 0} 
+                    className="h-2"
+                    indicatorClassName={item.color}
+                  />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Urgency Timer */}
+        <Card className="bg-gradient-to-br from-orange-500/10 to-red-500/5 border-orange-500/20">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <Timer className="w-5 h-5 text-orange-500" />
+                Expiring Soon
+              </h3>
+              <Badge variant="destructive" className="animate-pulse">
+                LIMITED TIME
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-orange-600">
+              {freshnessStats?.expiringCount || 0}
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              Leads becoming stale in 24 hours
+            </p>
+            {freshnessStats?.expiringCount > 0 && (
+              <div className="mt-3 p-2 bg-orange-500/10 rounded-lg">
+                <span className="text-sm font-medium text-orange-600">
+                  ⚠️ Price reduction applied for aging leads
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Recent Activity */}
