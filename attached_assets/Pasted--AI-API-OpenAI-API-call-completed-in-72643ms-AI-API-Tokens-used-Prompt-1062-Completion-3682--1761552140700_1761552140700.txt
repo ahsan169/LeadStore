@@ -1,0 +1,46 @@
+[AI API] OpenAI API call completed in 72643ms
+[AI API] Tokens used - Prompt: 1062, Completion: 3682, Total: 4744
+[AI API] Response structure type: object, isArray: false
+[AI API] Response keys: results
+[AI API] Single key found: "results", value isArray: true
+[AI API] Received verification results for 20 leads
+[AI Verification] ✅ Batch 1 completed successfully
+[AI Verification] Progress: 1% (20/1982 leads processed)
+[AI Verification] Processing batch 2/100 (leads 21-40)
+[AI Verification] ETA: 7222s, Elapsed: 73.7s
+[AI API] Making OpenAI API call for 20 leads
+[AI API] OpenAI API call completed in 85702ms
+[AI API] Tokens used - Prompt: 1006, Completion: 3989, Total: 4995
+[AI API] Response structure type: object, isArray: false
+[AI API] Response keys: results
+[AI API] Single key found: "results", value isArray: true
+[AI API] Received verification results for 20 leads
+[AI Verification] ✅ Batch 21 completed successfully
+[AI Verification] Progress: 21% (420/1982 leads processed)
+[AI Verification] Processing batch 22/100 (leads 421-440)
+[AI Verification] ETA: 4440s, Elapsed: 1195.4s
+[AI API] Making OpenAI API call for 20 leads
+8:01:35 AM [express] GET /api/alerts/unviewed/count 304 in 67ms :: {"count":0}
+[AI API] OpenAI API call completed in 49526ms
+[AI API] Tokens used - Prompt: 1139, Completion: 3602, Total: 4741
+[AI API] Response structure type: object, isArray: false
+[AI API] Response keys: results
+[AI API] Single key found: "results", value isArray: true
+[AI API] Received verification results for 20 leads
+[AI Verification] ✅ Batch 2 completed successfully
+[AI Verification] Progress: 2% (40/1982 leads processed)
+[AI Verification] Processing batch 3/100 (leads 41-60)
+[AI Verification] ETA: 6007s, Elapsed: 123.9s
+[AI API] Making OpenAI API call for 20 leads
+8:02:05 AM [express] GET /api/alerts/unviewed/count 304 in 68ms :: {"count":0}
+[AI API] OpenAI API call completed in 46916ms
+[AI API] Tokens used - Prompt: 1024, Completion: 3677, Total: 4701
+[AI API] Response structure type: object, isArray: false
+[AI API] Response keys: results
+[AI API] Single key found: "results", value isArray: true
+[AI API] Received verification results for 20 leads
+[AI Verification] ✅ Batch 22 completed successfully
+[AI Verification] Progress: 22% (440/1982 leads processed)
+[AI Verification] Processing batch 23/100 (leads 441-460)
+[AI Verification] ETA: 4350s, Elapsed: 1242.9s
+[AI API] Making OpenAI API call for 20 leads
