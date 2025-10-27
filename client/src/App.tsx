@@ -30,7 +30,9 @@ import AlertsPage from "@/pages/alerts";
 import LeadsPage from "@/pages/leads";
 import GuaranteeReportsPage from "@/pages/guarantee-reports";
 import CampaignsPage from "@/pages/campaigns";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send } from "lucide-react";
+import DeveloperPage from "@/pages/developer";
+import ApiDocsPage from "@/pages/api-docs";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -107,6 +109,8 @@ function AppSidebar() {
     { title: "Quality Guarantee", url: "/guarantee-reports", icon: ShieldCheck },
     { title: "Alerts", url: "/alerts", icon: Bell },
     { title: "Integrations", url: "/integrations", icon: Link2 },
+    { title: "Developer Portal", url: "/developer", icon: Key },
+    { title: "API Docs", url: "/api-docs", icon: Book },
   ];
 
   const adminMenuItems = [
@@ -248,6 +252,8 @@ function Router() {
               <Route path="/guarantee-reports" component={GuaranteeReportsPage} />
               <Route path="/alerts" component={AlertsPage} />
               <Route path="/integrations" component={IntegrationsPage} />
+              <Route path="/developer" component={DeveloperPage} />
+              <Route path="/api-docs" component={ApiDocsPage} />
               <Route path="/purchase/:tier" component={PurchaseTierPage} />
               <Route path="/payment-success" component={PaymentSuccessPage} />
               <Route path="/payment-cancel" component={PaymentCancelPage} />

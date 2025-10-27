@@ -835,6 +835,103 @@ export const insertCampaignSchema = createInsertSchema(campaigns).omit({
   recipientCount: z.number().min(0).default(0),
 });
 
+// API Keys table for enterprise API access
+export const apiKeys = pgTable("api_keys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  keyName: text("key_name").notNull(),
+  keyHash: text("key_hash").notNull(), // Hashed API key for security
+  permissions: jsonb("permissions").notNull().default({}), // JSON array of allowed endpoints
+  rateLimit: integer("rate_limit").notNull().default(100), // Requests per minute
+  lastUsedAt: timestamp("last_used_at"),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Webhooks table for event notifications
+export const webhooks = pgTable("webhooks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  url: text("url").notNull(),
+  events: text("events").array().notNull(), // Array of event types to subscribe to
+  secret: text("secret").notNull(), // Secret for webhook signature verification
+  isActive: boolean("is_active").notNull().default(true),
+  failureCount: integer("failure_count").notNull().default(0),
+  lastDeliveryAt: timestamp("last_delivery_at"),
+  lastDeliveryStatus: text("last_delivery_status"), // 'success', 'failed', 'pending'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// API Usage tracking for analytics
+export const apiUsage = pgTable("api_usage", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  apiKeyId: varchar("api_key_id").references(() => apiKeys.id).notNull(),
+  endpoint: text("endpoint").notNull(),
+  method: text("method").notNull(),
+  statusCode: integer("status_code").notNull(),
+  responseTime: integer("response_time"), // in milliseconds
+  requestBody: jsonb("request_body"), // Optionally store request payload
+  responseSize: integer("response_size"), // in bytes
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+});
+
+// Zod schemas for API entities
+export const insertApiKeySchema = createInsertSchema(apiKeys).omit({
+  id: true,
+  createdAt: true,
+  keyHash: true,
+  lastUsedAt: true,
+}).extend({
+  keyName: z.string().min(1).max(100),
+  permissions: z.object({
+    endpoints: z.array(z.string()).default([]),
+    scopes: z.array(z.enum(["read:leads", "write:leads", "read:purchases", "write:purchases", "read:analytics", "manage:webhooks"])).default([]),
+  }),
+  rateLimit: z.number().int().min(10).max(10000).default(100),
+  expiresAt: z.string().datetime().optional(),
+});
+
+export const insertWebhookSchema = createInsertSchema(webhooks).omit({
+  id: true,
+  createdAt: true,
+  secret: true,
+  failureCount: true,
+  lastDeliveryAt: true,
+  lastDeliveryStatus: true,
+}).extend({
+  url: z.string().url(),
+  events: z.array(z.enum([
+    "lead.created",
+    "lead.updated",
+    "lead.sold",
+    "purchase.completed",
+    "purchase.failed", 
+    "credit.added",
+    "credit.used",
+    "batch.uploaded",
+    "batch.processed",
+    "alert.triggered",
+    "quality.reported",
+    "quality.resolved"
+  ])).min(1),
+});
+
+export const insertApiUsageSchema = createInsertSchema(apiUsage).omit({
+  id: true,
+  timestamp: true,
+}).extend({
+  endpoint: z.string(),
+  method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]),
+  statusCode: z.number().int().min(100).max(599),
+  responseTime: z.number().int().min(0).optional(),
+  responseSize: z.number().int().min(0).optional(),
+  ipAddress: z.string().ip().optional(),
+  userAgent: z.string().optional(),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -922,3 +1019,12 @@ export type CampaignTemplate = typeof campaignTemplates.$inferSelect;
 
 export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
 export type Campaign = typeof campaigns.$inferSelect;
+
+export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
+export type ApiKey = typeof apiKeys.$inferSelect;
+
+export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
+export type Webhook = typeof webhooks.$inferSelect;
+
+export type InsertApiUsage = z.infer<typeof insertApiUsageSchema>;
+export type ApiUsage = typeof apiUsage.$inferSelect;

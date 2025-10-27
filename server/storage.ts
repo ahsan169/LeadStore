@@ -88,6 +88,15 @@ import {
   bulkOrders,
   campaignTemplates,
   campaigns,
+  apiKeys,
+  webhooks,
+  apiUsage,
+  type ApiKey,
+  type InsertApiKey,
+  type Webhook,
+  type InsertWebhook,
+  type ApiUsage,
+  type InsertApiUsage,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -407,6 +416,34 @@ export interface IStorage {
   updateCampaign(id: string, data: Partial<InsertCampaign>): Promise<Campaign | undefined>;
   sendCampaign(id: string): Promise<Campaign | undefined>;
   cancelCampaign(id: string): Promise<Campaign | undefined>;
+  
+  // API Key operations
+  getApiKey(id: string): Promise<ApiKey | undefined>;
+  getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined>;
+  getApiKeysByUserId(userId: string): Promise<ApiKey[]>;
+  createApiKey(apiKey: InsertApiKey): Promise<ApiKey>;
+  updateApiKey(id: string, data: Partial<InsertApiKey>): Promise<ApiKey | undefined>;
+  deleteApiKey(id: string): Promise<void>;
+  updateApiKeyLastUsed(id: string): Promise<void>;
+  
+  // Webhook operations
+  getWebhook(id: string): Promise<Webhook | undefined>;
+  getWebhooksByUserId(userId: string): Promise<Webhook[]>;
+  getActiveWebhooksByEvent(event: string): Promise<Webhook[]>;
+  createWebhook(webhook: InsertWebhook): Promise<Webhook>;
+  updateWebhook(id: string, data: Partial<InsertWebhook>): Promise<Webhook | undefined>;
+  deleteWebhook(id: string): Promise<void>;
+  updateWebhookDelivery(id: string, status: string): Promise<void>;
+  
+  // API Usage operations
+  createApiUsage(usage: InsertApiUsage): Promise<ApiUsage>;
+  getApiUsageByKeyId(apiKeyId: string, startDate?: Date, endDate?: Date): Promise<ApiUsage[]>;
+  getApiUsageStats(apiKeyId: string): Promise<{
+    totalRequests: number;
+    successRate: number;
+    averageResponseTime: number;
+    topEndpoints: { endpoint: string; count: number }[];
+  }>;
 }
 
 export class DbStorage implements IStorage {
@@ -1909,6 +1946,157 @@ export class DbStorage implements IStorage {
       .where(eq(campaigns.id, id))
       .returning();
     return result[0];
+  }
+  
+  // API Key operations
+  async getApiKey(id: string): Promise<ApiKey | undefined> {
+    const result = await db.select().from(apiKeys).where(eq(apiKeys.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getApiKeyByHash(keyHash: string): Promise<ApiKey | undefined> {
+    const result = await db.select().from(apiKeys)
+      .where(and(
+        eq(apiKeys.keyHash, keyHash),
+        eq(apiKeys.isActive, true)
+      ))
+      .limit(1);
+    return result[0];
+  }
+  
+  async getApiKeysByUserId(userId: string): Promise<ApiKey[]> {
+    return db.select().from(apiKeys)
+      .where(eq(apiKeys.userId, userId))
+      .orderBy(desc(apiKeys.createdAt));
+  }
+  
+  async createApiKey(apiKey: InsertApiKey & { keyHash: string }): Promise<ApiKey> {
+    const result = await db.insert(apiKeys).values(apiKey).returning();
+    return result[0];
+  }
+  
+  async updateApiKey(id: string, data: Partial<InsertApiKey>): Promise<ApiKey | undefined> {
+    const result = await db.update(apiKeys)
+      .set(data)
+      .where(eq(apiKeys.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteApiKey(id: string): Promise<void> {
+    await db.delete(apiKeys).where(eq(apiKeys.id, id));
+  }
+  
+  async updateApiKeyLastUsed(id: string): Promise<void> {
+    await db.update(apiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(apiKeys.id, id));
+  }
+  
+  // Webhook operations
+  async getWebhook(id: string): Promise<Webhook | undefined> {
+    const result = await db.select().from(webhooks).where(eq(webhooks.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getWebhooksByUserId(userId: string): Promise<Webhook[]> {
+    return db.select().from(webhooks)
+      .where(eq(webhooks.userId, userId))
+      .orderBy(desc(webhooks.createdAt));
+  }
+  
+  async getActiveWebhooksByEvent(event: string): Promise<Webhook[]> {
+    // Use SQL to check if event is in the events array
+    return db.select().from(webhooks)
+      .where(and(
+        eq(webhooks.isActive, true),
+        sql`${event} = ANY(${webhooks.events})`
+      ));
+  }
+  
+  async createWebhook(webhook: InsertWebhook & { secret: string }): Promise<Webhook> {
+    const result = await db.insert(webhooks).values(webhook).returning();
+    return result[0];
+  }
+  
+  async updateWebhook(id: string, data: Partial<InsertWebhook>): Promise<Webhook | undefined> {
+    const result = await db.update(webhooks)
+      .set(data)
+      .where(eq(webhooks.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteWebhook(id: string): Promise<void> {
+    await db.delete(webhooks).where(eq(webhooks.id, id));
+  }
+  
+  async updateWebhookDelivery(id: string, status: string): Promise<void> {
+    const failureIncrement = status === 'failed' ? 1 : 0;
+    await db.update(webhooks)
+      .set({
+        lastDeliveryAt: new Date(),
+        lastDeliveryStatus: status,
+        failureCount: sql`${webhooks.failureCount} + ${failureIncrement}`
+      })
+      .where(eq(webhooks.id, id));
+  }
+  
+  // API Usage operations
+  async createApiUsage(usage: InsertApiUsage): Promise<ApiUsage> {
+    const result = await db.insert(apiUsage).values(usage).returning();
+    return result[0];
+  }
+  
+  async getApiUsageByKeyId(apiKeyId: string, startDate?: Date, endDate?: Date): Promise<ApiUsage[]> {
+    const conditions = [eq(apiUsage.apiKeyId, apiKeyId)];
+    
+    if (startDate) {
+      conditions.push(gte(apiUsage.timestamp, startDate));
+    }
+    if (endDate) {
+      conditions.push(lte(apiUsage.timestamp, endDate));
+    }
+    
+    return db.select().from(apiUsage)
+      .where(and(...conditions))
+      .orderBy(desc(apiUsage.timestamp));
+  }
+  
+  async getApiUsageStats(apiKeyId: string): Promise<{
+    totalRequests: number;
+    successRate: number;
+    averageResponseTime: number;
+    topEndpoints: { endpoint: string; count: number }[];
+  }> {
+    const usage = await this.getApiUsageByKeyId(apiKeyId);
+    
+    const totalRequests = usage.length;
+    const successfulRequests = usage.filter(u => u.statusCode >= 200 && u.statusCode < 300).length;
+    const successRate = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
+    
+    const responseTimes = usage.filter(u => u.responseTime !== null).map(u => u.responseTime!);
+    const averageResponseTime = responseTimes.length > 0 
+      ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
+      : 0;
+    
+    // Get top endpoints
+    const endpointCounts = usage.reduce((acc, u) => {
+      acc[u.endpoint] = (acc[u.endpoint] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    const topEndpoints = Object.entries(endpointCounts)
+      .map(([endpoint, count]) => ({ endpoint, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    
+    return {
+      totalRequests,
+      successRate,
+      averageResponseTime,
+      topEndpoints
+    };
   }
 }
 

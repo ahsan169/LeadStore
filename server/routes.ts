@@ -32,8 +32,9 @@ import { leadEnrichmentService } from "./services/lead-enrichment";
 import { qualityGuaranteeService } from "./services/quality-guarantee";
 import { leadFreshnessService, FreshnessCategory } from "./services/lead-freshness";
 import { bulkOperationsService } from "./services/bulk-operations";
-import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema } from "@shared/schema";
+import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema, insertApiKeySchema, insertWebhookSchema } from "@shared/schema";
 import { campaignService } from "./services/campaign-tools";
+import { apiAuthMiddleware, rateLimitMiddleware, usageTrackingMiddleware, apiResponse, apiError, parsePagination, paginatedResponse, apiKeyManager, webhookDispatcher, cleanup as cleanupEnterpriseApi } from "./services/enterprise-api";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -4903,5 +4904,452 @@ app.get("/api/campaigns/variables", requireAuth, async (req, res) => {
   } catch (error) {
     console.error("Error fetching variables:", error);
     res.status(500).json({ error: "Failed to fetch available variables" });
+  }
+});
+
+// ==========================================
+// Enterprise API v1 Endpoints
+// ==========================================
+
+// API v1 - Lead Search and Filtering
+app.get(
+  "/api/v1/leads",
+  apiAuthMiddleware(["read:leads"]),
+  rateLimitMiddleware(),
+  usageTrackingMiddleware(),
+  async (req, res) => {
+    try {
+      const options = parsePagination(req.query);
+      const filters = {
+        industry: req.query.industry ? String(req.query.industry).split(",") : undefined,
+        stateCode: req.query.state ? String(req.query.state).split(",") : undefined,
+        minQualityScore: req.query.minQuality ? parseInt(String(req.query.minQuality)) : undefined,
+        maxQualityScore: req.query.maxQuality ? parseInt(String(req.query.maxQuality)) : undefined,
+        minRevenue: req.query.minRevenue ? parseInt(String(req.query.minRevenue)) : undefined,
+        maxRevenue: req.query.maxRevenue ? parseInt(String(req.query.maxRevenue)) : undefined,
+        exclusivityStatus: req.query.exclusivity ? String(req.query.exclusivity).split(",") : undefined,
+        sold: req.query.sold === "true" ? true : req.query.sold === "false" ? false : undefined,
+      };
+
+      const leads = await storage.getFilteredLeads(filters);
+      const offset = (options.page! - 1) * options.limit!;
+      const paginatedLeads = leads.slice(offset, offset + options.limit!);
+
+      paginatedResponse(res, paginatedLeads, leads.length, options);
+    } catch (error) {
+      console.error("API v1 - Error fetching leads:", error);
+      apiError(res, "Failed to fetch leads", 500);
+    }
+  }
+);
+
+// API v1 - Get specific lead details
+app.get(
+  "/api/v1/leads/:id",
+  apiAuthMiddleware(["read:leads"]),
+  rateLimitMiddleware(),
+  usageTrackingMiddleware(),
+  async (req, res) => {
+    try {
+      const lead = await storage.getLead(req.params.id);
+      if (!lead) {
+        return apiError(res, "Lead not found", 404);
+      }
+      apiResponse(res, lead);
+    } catch (error) {
+      console.error("API v1 - Error fetching lead:", error);
+      apiError(res, "Failed to fetch lead", 500);
+    }
+  }
+);
+
+// API v1 - Create Purchase
+app.post(
+  "/api/v1/purchases",
+  apiAuthMiddleware(["write:purchases"]),
+  rateLimitMiddleware(),
+  usageTrackingMiddleware(),
+  async (req, res) => {
+    try {
+      const { tier, leadCount, paymentMethodId } = req.body;
+      
+      if (!tier || !leadCount) {
+        return apiError(res, "Missing required fields: tier, leadCount", 400);
+      }
+
+      const user = await storage.getUser(req.apiKey!.userId);
+      if (!user) {
+        return apiError(res, "User not found", 404);
+      }
+
+      // Get tier pricing
+      const tierData = await storage.getProductTierByTier(tier);
+      if (!tierData || !tierData.isActive) {
+        return apiError(res, "Invalid or inactive tier", 400);
+      }
+
+      const totalAmount = (tierData.price * leadCount) / tierData.leadCount;
+
+      // Create Stripe payment intent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(totalAmount * 100),
+        currency: "usd",
+        customer: user.email,
+        metadata: {
+          userId: user.id,
+          tier,
+          leadCount: leadCount.toString(),
+        },
+        payment_method: paymentMethodId,
+        confirm: true,
+      });
+
+      // Get leads for purchase
+      const leads = await storage.getLeadsForPurchase(
+        user.id,
+        leadCount,
+        tierData.minQuality,
+        tierData.maxQuality
+      );
+
+      // Create purchase record
+      const purchase = await storage.createPurchase({
+        userId: user.id,
+        tier,
+        leadCount,
+        totalAmount: totalAmount.toString(),
+        stripePaymentIntentId: paymentIntent.id,
+        paymentStatus: paymentIntent.status === "succeeded" ? "succeeded" : "pending",
+        leadIds: leads.map(l => l.id),
+      });
+
+      // Mark leads as sold
+      if (paymentIntent.status === "succeeded") {
+        await storage.markLeadsAsSold(leads.map(l => l.id), user.id);
+        
+        // Trigger webhook
+        await webhookDispatcher.dispatch("purchase.completed", {
+          purchaseId: purchase.id,
+          userId: user.id,
+          tier,
+          leadCount,
+          totalAmount,
+        });
+      }
+
+      apiResponse(res, purchase, 201);
+    } catch (error) {
+      console.error("API v1 - Error creating purchase:", error);
+      apiError(res, "Failed to create purchase", 500);
+    }
+  }
+);
+
+// API v1 - Get Purchase History
+app.get(
+  "/api/v1/purchases",
+  apiAuthMiddleware(["read:purchases"]),
+  rateLimitMiddleware(),
+  usageTrackingMiddleware(),
+  async (req, res) => {
+    try {
+      const options = parsePagination(req.query);
+      const purchases = await storage.getPurchasesByUserId(req.apiKey!.userId);
+      
+      const offset = (options.page! - 1) * options.limit!;
+      const paginatedPurchases = purchases.slice(offset, offset + options.limit!);
+
+      paginatedResponse(res, paginatedPurchases, purchases.length, options);
+    } catch (error) {
+      console.error("API v1 - Error fetching purchases:", error);
+      apiError(res, "Failed to fetch purchases", 500);
+    }
+  }
+);
+
+// API v1 - Get Analytics Data
+app.get(
+  "/api/v1/analytics",
+  apiAuthMiddleware(["read:analytics"]),
+  rateLimitMiddleware(),
+  usageTrackingMiddleware(),
+  async (req, res) => {
+    try {
+      const stats = await storage.getLeadPerformanceStats();
+      const funnelData = await storage.getConversionFunnelData();
+      const roiData = await storage.getRoiByTier();
+      
+      apiResponse(res, {
+        performance: stats,
+        funnel: funnelData,
+        roi: roiData,
+      });
+    } catch (error) {
+      console.error("API v1 - Error fetching analytics:", error);
+      apiError(res, "Failed to fetch analytics", 500);
+    }
+  }
+);
+
+// API v1 - Webhook Management
+app.post(
+  "/api/v1/webhooks",
+  apiAuthMiddleware(["manage:webhooks"]),
+  rateLimitMiddleware(),
+  usageTrackingMiddleware(),
+  async (req, res) => {
+    try {
+      const validation = insertWebhookSchema.safeParse(req.body);
+      if (!validation.success) {
+        return apiError(res, validation.error.message, 400);
+      }
+
+      // Generate webhook secret
+      const secret = crypto.randomBytes(32).toString("hex");
+
+      const webhook = await storage.createWebhook({
+        ...validation.data,
+        userId: req.apiKey!.userId,
+        secret,
+      });
+
+      apiResponse(res, {
+        ...webhook,
+        secret, // Return secret once for client to store
+      }, 201);
+    } catch (error) {
+      console.error("API v1 - Error creating webhook:", error);
+      apiError(res, "Failed to create webhook", 500);
+    }
+  }
+);
+
+app.get(
+  "/api/v1/webhooks",
+  apiAuthMiddleware(["manage:webhooks"]),
+  rateLimitMiddleware(),
+  usageTrackingMiddleware(),
+  async (req, res) => {
+    try {
+      const webhooks = await storage.getWebhooksByUserId(req.apiKey!.userId);
+      apiResponse(res, webhooks);
+    } catch (error) {
+      console.error("API v1 - Error fetching webhooks:", error);
+      apiError(res, "Failed to fetch webhooks", 500);
+    }
+  }
+);
+
+app.delete(
+  "/api/v1/webhooks/:id",
+  apiAuthMiddleware(["manage:webhooks"]),
+  rateLimitMiddleware(),
+  usageTrackingMiddleware(),
+  async (req, res) => {
+    try {
+      const webhook = await storage.getWebhook(req.params.id);
+      if (!webhook) {
+        return apiError(res, "Webhook not found", 404);
+      }
+      
+      if (webhook.userId !== req.apiKey!.userId) {
+        return apiError(res, "Access denied", 403);
+      }
+
+      await storage.deleteWebhook(req.params.id);
+      apiResponse(res, { success: true });
+    } catch (error) {
+      console.error("API v1 - Error deleting webhook:", error);
+      apiError(res, "Failed to delete webhook", 500);
+    }
+  }
+);
+
+// ==========================================
+// Developer Portal Endpoints
+// ==========================================
+
+// List API Keys
+app.get("/api/developer/keys", requireAuth, async (req, res) => {
+  try {
+    const keys = await storage.getApiKeysByUserId(req.user!.id);
+    
+    // Don't expose the key hash
+    const sanitizedKeys = keys.map(key => ({
+      id: key.id,
+      keyName: key.keyName,
+      permissions: key.permissions,
+      rateLimit: key.rateLimit,
+      lastUsedAt: key.lastUsedAt,
+      expiresAt: key.expiresAt,
+      isActive: key.isActive,
+      createdAt: key.createdAt,
+    }));
+    
+    res.json(sanitizedKeys);
+  } catch (error) {
+    console.error("Error fetching API keys:", error);
+    res.status(500).json({ error: "Failed to fetch API keys" });
+  }
+});
+
+// Generate new API Key
+app.post("/api/developer/keys", requireAuth, async (req, res) => {
+  try {
+    const validation = insertApiKeySchema.safeParse(req.body);
+    if (!validation.success) {
+      return res.status(400).json({ error: validation.error.message });
+    }
+
+    // Generate the API key
+    const apiKey = apiKeyManager.generateApiKey();
+    const keyHash = apiKeyManager.hashApiKey(apiKey);
+
+    const apiKeyRecord = await storage.createApiKey({
+      ...validation.data,
+      userId: req.user!.id,
+      keyHash,
+    });
+
+    res.json({
+      ...apiKeyRecord,
+      apiKey, // Return the actual key only once
+      message: "Save this API key securely. It will not be shown again.",
+    });
+  } catch (error) {
+    console.error("Error creating API key:", error);
+    res.status(500).json({ error: "Failed to create API key" });
+  }
+});
+
+// Update API Key
+app.put("/api/developer/keys/:id", requireAuth, async (req, res) => {
+  try {
+    const key = await storage.getApiKey(req.params.id);
+    if (!key) {
+      return res.status(404).json({ error: "API key not found" });
+    }
+    
+    if (key.userId !== req.user!.id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const updated = await storage.updateApiKey(req.params.id, req.body);
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating API key:", error);
+    res.status(500).json({ error: "Failed to update API key" });
+  }
+});
+
+// Revoke API Key
+app.delete("/api/developer/keys/:id", requireAuth, async (req, res) => {
+  try {
+    const key = await storage.getApiKey(req.params.id);
+    if (!key) {
+      return res.status(404).json({ error: "API key not found" });
+    }
+    
+    if (key.userId !== req.user!.id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    await storage.updateApiKey(req.params.id, { isActive: false });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error revoking API key:", error);
+    res.status(500).json({ error: "Failed to revoke API key" });
+  }
+});
+
+// Get API Usage Statistics
+app.get("/api/developer/usage", requireAuth, async (req, res) => {
+  try {
+    const { keyId, startDate, endDate } = req.query;
+    
+    let usage, stats;
+    if (keyId) {
+      // Verify ownership
+      const key = await storage.getApiKey(keyId as string);
+      if (!key || key.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      usage = await storage.getApiUsageByKeyId(
+        keyId as string,
+        startDate ? new Date(startDate as string) : undefined,
+        endDate ? new Date(endDate as string) : undefined
+      );
+      stats = await storage.getApiUsageStats(keyId as string);
+    } else {
+      // Get usage for all user's keys
+      const keys = await storage.getApiKeysByUserId(req.user!.id);
+      const allUsage: any[] = [];
+      
+      for (const key of keys) {
+        const keyUsage = await storage.getApiUsageByKeyId(
+          key.id,
+          startDate ? new Date(startDate as string) : undefined,
+          endDate ? new Date(endDate as string) : undefined
+        );
+        allUsage.push(...keyUsage);
+      }
+      
+      usage = allUsage;
+      
+      // Calculate aggregate stats
+      const totalRequests = usage.length;
+      const successfulRequests = usage.filter(u => u.statusCode >= 200 && u.statusCode < 300).length;
+      const successRate = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
+      
+      const responseTimes = usage.filter(u => u.responseTime).map(u => u.responseTime);
+      const averageResponseTime = responseTimes.length > 0 
+        ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
+        : 0;
+      
+      stats = {
+        totalRequests,
+        successRate,
+        averageResponseTime,
+        topEndpoints: [],
+      };
+    }
+    
+    res.json({ usage, stats });
+  } catch (error) {
+    console.error("Error fetching API usage:", error);
+    res.status(500).json({ error: "Failed to fetch API usage" });
+  }
+});
+
+// Test webhook endpoint
+app.post("/api/developer/webhooks/test", requireAuth, async (req, res) => {
+  try {
+    const { webhookId, event } = req.body;
+    
+    if (!webhookId || !event) {
+      return res.status(400).json({ error: "Webhook ID and event are required" });
+    }
+    
+    const webhook = await storage.getWebhook(webhookId);
+    if (!webhook) {
+      return res.status(404).json({ error: "Webhook not found" });
+    }
+    
+    if (webhook.userId !== req.user!.id) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    // Send test webhook
+    await webhookDispatcher.dispatch(event, {
+      test: true,
+      message: "This is a test webhook event",
+      timestamp: new Date().toISOString(),
+    });
+    
+    res.json({ success: true, message: "Test webhook sent" });
+  } catch (error) {
+    console.error("Error testing webhook:", error);
+    res.status(500).json({ error: "Failed to test webhook" });
   }
 });
