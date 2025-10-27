@@ -139,6 +139,50 @@ export default function VerifyLeadsPage() {
     }
   });
   
+  // Enrichment mutation
+  const enrichmentMutation = useMutation({
+    mutationFn: async (params: { selectedRowNumbers: number[]; withEnrichment: boolean }) => {
+      // First import the leads
+      const importResponse = await apiRequest('POST', '/api/admin/import-verified', { 
+        sessionId, 
+        selectedRowNumbers: params.selectedRowNumbers 
+      });
+      const importData = await importResponse.json();
+      
+      if (params.withEnrichment && importData.batchId) {
+        // Then enrich them
+        const enrichResponse = await apiRequest('POST', '/api/enrichment/batch', {
+          batchId: importData.batchId
+        });
+        const enrichData = await enrichResponse.json();
+        return { ...importData, enriched: enrichData };
+      }
+      
+      return importData;
+    },
+    onSuccess: (data) => {
+      if (data.enriched) {
+        toast({
+          title: "Import & Enrichment successful",
+          description: `${data.importedCount} leads imported and ${data.enriched.enrichedCount} enriched successfully (30% premium applied)`,
+        });
+      } else {
+        toast({
+          title: "Import successful",
+          description: `${data.importedCount} leads imported successfully`,
+        });
+      }
+      navigate('/admin/leads');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Operation failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
+  
   // Initialize selected rows when data loads
   useEffect(() => {
     if (data?.results) {
@@ -228,6 +272,22 @@ export default function VerifyLeadsPage() {
       return;
     }
     importMutation.mutate(Array.from(selectedRows));
+  };
+  
+  // Handle enrich and import
+  const handleEnrichAndImport = () => {
+    if (selectedRows.size === 0) {
+      toast({
+        title: "No leads selected",
+        description: "Please select at least one lead to enrich and import",
+        variant: "destructive",
+      });
+      return;
+    }
+    enrichmentMutation.mutate({
+      selectedRowNumbers: Array.from(selectedRows),
+      withEnrichment: true
+    });
   };
   
   // Get status icon
@@ -323,6 +383,15 @@ export default function VerifyLeadsPage() {
           >
             <Ban className="w-4 h-4 mr-2" />
             Cancel & Discard
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleEnrichAndImport}
+            disabled={selectedRows.size === 0 || enrichmentMutation.isPending || importMutation.isPending}
+            data-testid="button-enrich-import"
+          >
+            <TrendingUp className="w-4 h-4 mr-2" />
+            Enrich & Import (+30% Premium)
           </Button>
           <Button
             onClick={handleImport}

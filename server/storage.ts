@@ -43,6 +43,8 @@ import {
   type InsertLeadAlert,
   type AlertHistory,
   type InsertAlertHistory,
+  type LeadEnrichment,
+  type InsertLeadEnrichment,
   users,
   subscriptions,
   leadBatches,
@@ -64,6 +66,7 @@ import {
   crmSyncLog,
   leadAlerts,
   alertHistory,
+  leadEnrichment,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -92,6 +95,7 @@ export interface IStorage {
   getAvailableLeadsByTier(tier: string, limit: number): Promise<Lead[]>;
   createLead(lead: InsertLead): Promise<Lead>;
   createLeads(leads: InsertLead[]): Promise<Lead[]>;
+  updateLead(id: string, data: Partial<InsertLead>): Promise<Lead | undefined>;
   markLeadsAsSold(leadIds: string[], userId: string): Promise<void>;
   getLeadStats(): Promise<{
     total: number;
@@ -247,6 +251,19 @@ export interface IStorage {
   getAlertHistoryByBatchId(batchId: string): Promise<AlertHistory[]>;
   markAlertHistoryViewed(id: string): Promise<void>;
   getUnviewedAlertsCount(userId: string): Promise<number>;
+  
+  // Lead Enrichment operations
+  createLeadEnrichment(enrichment: InsertLeadEnrichment): Promise<LeadEnrichment>;
+  createLeadEnrichments(enrichments: InsertLeadEnrichment[]): Promise<LeadEnrichment[]>;
+  getLeadEnrichment(leadId: string): Promise<LeadEnrichment | undefined>;
+  getLeadEnrichmentsByBatchId(batchId: string): Promise<LeadEnrichment[]>;
+  updateLeadEnrichment(leadId: string, data: Partial<InsertLeadEnrichment>): Promise<LeadEnrichment | undefined>;
+  deleteLeadEnrichment(leadId: string): Promise<void>;
+  getEnrichmentStats(): Promise<{
+    totalEnriched: number;
+    averageConfidence: number;
+    sourceBreakdown: Record<string, number>;
+  }>;
 }
 
 export class DbStorage implements IStorage {
@@ -384,6 +401,14 @@ export class DbStorage implements IStorage {
     if (leadsData.length === 0) return [];
     const result = await db.insert(leads).values(leadsData).returning();
     return result;
+  }
+
+  async updateLead(id: string, data: Partial<InsertLead>): Promise<Lead | undefined> {
+    const result = await db.update(leads)
+      .set(data)
+      .where(eq(leads.id, id))
+      .returning();
+    return result[0];
   }
 
   async markLeadsAsSold(leadIds: string[], userId: string): Promise<void> {
@@ -1009,6 +1034,84 @@ export class DbStorage implements IStorage {
         sql`${alertHistory.viewedAt} IS NULL`
       ));
     return Number(result[0]?.count || 0);
+  }
+  
+  // Lead Enrichment operations
+  async createLeadEnrichment(enrichment: InsertLeadEnrichment): Promise<LeadEnrichment> {
+    const result = await db.insert(leadEnrichment).values(enrichment).returning();
+    return result[0];
+  }
+  
+  async createLeadEnrichments(enrichments: InsertLeadEnrichment[]): Promise<LeadEnrichment[]> {
+    if (enrichments.length === 0) return [];
+    const result = await db.insert(leadEnrichment).values(enrichments).returning();
+    return result;
+  }
+  
+  async getLeadEnrichment(leadId: string): Promise<LeadEnrichment | undefined> {
+    const result = await db.select().from(leadEnrichment)
+      .where(eq(leadEnrichment.leadId, leadId))
+      .limit(1);
+    return result[0];
+  }
+  
+  async getLeadEnrichmentsByBatchId(batchId: string): Promise<LeadEnrichment[]> {
+    return db.select()
+      .from(leadEnrichment)
+      .innerJoin(leads, eq(leadEnrichment.leadId, leads.id))
+      .where(eq(leads.batchId, batchId));
+  }
+  
+  async updateLeadEnrichment(leadId: string, data: Partial<InsertLeadEnrichment>): Promise<LeadEnrichment | undefined> {
+    const result = await db.update(leadEnrichment)
+      .set(data)
+      .where(eq(leadEnrichment.leadId, leadId))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteLeadEnrichment(leadId: string): Promise<void> {
+    await db.delete(leadEnrichment).where(eq(leadEnrichment.leadId, leadId));
+  }
+  
+  async getEnrichmentStats(): Promise<{
+    totalEnriched: number;
+    averageConfidence: number;
+    sourceBreakdown: Record<string, number>;
+  }> {
+    const totalResult = await db.select({ count: sql<number>`count(*)` })
+      .from(leadEnrichment);
+    const totalEnriched = Number(totalResult[0]?.count || 0);
+    
+    if (totalEnriched === 0) {
+      return {
+        totalEnriched: 0,
+        averageConfidence: 0,
+        sourceBreakdown: {}
+      };
+    }
+    
+    const avgResult = await db.select({ 
+      avgConfidence: sql<number>`avg(${leadEnrichment.confidenceScore})` 
+    }).from(leadEnrichment);
+    
+    const sourceResult = await db.select({
+      source: leadEnrichment.enrichmentSource,
+      count: sql<number>`count(*)`
+    })
+    .from(leadEnrichment)
+    .groupBy(leadEnrichment.enrichmentSource);
+    
+    const sourceBreakdown = sourceResult.reduce((acc, row) => {
+      acc[row.source] = Number(row.count);
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return {
+      totalEnriched,
+      averageConfidence: Number(avgResult[0]?.avgConfidence || 0),
+      sourceBreakdown
+    };
   }
 }
 

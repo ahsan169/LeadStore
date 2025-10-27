@@ -69,6 +69,14 @@ export const leads = pgTable("leads", {
   soldTo: varchar("sold_to").references(() => users.id),
   soldAt: timestamp("sold_at"),
   
+  // Enrichment fields
+  isEnriched: boolean("is_enriched").notNull().default(false),
+  linkedinUrl: text("linkedin_url"),
+  websiteUrl: text("website_url"),
+  companySize: text("company_size"), // e.g., "1-10", "11-50", "51-200", "201-500", "500+"
+  yearFounded: integer("year_founded"),
+  naicsCode: text("naics_code"), // NAICS industry classification code
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -346,6 +354,27 @@ export const alertHistory = pgTable("alert_history", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Lead Enrichment - stores enriched business data
+export const leadEnrichment = pgTable("lead_enrichment", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull().unique(),
+  
+  // Enriched data
+  enrichedData: jsonb("enriched_data").notNull(), // Full enrichment data including social profiles, company details, etc.
+  
+  // Enrichment metadata
+  enrichmentSource: text("enrichment_source").notNull().default("mock"), // 'clearbit', 'hunter', 'manual', 'mock'
+  confidenceScore: decimal("confidence_score", { precision: 5, scale: 2 }).notNull(), // 0.00-100.00
+  
+  // Specific enriched fields for quick access
+  socialProfiles: jsonb("social_profiles"), // { linkedin, twitter, facebook, etc. }
+  companyDetails: jsonb("company_details"), // { description, employees, funding, technologies, etc. }
+  industryDetails: jsonb("industry_details"), // { classification, verticals, keywords, etc. }
+  contactInfo: jsonb("contact_info"), // { additional emails, phones, executives, etc. }
+  
+  enrichedAt: timestamp("enriched_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -533,6 +562,19 @@ export const insertAlertHistorySchema = createInsertSchema(alertHistory).omit({
   notificationSent: z.boolean().default(false),
 });
 
+export const insertLeadEnrichmentSchema = createInsertSchema(leadEnrichment).omit({
+  id: true,
+  enrichedAt: true,
+}).extend({
+  enrichmentSource: z.enum(["clearbit", "hunter", "manual", "mock"]).default("mock"),
+  confidenceScore: z.string().regex(/^\d+(\.\d{1,2})?$/).transform((val) => val),
+  enrichedData: z.object({}).passthrough(),
+  socialProfiles: z.object({}).passthrough().optional(),
+  companyDetails: z.object({}).passthrough().optional(),
+  industryDetails: z.object({}).passthrough().optional(),
+  contactInfo: z.object({}).passthrough().optional(),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -596,3 +638,6 @@ export type LeadAlert = typeof leadAlerts.$inferSelect;
 
 export type InsertAlertHistory = z.infer<typeof insertAlertHistorySchema>;
 export type AlertHistory = typeof alertHistory.$inferSelect;
+
+export type InsertLeadEnrichment = z.infer<typeof insertLeadEnrichmentSchema>;
+export type LeadEnrichment = typeof leadEnrichment.$inferSelect;

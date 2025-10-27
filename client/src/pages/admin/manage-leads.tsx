@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { QualityScoreBadge } from "@/components/QualityScoreBadge";
 import { InsightsCard } from "@/components/InsightsCard";
+import { EnrichmentBadge, EnrichmentDetails } from "@/components/EnrichmentBadge";
 import { Button } from "@/components/ui/button";
 import { 
   Dialog,
@@ -360,6 +361,7 @@ function BatchCard({
                         <th className="text-left py-2 px-3 text-sm font-medium">Industry</th>
                         <th className="text-left py-2 px-3 text-sm font-medium">Revenue</th>
                         <th className="text-left py-2 px-3 text-sm font-medium">Score</th>
+                        <th className="text-left py-2 px-3 text-sm font-medium">Enrichment</th>
                         <th className="text-left py-2 px-3 text-sm font-medium">State</th>
                         <th className="text-left py-2 px-3 text-sm font-medium">Actions</th>
                       </tr>
@@ -379,6 +381,10 @@ function BatchCard({
                           </td>
                           <td className="py-3 px-3">
                             <QualityScoreBadge score={lead.qualityScore} />
+                          </td>
+                          <td className="py-3 px-3">
+                            <EnrichmentBadge isEnriched={lead.isEnriched || false} />
+                            {!lead.isEnriched && <span className="text-sm text-muted-foreground">-</span>}
                           </td>
                           <td className="py-3 px-3 text-sm">{lead.stateCode || '-'}</td>
                           <td className="py-3 px-3">

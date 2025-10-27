@@ -68,6 +68,7 @@ export default function UploadLeadsPage() {
   const [generatingTestLeads, setGeneratingTestLeads] = useState(false);
   const [useAiVerification, setUseAiVerification] = useState(true);
   const [strictnessLevel, setStrictnessLevel] = useState<'strict' | 'moderate' | 'lenient'>('moderate');
+  const [useEnrichment, setUseEnrichment] = useState(false);
   const [verificationProgress, setVerificationProgress] = useState<VerificationProgress | null>(null);
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -558,6 +559,54 @@ export default function UploadLeadsPage() {
                         <li>• Intelligent duplicate detection</li>
                         <li>• Risk scoring and insights</li>
                         <li>• Data correction suggestions</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Lead Enrichment Options */}
+            <div className="border rounded-lg p-4 space-y-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="enrichment-toggle" className="text-base font-semibold flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-green-600" />
+                    Lead Enrichment
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically append business data to increase lead value
+                  </p>
+                </div>
+                <Switch
+                  id="enrichment-toggle"
+                  checked={useEnrichment}
+                  onCheckedChange={setUseEnrichment}
+                  className="data-[state=checked]:bg-green-600"
+                  data-testid="switch-lead-enrichment"
+                />
+              </div>
+
+              {useEnrichment && (
+                <div className="space-y-3 pt-3 border-t">
+                  <div className="flex items-center gap-2 p-2 bg-yellow-100 dark:bg-yellow-950/50 rounded">
+                    <AlertCircle className="w-4 h-4 text-yellow-600" />
+                    <div className="text-xs">
+                      <p className="font-medium text-yellow-900 dark:text-yellow-100">30% Premium Applied</p>
+                      <p className="text-yellow-800 dark:text-yellow-200">Enriched leads include additional business data and are priced at a 30% premium</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2 p-2 bg-green-100 dark:bg-green-950/50 rounded">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5" />
+                    <div className="text-xs">
+                      <p className="font-medium text-green-900 dark:text-green-100">Enrichment Data Includes:</p>
+                      <ul className="space-y-0.5 text-green-800 dark:text-green-200 mt-1">
+                        <li>• Social media profiles (LinkedIn, Twitter)</li>
+                        <li>• Company size and employee count</li>
+                        <li>• Year founded and business history</li>
+                        <li>• NAICS code and industry details</li>
+                        <li>• Website status and contact info</li>
+                        <li>• Risk indicators and confidence scores</li>
                       </ul>
                     </div>
                   </div>

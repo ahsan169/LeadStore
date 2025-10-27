@@ -89,6 +89,11 @@ interface AnalyticsData {
   }>;
   leadVelocity: number;
   bestPerformingTier: string;
+  enrichmentStats?: {
+    totalEnriched: number;
+    averageConfidence: number;
+    sourceBreakdown: Record<string, number>;
+  };
   timestamp: string;
 }
 
@@ -599,6 +604,52 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Enrichment Statistics */}
+        {analyticsData?.enrichmentStats && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Lead Enrichment Statistics</CardTitle>
+              <CardDescription>Data enrichment metrics and source breakdown</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Total Enriched Leads</span>
+                    <Badge variant="outline">{analyticsData.enrichmentStats.totalEnriched}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Average Confidence Score</span>
+                    <Badge variant="outline">{analyticsData.enrichmentStats.averageConfidence.toFixed(1)}%</Badge>
+                  </div>
+                  <div className="mt-4">
+                    <div className="text-xs text-muted-foreground mb-1">Premium Value Added</div>
+                    <div className="text-2xl font-bold text-green-600">
+                      +30% per lead
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Source Breakdown */}
+                <div className="col-span-2">
+                  <div className="text-sm font-medium mb-3">Enrichment Sources</div>
+                  <div className="space-y-2">
+                    {Object.entries(analyticsData.enrichmentStats.sourceBreakdown).map(([source, count]) => (
+                      <div key={source} className="flex items-center justify-between p-2 bg-muted rounded">
+                        <span className="text-sm capitalize">{source}</span>
+                        <Badge>{count as number} leads</Badge>
+                      </div>
+                    ))}
+                    {Object.keys(analyticsData.enrichmentStats.sourceBreakdown).length === 0 && (
+                      <div className="text-sm text-muted-foreground">No enriched leads yet</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Lead Performance Table */}
         <Card>

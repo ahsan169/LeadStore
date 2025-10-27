@@ -22,12 +22,13 @@ import {
 } from "./email";
 import { db } from "./db";
 import { leadPerformance, purchases } from "@shared/schema";
-import { gte, lte, and } from "drizzle-orm";
+import { gte, lte, and, sql } from "drizzle-orm";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
 import { WebSocketServer, WebSocket } from 'ws';
 import { leadAlertService, addAlertClient } from "./services/lead-alerts";
+import { leadEnrichmentService } from "./services/lead-enrichment";
 import { insertLeadAlertSchema } from "@shared/schema";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -2198,12 +2199,16 @@ Format your response as JSON with the following structure:
         roiByTier[0] || { tier: 'none', roi: 0 }
       );
       
+      // Get enrichment statistics
+      const enrichmentStats = await storage.getEnrichmentStats();
+      
       res.json({
         stats,
         conversionFunnel,
         roiByTier,
         leadVelocity,
         bestPerformingTier: bestPerformingTier.tier,
+        enrichmentStats,
         timestamp: new Date(),
       });
     } catch (error) {
@@ -2601,6 +2606,18 @@ Format your response as JSON with the following structure:
         });
       }
       
+      // Calculate price with enrichment premium if applicable
+      const enrichedCount = availableLeads.filter(lead => lead.isEnriched).length;
+      const regularCount = tierConfig.leadCount - enrichedCount;
+      const enrichmentPremium = 1.3; // 30% premium for enriched leads
+      
+      // Calculate weighted price based on proportion of enriched leads
+      const basePrice = tierConfig.price;
+      const pricePerLead = basePrice / tierConfig.leadCount;
+      const enrichedPrice = Math.round(pricePerLead * enrichmentPremium * enrichedCount);
+      const regularPrice = pricePerLead * regularCount;
+      const totalPrice = Math.round(enrichedPrice + regularPrice);
+      
       // Get base URL for redirect - use Replit URL or fallback
       const baseUrl = process.env.REPLIT_DOMAINS ? 
         `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 
@@ -2614,14 +2631,15 @@ Format your response as JSON with the following structure:
             price_data: {
               currency: 'usd',
               product_data: {
-                name: `${tierConfig.name} Package`,
-                description: `${tierConfig.leadCount} high-quality MCA leads`,
+                name: `${tierConfig.name} Package${enrichedCount > 0 ? ' (Enriched)' : ''}`,
+                description: `${tierConfig.leadCount} high-quality MCA leads${enrichedCount > 0 ? ` (${enrichedCount} enriched with business data)` : ''}`,
                 metadata: {
                   tier,
                   leadCount: tierConfig.leadCount.toString(),
+                  enrichedCount: enrichedCount.toString(),
                 }
               },
-              unit_amount: tierConfig.price, // Price is already in cents
+              unit_amount: totalPrice, // Use calculated price with enrichment premium
             },
             quantity: 1,
           },
@@ -3439,6 +3457,220 @@ Time: ${preferredTime || 'Any time'}`);
     } catch (error) {
       console.error('Exit intent signup failed:', error);
       res.status(500).json({ error: 'Failed to process signup' });
+    }
+  });
+
+  // ==================== LEAD ENRICHMENT ENDPOINTS ====================
+  
+  // POST /api/enrichment/batch - Enrich multiple leads in batch
+  app.post('/api/enrichment/batch', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leadIds, batchId } = req.body;
+      
+      if ((!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) && !batchId) {
+        return res.status(400).json({ error: 'Lead IDs or batch ID required' });
+      }
+      
+      let leadsToEnrich: any[] = [];
+      
+      // Get leads to enrich
+      if (batchId) {
+        // Enrich all leads in a batch
+        const batchLeads = await storage.getLeadsByBatchId(batchId);
+        leadsToEnrich = batchLeads.filter(lead => !lead.isEnriched);
+      } else {
+        // Enrich specific leads
+        const leadPromises = leadIds.map(id => storage.getLead(id));
+        const leads = await Promise.all(leadPromises);
+        leadsToEnrich = leads.filter(lead => lead && !lead.isEnriched) as any[];
+      }
+      
+      if (leadsToEnrich.length === 0) {
+        return res.status(400).json({ 
+          error: 'No leads to enrich', 
+          message: 'All selected leads are already enriched' 
+        });
+      }
+      
+      // Generate enrichment data for each lead
+      const enrichments = await leadEnrichmentService.enrichBatch(leadsToEnrich);
+      
+      // Save enrichments to database
+      const savedEnrichments = await storage.createLeadEnrichments(enrichments as any);
+      
+      // Update leads to mark as enriched and add enrichment fields
+      const updatePromises = leadsToEnrich.map(async (lead, index) => {
+        const enrichment = enrichments[index];
+        const enrichedData = enrichment.enrichedData as any;
+        
+        return storage.updateLead(lead.id, {
+          isEnriched: true,
+          linkedinUrl: enrichedData.socialProfiles?.linkedin || null,
+          websiteUrl: enrichedData.contactInfo?.website || null,
+          companySize: enrichedData.companySize || null,
+          yearFounded: enrichedData.yearFounded || null,
+          naicsCode: enrichedData.naicsCode || null
+        });
+      });
+      
+      await Promise.all(updatePromises);
+      
+      // Calculate stats
+      const stats = leadEnrichmentService.calculateEnrichmentStats(savedEnrichments);
+      
+      res.json({
+        success: true,
+        enrichedCount: savedEnrichments.length,
+        stats,
+        message: `Successfully enriched ${savedEnrichments.length} leads`
+      });
+      
+    } catch (error) {
+      console.error('Lead enrichment failed:', error);
+      res.status(500).json({ error: 'Failed to enrich leads' });
+    }
+  });
+  
+  // GET /api/enrichment/:leadId - Get enrichment data for a specific lead
+  app.get('/api/enrichment/:leadId', requireAuth, async (req, res) => {
+    try {
+      const enrichment = await storage.getLeadEnrichment(req.params.leadId);
+      
+      if (!enrichment) {
+        return res.status(404).json({ error: 'Enrichment data not found for this lead' });
+      }
+      
+      // Check if user has access to this lead
+      const lead = await storage.getLead(req.params.leadId);
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      // Admin can see all, buyers can only see their purchased leads
+      const user = await storage.getUser(req.session.userId!);
+      if (user?.role !== 'admin') {
+        // Check if user has purchased this lead
+        const userPurchases = await storage.getPurchasesByUserId(req.session.userId!);
+        const hasPurchasedLead = userPurchases.some(p => 
+          p.leadIds && p.leadIds.includes(req.params.leadId)
+        );
+        
+        if (!hasPurchasedLead) {
+          return res.status(403).json({ error: 'You do not have access to this lead' });
+        }
+      }
+      
+      res.json(enrichment);
+      
+    } catch (error) {
+      console.error('Failed to get enrichment data:', error);
+      res.status(500).json({ error: 'Failed to get enrichment data' });
+    }
+  });
+  
+  // POST /api/enrichment/auto-enrich - Enable/disable auto-enrichment for new uploads
+  app.post('/api/enrichment/auto-enrich', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { enabled, batchId } = req.body;
+      
+      if (typeof enabled !== 'boolean') {
+        return res.status(400).json({ error: 'enabled parameter must be a boolean' });
+      }
+      
+      if (enabled && batchId) {
+        // Auto-enrich a specific batch
+        const batch = await storage.getLeadBatch(batchId);
+        if (!batch) {
+          return res.status(404).json({ error: 'Batch not found' });
+        }
+        
+        // Get unenriched leads from the batch
+        const batchLeads = await storage.getLeadsByBatchId(batchId);
+        const unenrichedLeads = batchLeads.filter(lead => !lead.isEnriched);
+        
+        if (unenrichedLeads.length === 0) {
+          return res.json({ 
+            success: true, 
+            message: 'All leads in this batch are already enriched' 
+          });
+        }
+        
+        // Enrich the batch
+        const enrichments = await leadEnrichmentService.enrichBatch(unenrichedLeads);
+        const savedEnrichments = await storage.createLeadEnrichments(enrichments as any);
+        
+        // Update leads to mark as enriched
+        const updatePromises = unenrichedLeads.map(async (lead, index) => {
+          const enrichment = enrichments[index];
+          const enrichedData = enrichment.enrichedData as any;
+          
+          return storage.updateLead(lead.id, {
+            isEnriched: true,
+            linkedinUrl: enrichedData.socialProfiles?.linkedin || null,
+            websiteUrl: enrichedData.contactInfo?.website || null,
+            companySize: enrichedData.companySize || null,
+            yearFounded: enrichedData.yearFounded || null,
+            naicsCode: enrichedData.naicsCode || null
+          });
+        });
+        
+        await Promise.all(updatePromises);
+        
+        res.json({
+          success: true,
+          enabled,
+          enrichedCount: savedEnrichments.length,
+          message: `Auto-enriched ${savedEnrichments.length} leads in batch`
+        });
+      } else {
+        // Just return the status
+        res.json({
+          success: true,
+          enabled,
+          message: enabled ? 'Auto-enrichment enabled for new uploads' : 'Auto-enrichment disabled'
+        });
+      }
+      
+    } catch (error) {
+      console.error('Auto-enrichment toggle failed:', error);
+      res.status(500).json({ error: 'Failed to toggle auto-enrichment' });
+    }
+  });
+  
+  // GET /api/enrichment/stats - Get enrichment statistics
+  app.get('/api/enrichment/stats', requireAuth, async (req, res) => {
+    try {
+      const stats = await storage.getEnrichmentStats();
+      
+      // Get pricing impact
+      const regularLeads = await storage.getLeadStats();
+      const enrichedPremium = 1.3; // 30% premium for enriched leads
+      
+      // Calculate potential revenue impact
+      const enrichedLeadsValue = stats.totalEnriched * enrichedPremium;
+      const regularLeadsValue = regularLeads.available - stats.totalEnriched;
+      const totalPotentialRevenue = enrichedLeadsValue + regularLeadsValue;
+      const revenueIncrease = ((enrichedLeadsValue / (stats.totalEnriched || 1)) - 1) * 100;
+      
+      res.json({
+        ...stats,
+        pricing: {
+          enrichedPremium: '30%',
+          regularPrice: 1.0,
+          enrichedPrice: enrichedPremium,
+          revenueIncrease: revenueIncrease.toFixed(1) + '%',
+          totalPotentialRevenue
+        },
+        completeness: {
+          totalLeads: regularLeads.total,
+          enrichedCount: stats.totalEnriched,
+          percentageEnriched: ((stats.totalEnriched / regularLeads.total) * 100).toFixed(1) + '%'
+        }
+      });
+      
+    } catch (error) {
+      console.error('Failed to get enrichment stats:', error);
+      res.status(500).json({ error: 'Failed to get enrichment statistics' });
     }
   });
 
