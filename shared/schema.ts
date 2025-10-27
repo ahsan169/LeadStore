@@ -375,6 +375,19 @@ export const leadEnrichment = pgTable("lead_enrichment", {
   enrichedAt: timestamp("enriched_at").notNull().defaultNow(),
 });
 
+// Saved searches for advanced lead filtering
+export const savedSearches = pgTable("saved_searches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  searchName: text("search_name").notNull(),
+  filters: jsonb("filters").notNull(), // All filter criteria as JSON
+  isDefault: boolean("is_default").notNull().default(false),
+  sortBy: text("sort_by"),
+  sortOrder: text("sort_order"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at"),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -575,6 +588,61 @@ export const insertLeadEnrichmentSchema = createInsertSchema(leadEnrichment).omi
   contactInfo: z.object({}).passthrough().optional(),
 });
 
+export const insertSavedSearchSchema = createInsertSchema(savedSearches).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+}).extend({
+  searchName: z.string().min(1).max(100),
+  filters: z.object({
+    // Basic filters
+    industry: z.array(z.string()).optional(),
+    stateCode: z.array(z.string()).optional(),
+    city: z.array(z.string()).optional(),
+    minQualityScore: z.number().min(0).max(100).optional(),
+    maxQualityScore: z.number().min(0).max(100).optional(),
+    
+    // Financial filters
+    minRevenue: z.number().optional(),
+    maxRevenue: z.number().optional(),
+    fundingStatus: z.array(z.string()).optional(),
+    minCreditScore: z.number().optional(),
+    maxCreditScore: z.number().optional(),
+    
+    // Business filters
+    minTimeInBusiness: z.number().optional(),
+    maxTimeInBusiness: z.number().optional(),
+    employeeCount: z.array(z.string()).optional(),
+    businessType: z.array(z.string()).optional(),
+    yearFounded: z.object({ min: z.number(), max: z.number() }).optional(),
+    
+    // Contact filters
+    hasEmail: z.boolean().optional(),
+    hasPhone: z.boolean().optional(),
+    ownerName: z.string().optional(),
+    
+    // Status filters
+    exclusivityStatus: z.array(z.string()).optional(),
+    previousMCAHistory: z.array(z.string()).optional(),
+    urgencyLevel: z.array(z.string()).optional(),
+    leadAge: z.object({ min: z.number(), max: z.number() }).optional(),
+    isEnriched: z.boolean().optional(),
+    sold: z.boolean().optional(),
+    
+    // Advanced filters
+    naicsCode: z.array(z.string()).optional(),
+    sicCode: z.array(z.string()).optional(),
+    dailyBankDeposits: z.boolean().optional(),
+    websiteUrl: z.boolean().optional(),
+    
+    // Logic operators
+    logicOperator: z.enum(["AND", "OR"]).default("AND"),
+  }),
+  isDefault: z.boolean().default(false),
+  sortBy: z.string().optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -641,3 +709,6 @@ export type AlertHistory = typeof alertHistory.$inferSelect;
 
 export type InsertLeadEnrichment = z.infer<typeof insertLeadEnrichmentSchema>;
 export type LeadEnrichment = typeof leadEnrichment.$inferSelect;
+
+export type InsertSavedSearch = z.infer<typeof insertSavedSearchSchema>;
+export type SavedSearch = typeof savedSearches.$inferSelect;

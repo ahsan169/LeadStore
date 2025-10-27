@@ -1,4 +1,4 @@
-import { eq, desc, and, sql, inArray, notInArray, gte, lte } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, notInArray, gte, lte, like, asc, ne, isNotNull, isNull } from "drizzle-orm";
 import { db } from "./db";
 import {
   type User,
@@ -45,6 +45,8 @@ import {
   type InsertAlertHistory,
   type LeadEnrichment,
   type InsertLeadEnrichment,
+  type SavedSearch,
+  type InsertSavedSearch,
   users,
   subscriptions,
   leadBatches,
@@ -67,6 +69,7 @@ import {
   leadAlerts,
   alertHistory,
   leadEnrichment,
+  savedSearches,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -185,20 +188,68 @@ export interface IStorage {
   createCreditTransaction(transaction: InsertCreditTransaction): Promise<CreditTransaction>;
   getUserCreditTransactions(userId: string): Promise<CreditTransaction[]>;
   
-  // Advanced lead queries
+  // Advanced lead queries - 20+ filter criteria
   getFilteredLeads(filters: {
-    industry?: string;
+    // Basic filters
+    industry?: string[];
+    stateCode?: string[];
+    city?: string[];
+    minQualityScore?: number;
+    maxQualityScore?: number;
+    
+    // Financial filters
     minRevenue?: number;
     maxRevenue?: number;
-    stateCode?: string;
-    minTimeInBusiness?: number;
+    fundingStatus?: string[];
     minCreditScore?: number;
     maxCreditScore?: number;
-    exclusivityStatus?: string;
-    previousMCAHistory?: string;
-    urgencyLevel?: string;
+    
+    // Business filters
+    minTimeInBusiness?: number;
+    maxTimeInBusiness?: number;
+    employeeCount?: string[];
+    businessType?: string[];
+    yearFoundedMin?: number;
+    yearFoundedMax?: number;
+    
+    // Contact filters
+    hasEmail?: boolean;
+    hasPhone?: boolean;
+    ownerName?: string;
+    
+    // Status filters
+    exclusivityStatus?: string[];
+    previousMCAHistory?: string[];
+    urgencyLevel?: string[];
+    leadAgeMin?: number;
+    leadAgeMax?: number;
+    isEnriched?: boolean;
+    sold?: boolean;
+    
+    // Advanced filters
+    naicsCode?: string[];
+    sicCode?: string[];
+    dailyBankDeposits?: boolean;
+    hasWebsite?: boolean;
+    
+    // Pagination and sorting
     limit: number;
-  }): Promise<Lead[]>;
+    offset?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    
+    // Logic operator
+    logicOperator?: 'AND' | 'OR';
+  }): Promise<{ leads: Lead[]; total: number }>;
+  
+  // Saved searches operations
+  createSavedSearch(search: InsertSavedSearch): Promise<SavedSearch>;
+  getSavedSearch(id: string): Promise<SavedSearch | undefined>;
+  getSavedSearchesByUserId(userId: string): Promise<SavedSearch[]>;
+  updateSavedSearch(id: string, data: Partial<InsertSavedSearch>): Promise<SavedSearch | undefined>;
+  deleteSavedSearch(id: string): Promise<void>;
+  setDefaultSearch(userId: string, searchId: string): Promise<void>;
+  updateSearchLastUsed(id: string): Promise<void>;
   
   // Contact submission operations
   createContactSubmission(submission: InsertContactSubmission): Promise<ContactSubmission>;
@@ -749,46 +800,242 @@ export class DbStorage implements IStorage {
     return availableLeads;
   }
 
-  // Advanced lead queries
+  // Advanced lead queries - 20+ filter criteria
   async getFilteredLeads(filters: {
-    industry?: string;
+    // Basic filters
+    industry?: string[];
+    stateCode?: string[];
+    city?: string[];
+    minQualityScore?: number;
+    maxQualityScore?: number;
+    
+    // Financial filters
     minRevenue?: number;
     maxRevenue?: number;
-    stateCode?: string;
-    minTimeInBusiness?: number;
+    fundingStatus?: string[];
     minCreditScore?: number;
     maxCreditScore?: number;
-    exclusivityStatus?: string;
-    previousMCAHistory?: string;
-    urgencyLevel?: string;
+    
+    // Business filters
+    minTimeInBusiness?: number;
+    maxTimeInBusiness?: number;
+    employeeCount?: string[];
+    businessType?: string[];
+    yearFoundedMin?: number;
+    yearFoundedMax?: number;
+    
+    // Contact filters
+    hasEmail?: boolean;
+    hasPhone?: boolean;
+    ownerName?: string;
+    
+    // Status filters
+    exclusivityStatus?: string[];
+    previousMCAHistory?: string[];
+    urgencyLevel?: string[];
+    leadAgeMin?: number;
+    leadAgeMax?: number;
+    isEnriched?: boolean;
+    sold?: boolean;
+    
+    // Advanced filters
+    naicsCode?: string[];
+    sicCode?: string[];
+    dailyBankDeposits?: boolean;
+    hasWebsite?: boolean;
+    
+    // Pagination and sorting
     limit: number;
-  }): Promise<Lead[]> {
+    offset?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    
+    // Logic operator
+    logicOperator?: 'AND' | 'OR';
+  }): Promise<{ leads: Lead[]; total: number }> {
     const conditions = [];
     
-    if (filters.industry) {
-      conditions.push(eq(leads.industry, filters.industry));
+    // Basic filters
+    if (filters.industry?.length) {
+      conditions.push(inArray(leads.industry, filters.industry));
     }
+    if (filters.stateCode?.length) {
+      conditions.push(inArray(leads.stateCode, filters.stateCode));
+    }
+    if (filters.city?.length) {
+      // Use LIKE for city filtering to be case-insensitive
+      const cityConditions = filters.city.map(city => 
+        like(leads.address, `%${city}%`)
+      );
+      conditions.push(or(...cityConditions));
+    }
+    if (filters.minQualityScore !== undefined) {
+      conditions.push(gte(leads.qualityScore, filters.minQualityScore));
+    }
+    if (filters.maxQualityScore !== undefined) {
+      conditions.push(lte(leads.qualityScore, filters.maxQualityScore));
+    }
+    
+    // Financial filters
     if (filters.minRevenue !== undefined) {
-      conditions.push(gte(leads.annualRevenue, filters.minRevenue));
+      conditions.push(gte(leads.annualRevenue, filters.minRevenue.toString()));
     }
     if (filters.maxRevenue !== undefined) {
-      conditions.push(lte(leads.annualRevenue, filters.maxRevenue));
-    }
-    if (filters.stateCode) {
-      conditions.push(eq(leads.stateCode, filters.stateCode));
+      conditions.push(lte(leads.annualRevenue, filters.maxRevenue.toString()));
     }
     if (filters.minCreditScore !== undefined) {
-      conditions.push(gte(leads.creditScore, filters.minCreditScore));
+      conditions.push(gte(leads.creditScore, filters.minCreditScore.toString()));
     }
     if (filters.maxCreditScore !== undefined) {
-      conditions.push(lte(leads.creditScore, filters.maxCreditScore));
+      conditions.push(lte(leads.creditScore, filters.maxCreditScore.toString()));
     }
     
-    const query = conditions.length > 0 
-      ? db.select().from(leads).where(and(...conditions)).limit(filters.limit)
-      : db.select().from(leads).limit(filters.limit);
+    // Business filters
+    if (filters.minTimeInBusiness !== undefined) {
+      conditions.push(gte(leads.timeInBusiness, filters.minTimeInBusiness.toString()));
+    }
+    if (filters.maxTimeInBusiness !== undefined) {
+      conditions.push(lte(leads.timeInBusiness, filters.maxTimeInBusiness.toString()));
+    }
+    if (filters.employeeCount?.length) {
+      conditions.push(inArray(leads.companySize, filters.employeeCount));
+    }
+    if (filters.yearFoundedMin !== undefined) {
+      conditions.push(gte(leads.yearFounded, filters.yearFoundedMin));
+    }
+    if (filters.yearFoundedMax !== undefined) {
+      conditions.push(lte(leads.yearFounded, filters.yearFoundedMax));
+    }
     
-    return query;
+    // Contact filters
+    if (filters.hasEmail === true) {
+      conditions.push(and(isNotNull(leads.email), ne(leads.email, '')));
+    } else if (filters.hasEmail === false) {
+      conditions.push(or(isNull(leads.email), eq(leads.email, '')));
+    }
+    if (filters.hasPhone === true) {
+      conditions.push(and(isNotNull(leads.phone), ne(leads.phone, '')));
+    } else if (filters.hasPhone === false) {
+      conditions.push(or(isNull(leads.phone), eq(leads.phone, '')));
+    }
+    if (filters.ownerName) {
+      conditions.push(like(leads.ownerName, `%${filters.ownerName}%`));
+    }
+    
+    // Status filters
+    if (filters.exclusivityStatus?.length) {
+      conditions.push(inArray(leads.exclusivityStatus, filters.exclusivityStatus));
+    }
+    if (filters.previousMCAHistory?.length) {
+      conditions.push(inArray(leads.previousMCAHistory, filters.previousMCAHistory));
+    }
+    if (filters.urgencyLevel?.length) {
+      conditions.push(inArray(leads.urgencyLevel, filters.urgencyLevel));
+    }
+    if (filters.leadAgeMin !== undefined) {
+      conditions.push(gte(leads.leadAge, filters.leadAgeMin));
+    }
+    if (filters.leadAgeMax !== undefined) {
+      conditions.push(lte(leads.leadAge, filters.leadAgeMax));
+    }
+    if (filters.isEnriched !== undefined) {
+      conditions.push(eq(leads.isEnriched, filters.isEnriched));
+    }
+    if (filters.sold !== undefined) {
+      conditions.push(eq(leads.sold, filters.sold));
+    }
+    
+    // Advanced filters
+    if (filters.naicsCode?.length) {
+      conditions.push(inArray(leads.naicsCode, filters.naicsCode));
+    }
+    if (filters.dailyBankDeposits !== undefined) {
+      conditions.push(eq(leads.dailyBankDeposits, filters.dailyBankDeposits));
+    }
+    if (filters.hasWebsite === true) {
+      conditions.push(and(isNotNull(leads.websiteUrl), ne(leads.websiteUrl, '')));
+    } else if (filters.hasWebsite === false) {
+      conditions.push(or(isNull(leads.websiteUrl), eq(leads.websiteUrl, '')));
+    }
+    
+    // Build where clause with AND/OR logic
+    const whereClause = conditions.length > 0 
+      ? (filters.logicOperator === 'OR' ? or(...conditions) : and(...conditions))
+      : undefined;
+    
+    // Build sort order
+    const sortColumn = filters.sortBy ? (leads as any)[filters.sortBy] : leads.createdAt;
+    const sortDirection = filters.sortOrder === 'asc' ? asc : desc;
+    
+    // Get total count
+    const countQuery = await db.select({ count: sql<number>`count(*)` })
+      .from(leads)
+      .where(whereClause);
+    const total = countQuery[0]?.count || 0;
+    
+    // Get paginated results
+    let query = db.select().from(leads).where(whereClause);
+    
+    query = query.orderBy(sortDirection(sortColumn));
+    query = query.limit(filters.limit);
+    
+    if (filters.offset !== undefined) {
+      query = query.offset(filters.offset);
+    }
+    
+    const leadsResult = await query;
+    
+    return { leads: leadsResult, total };
+  }
+  
+  // Saved searches operations
+  async createSavedSearch(search: InsertSavedSearch): Promise<SavedSearch> {
+    const result = await db.insert(savedSearches).values(search).returning();
+    return result[0];
+  }
+  
+  async getSavedSearch(id: string): Promise<SavedSearch | undefined> {
+    const result = await db.select().from(savedSearches).where(eq(savedSearches.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getSavedSearchesByUserId(userId: string): Promise<SavedSearch[]> {
+    return db.select().from(savedSearches)
+      .where(eq(savedSearches.userId, userId))
+      .orderBy(desc(savedSearches.lastUsedAt), desc(savedSearches.createdAt));
+  }
+  
+  async updateSavedSearch(id: string, data: Partial<InsertSavedSearch>): Promise<SavedSearch | undefined> {
+    const result = await db.update(savedSearches)
+      .set(data)
+      .where(eq(savedSearches.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteSavedSearch(id: string): Promise<void> {
+    await db.delete(savedSearches).where(eq(savedSearches.id, id));
+  }
+  
+  async setDefaultSearch(userId: string, searchId: string): Promise<void> {
+    // First, unset all defaults for this user
+    await db.update(savedSearches)
+      .set({ isDefault: false })
+      .where(eq(savedSearches.userId, userId));
+    
+    // Then set the new default
+    await db.update(savedSearches)
+      .set({ isDefault: true })
+      .where(and(
+        eq(savedSearches.id, searchId),
+        eq(savedSearches.userId, userId)
+      ));
+  }
+  
+  async updateSearchLastUsed(id: string): Promise<void> {
+    await db.update(savedSearches)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(savedSearches.id, id));
   }
 
   // Contact submission operations

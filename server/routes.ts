@@ -1754,6 +1754,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Comprehensive lead search endpoint with 20+ filter criteria
+  app.get("/api/leads", requireAuth, async (req, res) => {
+    try {
+      const filters = {
+        // Basic filters
+        industry: req.query.industry ? (req.query.industry as string).split(',') : undefined,
+        stateCode: req.query.stateCode ? (req.query.stateCode as string).split(',') : undefined,
+        city: req.query.city ? (req.query.city as string).split(',') : undefined,
+        minQualityScore: req.query.minQualityScore ? Number(req.query.minQualityScore) : undefined,
+        maxQualityScore: req.query.maxQualityScore ? Number(req.query.maxQualityScore) : undefined,
+        
+        // Financial filters
+        minRevenue: req.query.minRevenue ? Number(req.query.minRevenue) : undefined,
+        maxRevenue: req.query.maxRevenue ? Number(req.query.maxRevenue) : undefined,
+        fundingStatus: req.query.fundingStatus ? (req.query.fundingStatus as string).split(',') : undefined,
+        minCreditScore: req.query.minCreditScore ? Number(req.query.minCreditScore) : undefined,
+        maxCreditScore: req.query.maxCreditScore ? Number(req.query.maxCreditScore) : undefined,
+        
+        // Business filters
+        minTimeInBusiness: req.query.minTimeInBusiness ? Number(req.query.minTimeInBusiness) : undefined,
+        maxTimeInBusiness: req.query.maxTimeInBusiness ? Number(req.query.maxTimeInBusiness) : undefined,
+        employeeCount: req.query.employeeCount ? (req.query.employeeCount as string).split(',') : undefined,
+        businessType: req.query.businessType ? (req.query.businessType as string).split(',') : undefined,
+        yearFoundedMin: req.query.yearFoundedMin ? Number(req.query.yearFoundedMin) : undefined,
+        yearFoundedMax: req.query.yearFoundedMax ? Number(req.query.yearFoundedMax) : undefined,
+        
+        // Contact filters
+        hasEmail: req.query.hasEmail ? req.query.hasEmail === 'true' : undefined,
+        hasPhone: req.query.hasPhone ? req.query.hasPhone === 'true' : undefined,
+        ownerName: req.query.ownerName as string | undefined,
+        
+        // Status filters
+        exclusivityStatus: req.query.exclusivityStatus ? (req.query.exclusivityStatus as string).split(',') : undefined,
+        previousMCAHistory: req.query.previousMCAHistory ? (req.query.previousMCAHistory as string).split(',') : undefined,
+        urgencyLevel: req.query.urgencyLevel ? (req.query.urgencyLevel as string).split(',') : undefined,
+        leadAgeMin: req.query.leadAgeMin ? Number(req.query.leadAgeMin) : undefined,
+        leadAgeMax: req.query.leadAgeMax ? Number(req.query.leadAgeMax) : undefined,
+        isEnriched: req.query.isEnriched ? req.query.isEnriched === 'true' : undefined,
+        sold: req.query.sold ? req.query.sold === 'true' : undefined,
+        
+        // Advanced filters
+        naicsCode: req.query.naicsCode ? (req.query.naicsCode as string).split(',') : undefined,
+        sicCode: req.query.sicCode ? (req.query.sicCode as string).split(',') : undefined,
+        dailyBankDeposits: req.query.dailyBankDeposits ? req.query.dailyBankDeposits === 'true' : undefined,
+        hasWebsite: req.query.hasWebsite ? req.query.hasWebsite === 'true' : undefined,
+        
+        // Pagination and sorting
+        limit: req.query.limit ? Number(req.query.limit) : 50,
+        offset: req.query.offset ? Number(req.query.offset) : 0,
+        sortBy: req.query.sortBy as string | undefined,
+        sortOrder: (req.query.sortOrder as 'asc' | 'desc') || 'desc',
+        
+        // Logic operator
+        logicOperator: (req.query.logicOperator as 'AND' | 'OR') || 'AND',
+      };
+      
+      const result = await storage.getFilteredLeads(filters);
+      
+      // Track saved search usage if search ID provided
+      const searchId = req.query.searchId as string;
+      if (searchId) {
+        await storage.updateSearchLastUsed(searchId);
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Lead search error:', error);
+      res.status(500).json({ error: "Failed to search leads" });
+    }
+  });
+
+  // Saved searches endpoints
+  app.get("/api/saved-searches", requireAuth, async (req, res) => {
+    try {
+      const searches = await storage.getSavedSearchesByUserId(req.session.userId!);
+      res.json(searches);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch saved searches" });
+    }
+  });
+
+  app.get("/api/saved-searches/:id", requireAuth, async (req, res) => {
+    try {
+      const search = await storage.getSavedSearch(req.params.id);
+      if (!search || search.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Search not found" });
+      }
+      res.json(search);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch saved search" });
+    }
+  });
+
+  app.post("/api/saved-searches", requireAuth, async (req, res) => {
+    try {
+      const { searchName, filters, isDefault, sortBy, sortOrder } = req.body;
+      
+      const search = await storage.createSavedSearch({
+        userId: req.session.userId!,
+        searchName,
+        filters,
+        isDefault: isDefault || false,
+        sortBy,
+        sortOrder
+      });
+      
+      if (isDefault) {
+        await storage.setDefaultSearch(req.session.userId!, search.id);
+      }
+      
+      res.json(search);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to save search" });
+    }
+  });
+
+  app.put("/api/saved-searches/:id", requireAuth, async (req, res) => {
+    try {
+      const search = await storage.getSavedSearch(req.params.id);
+      if (!search || search.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Search not found" });
+      }
+      
+      const { searchName, filters, isDefault, sortBy, sortOrder } = req.body;
+      const updated = await storage.updateSavedSearch(req.params.id, {
+        searchName,
+        filters,
+        isDefault,
+        sortBy,
+        sortOrder
+      });
+      
+      if (isDefault) {
+        await storage.setDefaultSearch(req.session.userId!, req.params.id);
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update search" });
+    }
+  });
+
+  app.delete("/api/saved-searches/:id", requireAuth, async (req, res) => {
+    try {
+      const search = await storage.getSavedSearch(req.params.id);
+      if (!search || search.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Search not found" });
+      }
+      
+      await storage.deleteSavedSearch(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete search" });
+    }
+  });
+
+  app.post("/api/saved-searches/:id/set-default", requireAuth, async (req, res) => {
+    try {
+      const search = await storage.getSavedSearch(req.params.id);
+      if (!search || search.userId !== req.session.userId) {
+        return res.status(404).json({ error: "Search not found" });
+      }
+      
+      await storage.setDefaultSearch(req.session.userId!, req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to set default search" });
+    }
+  });
+
   // AI analysis for individual lead
   app.post("/api/leads/:leadId/analyze", requireAuth, requireAdmin, async (req, res) => {
     try {
