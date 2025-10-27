@@ -55,7 +55,7 @@ import { Badge } from "@/components/ui/badge";
 // Alert Indicator Component
 function AlertIndicator() {
   const [location, setLocation] = useLocation();
-  const { data: unviewedCount } = useQuery({
+  const { data: unviewedCount } = useQuery<{ count: number }>({
     queryKey: ["/api/alerts/unviewed/count"],
     refetchInterval: 30000, // Check every 30 seconds
     enabled: !!queryClient.getQueryData(["/api/auth/me"]), // Only run if user is authenticated

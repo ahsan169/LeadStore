@@ -97,26 +97,46 @@ class GoogleDriveService {
    * Extract file ID from various Google Drive URL formats
    */
   extractFileId(urlOrId: string): string | null {
-    // If it's already just an ID (no slashes or URL parts)
-    if (!urlOrId.includes('/') && !urlOrId.includes('\\')) {
-      return urlOrId;
+    // Clean up the URL (remove whitespace, etc.)
+    const cleanUrl = urlOrId.trim();
+    
+    // If it's already just an ID (typically 33+ characters, alphanumeric with dashes/underscores)
+    if (/^[a-zA-Z0-9-_]{20,}$/.test(cleanUrl)) {
+      return cleanUrl;
     }
 
-    // Try different URL patterns
+    // Try different URL patterns (expanded to handle more formats)
     const patterns = [
-      /\/file\/d\/([a-zA-Z0-9-_]+)/,  // https://drive.google.com/file/d/FILE_ID/view
-      /\/open\?id=([a-zA-Z0-9-_]+)/,   // https://drive.google.com/open?id=FILE_ID
-      /\/uc\?id=([a-zA-Z0-9-_]+)/,     // https://drive.google.com/uc?id=FILE_ID
-      /^([a-zA-Z0-9-_]+)$/              // Just the ID
+      // Standard file share links
+      /\/file\/d\/([a-zA-Z0-9-_]+)/,              // https://drive.google.com/file/d/FILE_ID/view
+      /\/folders\/([a-zA-Z0-9-_]+)/,              // https://drive.google.com/drive/folders/FILE_ID
+      /\/open\?id=([a-zA-Z0-9-_]+)/,              // https://drive.google.com/open?id=FILE_ID
+      /\/uc\?id=([a-zA-Z0-9-_]+)/,                // https://drive.google.com/uc?id=FILE_ID
+      /\/d\/([a-zA-Z0-9-_]+)/,                    // https://drive.google.com/d/FILE_ID
+      /[?&]id=([a-zA-Z0-9-_]+)/,                  // Any URL with ?id= or &id= parameter
+      /export=download&id=([a-zA-Z0-9-_]+)/,      // Download links
+      /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/,      // Google Sheets links
+      /\/document\/d\/([a-zA-Z0-9-_]+)/,          // Google Docs links
+      /\/presentation\/d\/([a-zA-Z0-9-_]+)/,      // Google Slides links
+      /\/drive\/.*[/#]([a-zA-Z0-9-_]{20,})/,      // Generic drive links with file ID
     ];
 
     for (const pattern of patterns) {
-      const match = urlOrId.match(pattern);
-      if (match) {
+      const match = cleanUrl.match(pattern);
+      if (match && match[1]) {
+        console.log(`Extracted file ID: ${match[1]} from URL using pattern: ${pattern}`);
         return match[1];
       }
     }
 
+    // Last resort: try to find any 20+ character alphanumeric string that looks like a file ID
+    const possibleIdMatch = cleanUrl.match(/([a-zA-Z0-9-_]{20,})/);
+    if (possibleIdMatch) {
+      console.log(`Extracted possible file ID: ${possibleIdMatch[1]} from URL`);
+      return possibleIdMatch[1];
+    }
+
+    console.log(`Failed to extract file ID from URL: ${cleanUrl}`);
     return null;
   }
 

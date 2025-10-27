@@ -2086,7 +2086,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!fileId) {
         return res.status(400).json({ 
           error: "Invalid Google Drive link",
-          details: "Please provide a valid Google Drive sharing link"
+          details: "Please provide a valid Google Drive sharing link. Supported formats:\n" +
+                   "• https://drive.google.com/file/d/FILE_ID/view\n" +
+                   "• https://drive.google.com/open?id=FILE_ID\n" +
+                   "• https://docs.google.com/spreadsheets/d/FILE_ID\n" +
+                   "• Or just paste the file ID directly",
+          providedLink: driveLink.substring(0, 100) // Show part of what they provided for debugging
         });
       }
 
