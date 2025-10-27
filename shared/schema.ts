@@ -105,6 +105,11 @@ export const purchases = pgTable("purchases", {
   totalRevenue: decimal("total_revenue", { precision: 12, scale: 2 }).notNull().default("0"),
   roi: decimal("roi", { precision: 10, scale: 2 }), // ROI percentage
   
+  // Quality guarantee fields
+  guaranteeExpiresAt: timestamp("guarantee_expires_at"), // 30 days from purchase
+  totalReplacements: integer("total_replacements").notNull().default(0),
+  replacementCredits: integer("replacement_credits").notNull().default(0),
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -388,6 +393,33 @@ export const savedSearches = pgTable("saved_searches", {
   lastUsedAt: timestamp("last_used_at"),
 });
 
+// Quality Guarantee table for lead replacement system
+export const qualityGuarantee = pgTable("quality_guarantee", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  purchaseId: varchar("purchase_id").references(() => purchases.id).notNull(),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  
+  // Issue details
+  issueType: text("issue_type").notNull(), // 'disconnected', 'wrong_number', 'duplicate', 'poor_quality'
+  issueDescription: text("issue_description").notNull(),
+  evidenceData: jsonb("evidence_data"), // Optional evidence files/screenshots
+  
+  // Status tracking
+  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'rejected', 'replaced'
+  
+  // Resolution details
+  replacementLeadId: varchar("replacement_lead_id").references(() => leads.id),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  resolutionNotes: text("resolution_notes"),
+  
+  // Timestamps
+  reportedAt: timestamp("reported_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -575,6 +607,17 @@ export const insertAlertHistorySchema = createInsertSchema(alertHistory).omit({
   notificationSent: z.boolean().default(false),
 });
 
+export const insertQualityGuaranteeSchema = createInsertSchema(qualityGuarantee).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  reportedAt: true,
+}).extend({
+  issueType: z.enum(["disconnected", "wrong_number", "duplicate", "poor_quality"]),
+  status: z.enum(["pending", "approved", "rejected", "replaced"]).default("pending"),
+  issueDescription: z.string().min(10).max(1000),
+});
+
 export const insertLeadEnrichmentSchema = createInsertSchema(leadEnrichment).omit({
   id: true,
   enrichedAt: true,
@@ -712,3 +755,6 @@ export type LeadEnrichment = typeof leadEnrichment.$inferSelect;
 
 export type InsertSavedSearch = z.infer<typeof insertSavedSearchSchema>;
 export type SavedSearch = typeof savedSearches.$inferSelect;
+
+export type InsertQualityGuarantee = z.infer<typeof insertQualityGuaranteeSchema>;
+export type QualityGuarantee = typeof qualityGuarantee.$inferSelect;

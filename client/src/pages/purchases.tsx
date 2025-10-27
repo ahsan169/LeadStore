@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Send, Link2, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Download, FileText, Send, Link2, Loader2, CheckCircle, AlertCircle, ShieldAlert, ShieldCheck, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { useLocation } from "wouter";
+import { QualityGuaranteeModal } from "@/components/modals/QualityGuaranteeModal";
 
 export default function PurchasesPage() {
   const { toast } = useToast();
@@ -21,6 +22,8 @@ export default function PurchasesPage() {
   const [selectedPurchase, setSelectedPurchase] = useState<any>(null);
   const [selectedIntegration, setSelectedIntegration] = useState("");
   const [exportProgress, setExportProgress] = useState(0);
+  const [qualityModalOpen, setQualityModalOpen] = useState(false);
+  const [qualityReportPurchase, setQualityReportPurchase] = useState<any>(null);
 
   const { data: purchases, isLoading } = useQuery({
     queryKey: ["/api/purchases"],
@@ -117,6 +120,11 @@ export default function PurchasesPage() {
     });
   };
 
+  const handleReportIssue = (purchase: any) => {
+    setQualityReportPurchase(purchase);
+    setQualityModalOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -209,10 +217,33 @@ export default function PurchasesPage() {
                             </span>
                           </div>
                         )}
+                        {purchase.paymentStatus === 'succeeded' && (
+                          <div className="text-sm flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-green-500" />
+                            <span className="text-muted-foreground">Quality Guarantee:</span>{" "}
+                            {(() => {
+                              const guaranteeExpiry = purchase.guaranteeExpiresAt
+                                ? new Date(purchase.guaranteeExpiresAt)
+                                : new Date(new Date(purchase.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000);
+                              const isExpired = new Date() > guaranteeExpiry;
+                              const daysRemaining = Math.max(0, Math.ceil((guaranteeExpiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+                              
+                              if (isExpired) {
+                                return <Badge variant="secondary">Expired</Badge>;
+                              } else {
+                                return (
+                                  <Badge variant={daysRemaining > 7 ? "default" : "destructive"}>
+                                    {daysRemaining} days left
+                                  </Badge>
+                                );
+                              }
+                            })()}
+                          </div>
+                        )}
                       </div>
                       
                       {purchase.paymentStatus === 'succeeded' && (
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             variant="outline"
                             onClick={() => downloadMutation.mutate(purchase.id)}
@@ -228,6 +259,14 @@ export default function PurchasesPage() {
                           >
                             <Send className="w-4 h-4 mr-2" />
                             Export to CRM
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleReportIssue(purchase)}
+                            data-testid={`button-report-issue-${purchase.id}`}
+                          >
+                            <ShieldAlert className="w-4 h-4 mr-2" />
+                            Report Issue
                           </Button>
                         </div>
                       )}
@@ -358,6 +397,15 @@ export default function PurchasesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Quality Guarantee Modal */}
+      {qualityReportPurchase && (
+        <QualityGuaranteeModal
+          open={qualityModalOpen}
+          onOpenChange={setQualityModalOpen}
+          purchase={qualityReportPurchase}
+        />
+      )}
     </div>
   );
 }

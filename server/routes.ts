@@ -29,7 +29,8 @@ import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
 import { WebSocketServer, WebSocket } from 'ws';
 import { leadAlertService, addAlertClient } from "./services/lead-alerts";
 import { leadEnrichmentService } from "./services/lead-enrichment";
-import { insertLeadAlertSchema } from "@shared/schema";
+import { qualityGuaranteeService } from "./services/quality-guarantee";
+import { insertLeadAlertSchema, insertQualityGuaranteeSchema } from "@shared/schema";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -2350,6 +2351,199 @@ Format your response as JSON with the following structure:
     } catch (error) {
       console.error("Download URL generation error:", error);
       res.status(500).json({ error: "Failed to generate download URL" });
+    }
+  });
+
+  // Quality Guarantee API endpoints
+  
+  // POST /api/guarantee/report - Report a quality issue
+  app.post("/api/guarantee/report", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertQualityGuaranteeSchema.parse({
+        ...req.body,
+        userId: req.user!.id,
+      });
+
+      // Report the issue using the service
+      const report = await qualityGuaranteeService.reportIssue(validatedData);
+      
+      // Update guarantee expiry if not set
+      await qualityGuaranteeService.updateGuaranteeExpiry(validatedData.purchaseId);
+
+      res.json(report);
+    } catch (error: any) {
+      console.error("Quality guarantee report error:", error);
+      res.status(400).json({ 
+        error: error.message || "Failed to submit quality report" 
+      });
+    }
+  });
+
+  // GET /api/guarantee/reports - List user's reports
+  app.get("/api/guarantee/reports", requireAuth, async (req, res) => {
+    try {
+      const { purchaseId, status } = req.query;
+      
+      let reports;
+      if (req.user!.role === "admin") {
+        // Admin can see all reports
+        reports = await storage.getAllQualityGuarantees(status as string);
+      } else {
+        // Users only see their own reports
+        reports = await storage.getQualityGuaranteesByUserId(req.user!.id);
+        
+        // Filter by purchase if specified
+        if (purchaseId) {
+          reports = reports.filter(r => r.purchaseId === purchaseId);
+        }
+        
+        // Filter by status if specified
+        if (status) {
+          reports = reports.filter(r => r.status === status);
+        }
+      }
+
+      res.json(reports);
+    } catch (error) {
+      console.error("Failed to fetch quality reports:", error);
+      res.status(500).json({ error: "Failed to fetch quality reports" });
+    }
+  });
+
+  // GET /api/guarantee/reports/:id - Get specific report
+  app.get("/api/guarantee/reports/:id", requireAuth, async (req, res) => {
+    try {
+      const report = await storage.getQualityGuaranteeById(req.params.id);
+      
+      if (!report) {
+        return res.status(404).json({ error: "Report not found" });
+      }
+
+      // Check permissions
+      if (req.user!.role !== "admin" && report.userId !== req.user!.id) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      res.json(report);
+    } catch (error) {
+      console.error("Failed to fetch quality report:", error);
+      res.status(500).json({ error: "Failed to fetch quality report" });
+    }
+  });
+
+  // PUT /api/guarantee/reports/:id/resolve - Admin resolves issue
+  app.put("/api/guarantee/reports/:id/resolve", requireAdmin, async (req, res) => {
+    try {
+      const { status, replacementLeadId, notes } = req.body;
+      const reportId = req.params.id;
+
+      if (!['approved', 'rejected', 'replaced'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+
+      const report = await storage.getQualityGuaranteeById(reportId);
+      if (!report) {
+        return res.status(404).json({ error: "Report not found" });
+      }
+
+      let updatedReport;
+      
+      if (status === 'replaced' && replacementLeadId) {
+        // Process replacement
+        updatedReport = await qualityGuaranteeService.processReplacement(
+          reportId,
+          replacementLeadId,
+          notes
+        );
+      } else if (status === 'approved' && !replacementLeadId) {
+        // Issue credits instead of replacement
+        const purchase = await storage.getPurchase(report.purchaseId);
+        if (purchase) {
+          const creditAmount = Math.floor((purchase.totalAmount as any) / purchase.leadCount);
+          updatedReport = await qualityGuaranteeService.issueCredits(reportId, creditAmount);
+        } else {
+          updatedReport = await storage.resolveQualityGuarantee(
+            reportId,
+            status,
+            undefined,
+            notes,
+            req.user!.id
+          );
+        }
+      } else {
+        // Simple status update
+        updatedReport = await storage.resolveQualityGuarantee(
+          reportId,
+          status,
+          replacementLeadId,
+          notes,
+          req.user!.id
+        );
+      }
+
+      res.json(updatedReport);
+    } catch (error: any) {
+      console.error("Failed to resolve quality report:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to resolve quality report" 
+      });
+    }
+  });
+
+  // GET /api/guarantee/stats - Guarantee statistics
+  app.get("/api/guarantee/stats", requireAuth, async (req, res) => {
+    try {
+      if (req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const stats = await qualityGuaranteeService.getGuaranteeStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to fetch guarantee stats:", error);
+      res.status(500).json({ error: "Failed to fetch guarantee statistics" });
+    }
+  });
+
+  // POST /api/guarantee/validate-phone - Validate phone numbers
+  app.post("/api/guarantee/validate-phone", requireAuth, async (req, res) => {
+    try {
+      const { phone } = req.body;
+      
+      if (!phone) {
+        return res.status(400).json({ error: "Phone number required" });
+      }
+
+      const validation = await qualityGuaranteeService.phoneValidationService.validatePhone(phone);
+      const isDisconnected = await qualityGuaranteeService.phoneValidationService.checkDisconnected(phone);
+
+      res.json({
+        phone,
+        valid: validation.valid,
+        issues: validation.issues,
+        disconnected: isDisconnected
+      });
+    } catch (error) {
+      console.error("Phone validation error:", error);
+      res.status(500).json({ error: "Failed to validate phone number" });
+    }
+  });
+
+  // GET /api/guarantee/replacement-leads/:purchaseId - Find replacement leads
+  app.get("/api/guarantee/replacement-leads/:purchaseId", requireAdmin, async (req, res) => {
+    try {
+      const purchase = await storage.getPurchase(req.params.purchaseId);
+      if (!purchase) {
+        return res.status(404).json({ error: "Purchase not found" });
+      }
+
+      // Get available replacement leads
+      const availableLeads = await storage.getAvailableLeadsByTier(purchase.tier, 10);
+      
+      res.json(availableLeads);
+    } catch (error) {
+      console.error("Failed to find replacement leads:", error);
+      res.status(500).json({ error: "Failed to find replacement leads" });
     }
   });
 

@@ -22,11 +22,13 @@ import ManageLeadsPage from "@/pages/admin/manage-leads";
 import CustomersPage from "@/pages/admin/customers";
 import TiersPage from "@/pages/admin/tiers";
 import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
+import ManageGuaranteesPage from "@/pages/admin/manage-guarantees";
 import AnalyticsPage from "@/pages/analytics";
 import IntegrationsPage from "@/pages/integrations";
 import AlertsPage from "@/pages/alerts";
 import LeadsPage from "@/pages/leads";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search } from "lucide-react";
+import GuaranteeReportsPage from "@/pages/guarantee-reports";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -99,6 +101,7 @@ function AppSidebar() {
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
+    { title: "Quality Guarantee", url: "/guarantee-reports", icon: ShieldCheck },
     { title: "Alerts", url: "/alerts", icon: Bell },
     { title: "Integrations", url: "/integrations", icon: Link2 },
   ];
@@ -109,6 +112,7 @@ function AppSidebar() {
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Upload Leads", url: "/admin/upload", icon: Upload },
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
+    { title: "Quality Guarantees", url: "/admin/manage-guarantees", icon: ShieldCheck },
     { title: "Pricing Tiers", url: "/admin/tiers", icon: Tags },
     { title: "Customers", url: "/admin/customers", icon: Users },
     { title: "Contact Forms", url: "/admin/contact-submissions", icon: MessageSquare },
@@ -236,6 +240,7 @@ function Router() {
               <Route path="/pricing" component={PricingPage} />
               <Route path="/purchase" component={PurchaseFlowPage} />
               <Route path="/purchases" component={PurchasesPage} />
+              <Route path="/guarantee-reports" component={GuaranteeReportsPage} />
               <Route path="/alerts" component={AlertsPage} />
               <Route path="/integrations" component={IntegrationsPage} />
               <Route path="/purchase/:tier" component={PurchaseTierPage} />
@@ -249,6 +254,7 @@ function Router() {
                   <Route path="/admin/upload" component={UploadLeadsPage} />
                   <Route path="/admin/verify-leads" component={VerifyLeadsPage} />
                   <Route path="/admin/leads" component={ManageLeadsPage} />
+                  <Route path="/admin/manage-guarantees" component={ManageGuaranteesPage} />
                   <Route path="/admin/tiers" component={TiersPage} />
                   <Route path="/admin/customers" component={CustomersPage} />
                   <Route path="/admin/contact-submissions" component={ContactSubmissionsPage} />

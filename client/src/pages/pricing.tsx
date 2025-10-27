@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Clock, Award, FileCheck, Waves, Droplets, CheckCircle2 } from "lucide-react";
+import { Shield, Clock, Award, FileCheck, Waves, Droplets, CheckCircle2, ShieldCheck } from "lucide-react";
 import type { ProductTier } from "@shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 import { InteractiveTooltip, DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
@@ -90,6 +90,18 @@ export default function PricingPage() {
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
               Access verified, high-quality MCA leads with transparent pricing and guaranteed delivery
             </p>
+            
+            {/* 30-Day Guarantee Badge */}
+            <div className="flex justify-center pt-4">
+              <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-2 border-green-500/20 rounded-full shadow-lg">
+                <ShieldCheck className="w-6 h-6 text-green-500" />
+                <div className="text-left">
+                  <p className="font-bold text-green-600">30-Day Quality Guarantee</p>
+                  <p className="text-xs text-muted-foreground">Report issues & get replacement leads</p>
+                </div>
+              </div>
+            </div>
+            
             <div className="flex items-center justify-center gap-2 text-primary/60 pt-2">
               <div className="h-px bg-primary/20 w-16"></div>
               <Droplets className="w-5 h-5" />

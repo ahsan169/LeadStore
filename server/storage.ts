@@ -47,6 +47,8 @@ import {
   type InsertLeadEnrichment,
   type SavedSearch,
   type InsertSavedSearch,
+  type QualityGuarantee,
+  type InsertQualityGuarantee,
   users,
   subscriptions,
   leadBatches,
@@ -70,6 +72,7 @@ import {
   alertHistory,
   leadEnrichment,
   savedSearches,
+  qualityGuarantee,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -255,6 +258,23 @@ export interface IStorage {
   createContactSubmission(submission: InsertContactSubmission): Promise<ContactSubmission>;
   getContactSubmissions(): Promise<ContactSubmission[]>;
   updateContactSubmissionStatus(id: string, status: string): Promise<ContactSubmission | undefined>;
+  
+  // Quality Guarantee operations
+  createQualityGuarantee(guarantee: InsertQualityGuarantee): Promise<QualityGuarantee>;
+  getQualityGuaranteeById(id: string): Promise<QualityGuarantee | undefined>;
+  getQualityGuaranteesByPurchaseId(purchaseId: string): Promise<QualityGuarantee[]>;
+  getQualityGuaranteesByUserId(userId: string): Promise<QualityGuarantee[]>;
+  getAllQualityGuarantees(status?: string): Promise<QualityGuarantee[]>;
+  updateQualityGuarantee(id: string, data: Partial<InsertQualityGuarantee>): Promise<QualityGuarantee | undefined>;
+  resolveQualityGuarantee(id: string, status: string, replacementLeadId?: string, notes?: string, resolvedBy?: string): Promise<QualityGuarantee | undefined>;
+  getQualityGuaranteeStats(): Promise<{
+    totalReports: number;
+    pendingReports: number;
+    approvedReports: number;
+    rejectedReports: number;
+    replacedReports: number;
+    averageResolutionTime: number;
+  }>;
   
   // Verification session operations
   createVerificationSession(session: InsertVerificationSession): Promise<VerificationSession>;
@@ -1054,6 +1074,105 @@ export class DbStorage implements IStorage {
       .where(eq(contactSubmissions.id, id))
       .returning();
     return result[0];
+  }
+
+  // Quality Guarantee operations
+  async createQualityGuarantee(guarantee: InsertQualityGuarantee): Promise<QualityGuarantee> {
+    const result = await db.insert(qualityGuarantee).values(guarantee).returning();
+    return result[0];
+  }
+
+  async getQualityGuaranteeById(id: string): Promise<QualityGuarantee | undefined> {
+    const result = await db.select().from(qualityGuarantee).where(eq(qualityGuarantee.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getQualityGuaranteesByPurchaseId(purchaseId: string): Promise<QualityGuarantee[]> {
+    return db.select().from(qualityGuarantee)
+      .where(eq(qualityGuarantee.purchaseId, purchaseId))
+      .orderBy(desc(qualityGuarantee.reportedAt));
+  }
+
+  async getQualityGuaranteesByUserId(userId: string): Promise<QualityGuarantee[]> {
+    return db.select().from(qualityGuarantee)
+      .where(eq(qualityGuarantee.userId, userId))
+      .orderBy(desc(qualityGuarantee.reportedAt));
+  }
+
+  async getAllQualityGuarantees(status?: string): Promise<QualityGuarantee[]> {
+    if (status) {
+      return db.select().from(qualityGuarantee)
+        .where(eq(qualityGuarantee.status, status))
+        .orderBy(desc(qualityGuarantee.reportedAt));
+    }
+    return db.select().from(qualityGuarantee)
+      .orderBy(desc(qualityGuarantee.reportedAt));
+  }
+
+  async updateQualityGuarantee(id: string, data: Partial<InsertQualityGuarantee>): Promise<QualityGuarantee | undefined> {
+    const result = await db.update(qualityGuarantee)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(qualityGuarantee.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async resolveQualityGuarantee(
+    id: string, 
+    status: string, 
+    replacementLeadId?: string, 
+    notes?: string, 
+    resolvedBy?: string
+  ): Promise<QualityGuarantee | undefined> {
+    const updateData: any = {
+      status,
+      resolvedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    if (replacementLeadId) updateData.replacementLeadId = replacementLeadId;
+    if (notes) updateData.resolutionNotes = notes;
+    if (resolvedBy) updateData.resolvedBy = resolvedBy;
+
+    const result = await db.update(qualityGuarantee)
+      .set(updateData)
+      .where(eq(qualityGuarantee.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getQualityGuaranteeStats(): Promise<{
+    totalReports: number;
+    pendingReports: number;
+    approvedReports: number;
+    rejectedReports: number;
+    replacedReports: number;
+    averageResolutionTime: number;
+  }> {
+    const reports = await db.select().from(qualityGuarantee);
+    const pendingReports = reports.filter(r => r.status === 'pending').length;
+    const approvedReports = reports.filter(r => r.status === 'approved').length;
+    const rejectedReports = reports.filter(r => r.status === 'rejected').length;
+    const replacedReports = reports.filter(r => r.status === 'replaced').length;
+
+    // Calculate average resolution time for resolved reports
+    const resolvedReports = reports.filter(r => r.resolvedAt && r.reportedAt);
+    let averageResolutionTime = 0;
+    if (resolvedReports.length > 0) {
+      const totalTime = resolvedReports.reduce((sum, report) => {
+        const timeDiff = new Date(report.resolvedAt!).getTime() - new Date(report.reportedAt).getTime();
+        return sum + timeDiff;
+      }, 0);
+      averageResolutionTime = totalTime / resolvedReports.length / (1000 * 60 * 60); // Convert to hours
+    }
+
+    return {
+      totalReports: reports.length,
+      pendingReports,
+      approvedReports,
+      rejectedReports,
+      replacedReports,
+      averageResolutionTime,
+    };
   }
 
   // Verification session operations
