@@ -23,12 +23,13 @@ import CustomersPage from "@/pages/admin/customers";
 import TiersPage from "@/pages/admin/tiers";
 import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
 import ManageGuaranteesPage from "@/pages/admin/manage-guarantees";
+import BulkManagementPage from "@/pages/admin/bulk-management";
 import AnalyticsPage from "@/pages/analytics";
 import IntegrationsPage from "@/pages/integrations";
 import AlertsPage from "@/pages/alerts";
 import LeadsPage from "@/pages/leads";
 import GuaranteeReportsPage from "@/pages/guarantee-reports";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck } from "lucide-react";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -114,6 +115,7 @@ function AppSidebar() {
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
     { title: "Quality Guarantees", url: "/admin/manage-guarantees", icon: ShieldCheck },
     { title: "Pricing Tiers", url: "/admin/tiers", icon: Tags },
+    { title: "Bulk Operations", url: "/admin/bulk-management", icon: Calculator },
     { title: "Customers", url: "/admin/customers", icon: Users },
     { title: "Contact Forms", url: "/admin/contact-submissions", icon: MessageSquare },
   ];
@@ -258,6 +260,7 @@ function Router() {
                   <Route path="/admin/tiers" component={TiersPage} />
                   <Route path="/admin/customers" component={CustomersPage} />
                   <Route path="/admin/contact-submissions" component={ContactSubmissionsPage} />
+                  <Route path="/admin/bulk-management" component={BulkManagementPage} />
                 </>
               )}
 

@@ -4,16 +4,23 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Clock, Award, FileCheck, Waves, Droplets, CheckCircle2, ShieldCheck } from "lucide-react";
+import { Shield, Clock, Award, FileCheck, Waves, Droplets, CheckCircle2, ShieldCheck, Package, Calculator } from "lucide-react";
 import type { ProductTier } from "@shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 import { InteractiveTooltip, DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
 import { VisitorCounter, StockIndicator } from "@/components/engagement/TrustIndicators";
 import { ContactModal } from "@/components/modals/ContactModal";
+import { BulkDiscountCalculator } from "@/components/BulkDiscountCalculator";
+import { BulkPurchaseDialog } from "@/components/BulkPurchaseDialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
   const [showContactModal, setShowContactModal] = useState(false);
+  const [showBulkPurchase, setShowBulkPurchase] = useState(false);
+  const [bulkQuantity, setBulkQuantity] = useState(500);
+  const [bulkPriceCalculation, setBulkPriceCalculation] = useState<any>(null);
   const { toast } = useToast();
   
   const { data: tiers = [], isLoading } = useQuery<ProductTier[]>({
@@ -178,6 +185,93 @@ export default function PricingPage() {
           </div>
         )}
 
+        {/* Bulk Purchase Section */}
+        <div className="mt-20">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold mb-4">
+              Need More Leads? <span className="text-gradient">Save with Bulk Purchases</span>
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Purchase 100+ leads and unlock automatic volume discounts up to 25% off
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Bulk Discount Calculator */}
+            <BulkDiscountCalculator
+              onProceedToPurchase={(quantity) => {
+                setBulkQuantity(quantity);
+                setShowBulkPurchase(true);
+              }}
+            />
+
+            {/* Benefits Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Why Buy in Bulk?
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium">Significant Cost Savings</p>
+                      <p className="text-sm text-muted-foreground">
+                        Save up to 25% on large orders with automatic volume discounts
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium">Priority Processing</p>
+                      <p className="text-sm text-muted-foreground">
+                        Bulk orders receive priority processing and dedicated support
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium">Custom Criteria Selection</p>
+                      <p className="text-sm text-muted-foreground">
+                        Filter by industry, location, quality score, and more
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium">Enterprise Support</p>
+                      <p className="text-sm text-muted-foreground">
+                        Dedicated account manager for orders of 5000+ leads
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <Button 
+                    className="w-full" 
+                    size="lg"
+                    onClick={() => {
+                      setBulkQuantity(1000);
+                      setShowBulkPurchase(true);
+                    }}
+                    data-testid="button-start-bulk"
+                  >
+                    <Calculator className="h-4 w-4 mr-2" />
+                    Start Bulk Order
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
         {/* Compliance Notice */}
         <div className="mt-16 max-w-4xl mx-auto bg-muted/50 rounded-lg p-6">
           <h3 className="text-lg font-semibold mb-3">Compliance & Legal</h3>
@@ -194,6 +288,14 @@ export default function PricingPage() {
       <ContactModal
         isOpen={showContactModal}
         onClose={() => setShowContactModal(false)}
+      />
+      
+      {/* Bulk Purchase Dialog */}
+      <BulkPurchaseDialog
+        open={showBulkPurchase}
+        onOpenChange={setShowBulkPurchase}
+        quantity={bulkQuantity}
+        priceCalculation={bulkPriceCalculation}
       />
     </div>
   );

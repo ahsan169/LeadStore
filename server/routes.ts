@@ -31,6 +31,7 @@ import { leadAlertService, addAlertClient } from "./services/lead-alerts";
 import { leadEnrichmentService } from "./services/lead-enrichment";
 import { qualityGuaranteeService } from "./services/quality-guarantee";
 import { leadFreshnessService, FreshnessCategory } from "./services/lead-freshness";
+import { bulkOperationsService } from "./services/bulk-operations";
 import { insertLeadAlertSchema, insertQualityGuaranteeSchema } from "@shared/schema";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -4129,6 +4130,308 @@ Time: ${preferredTime || 'Any time'}`);
     } catch (error) {
       console.error('Failed to get enrichment stats:', error);
       res.status(500).json({ error: 'Failed to get enrichment statistics' });
+    }
+  });
+
+  // ==================== BULK OPERATIONS ENDPOINTS ====================
+  
+  // Initialize default discount tiers on startup
+  await bulkOperationsService.initializeDiscountTiers();
+  
+  // POST /api/bulk/calculate-discount - Calculate discount for quantity
+  app.post('/api/bulk/calculate-discount', async (req, res) => {
+    try {
+      const { quantity } = req.body;
+      
+      if (!quantity || quantity < 1) {
+        return res.status(400).json({ error: 'Invalid quantity' });
+      }
+      
+      const calculation = await bulkOperationsService.calculateBulkPrice(quantity);
+      res.json(calculation);
+    } catch (error) {
+      console.error('Failed to calculate bulk discount:', error);
+      res.status(500).json({ error: 'Failed to calculate discount' });
+    }
+  });
+  
+  // GET /api/bulk/discounts - Get discount tiers
+  app.get('/api/bulk/discounts', async (req, res) => {
+    try {
+      const tiers = await bulkOperationsService.getDiscountTiers();
+      res.json(tiers);
+    } catch (error) {
+      console.error('Failed to get discount tiers:', error);
+      res.status(500).json({ error: 'Failed to get discount tiers' });
+    }
+  });
+  
+  // POST /api/bulk/create-order - Create bulk order
+  app.post('/api/bulk/create-order', requireAuth, async (req, res) => {
+    try {
+      const { quantity, criteria } = req.body;
+      
+      if (!quantity || quantity < 100) {
+        return res.status(400).json({ 
+          error: 'Minimum order quantity is 100 leads for bulk purchases' 
+        });
+      }
+      
+      const orderId = await bulkOperationsService.createBulkOrder(
+        req.user!.id,
+        quantity,
+        criteria
+      );
+      
+      // Calculate pricing for the response
+      const pricing = await bulkOperationsService.calculateBulkPrice(quantity);
+      
+      // Create Stripe payment intent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: Math.round(pricing.finalPrice * 100), // Convert to cents
+        currency: 'usd',
+        metadata: {
+          userId: req.user!.id,
+          bulkOrderId: orderId,
+          quantity: quantity.toString(),
+          discountPercentage: pricing.discountPercentage.toString()
+        }
+      });
+      
+      res.json({
+        orderId,
+        pricing,
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id
+      });
+    } catch (error) {
+      console.error('Failed to create bulk order:', error);
+      res.status(500).json({ error: 'Failed to create bulk order' });
+    }
+  });
+  
+  // POST /api/bulk/custom-quote - Request custom pricing for 5000+ leads
+  app.post('/api/bulk/custom-quote', requireAuth, async (req, res) => {
+    try {
+      const { quantity, criteria, message, contactPhone, companyName, timeline } = req.body;
+      
+      if (!quantity || quantity < 5000) {
+        return res.status(400).json({ 
+          error: 'Custom quotes are available for orders of 5000+ leads' 
+        });
+      }
+      
+      if (!message) {
+        return res.status(400).json({ 
+          error: 'Please provide details about your requirements' 
+        });
+      }
+      
+      const orderId = await bulkOperationsService.createCustomQuoteRequest({
+        userId: req.user!.id,
+        quantity,
+        criteria,
+        message,
+        contactEmail: req.user!.email,
+        contactPhone,
+        companyName,
+        timeline
+      });
+      
+      // Send admin notification
+      await sendAdminAlert('Custom Bulk Quote Request', 
+        `User: ${req.user!.email}\n` +
+        `Company: ${companyName || 'Not provided'}\n` +
+        `Quantity: ${quantity} leads\n` +
+        `Timeline: ${timeline || 'Not specified'}\n` +
+        `Message: ${message}`
+      );
+      
+      res.json({
+        success: true,
+        orderId,
+        message: 'Your custom quote request has been submitted. Our team will contact you within 24 hours.'
+      });
+    } catch (error) {
+      console.error('Failed to create custom quote:', error);
+      res.status(500).json({ error: 'Failed to create custom quote request' });
+    }
+  });
+  
+  // GET /api/bulk/orders - Get user's bulk orders
+  app.get('/api/bulk/orders', requireAuth, async (req, res) => {
+    try {
+      const orders = await storage.getBulkOrdersByUserId(req.user!.id);
+      res.json(orders);
+    } catch (error) {
+      console.error('Failed to get bulk orders:', error);
+      res.status(500).json({ error: 'Failed to get bulk orders' });
+    }
+  });
+  
+  // GET /api/bulk/orders/:id - Get specific bulk order
+  app.get('/api/bulk/orders/:id', requireAuth, async (req, res) => {
+    try {
+      const order = await storage.getBulkOrder(req.params.id);
+      
+      if (!order) {
+        return res.status(404).json({ error: 'Bulk order not found' });
+      }
+      
+      // Check access
+      if (order.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      res.json(order);
+    } catch (error) {
+      console.error('Failed to get bulk order:', error);
+      res.status(500).json({ error: 'Failed to get bulk order' });
+    }
+  });
+  
+  // POST /api/bulk/orders/:id/complete - Complete bulk order payment
+  app.post('/api/bulk/orders/:id/complete', requireAuth, async (req, res) => {
+    try {
+      const { paymentIntentId } = req.body;
+      const orderId = req.params.id;
+      
+      const order = await storage.getBulkOrder(orderId);
+      
+      if (!order) {
+        return res.status(404).json({ error: 'Bulk order not found' });
+      }
+      
+      if (order.userId !== req.user!.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Process payment and allocate leads
+      const leads = await bulkOperationsService.processBulkOrderPayment(
+        orderId,
+        paymentIntentId
+      );
+      
+      // Generate download URL
+      const csvContent = generateLeadsCsv(leads, req.user);
+      const key = `bulk-orders/${orderId}/leads.csv`;
+      
+      if (isObjectStorageConfigured) {
+        await s3Client.send(new PutObjectCommand({
+          Bucket: BUCKET_NAME,
+          Key: key,
+          Body: Buffer.from(csvContent),
+          ContentType: 'text/csv',
+        }));
+        
+        const downloadUrl = await getSignedUrl(
+          s3Client,
+          new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: key
+          }),
+          { expiresIn: 3600 * 24 } // 24 hours
+        );
+        
+        // Send download ready email
+        await sendDownloadReady(req.user!.email, downloadUrl, leads.length);
+        
+        res.json({
+          success: true,
+          downloadUrl,
+          leadsCount: leads.length,
+          message: 'Bulk order completed successfully'
+        });
+      } else {
+        // Fallback to direct response
+        res.json({
+          success: true,
+          leads,
+          leadsCount: leads.length,
+          message: 'Bulk order completed successfully'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to complete bulk order:', error);
+      res.status(500).json({ error: 'Failed to complete bulk order' });
+    }
+  });
+  
+  // Admin endpoints for bulk operations
+  
+  // GET /api/admin/bulk/orders - Get all bulk orders (admin only)
+  app.get('/api/admin/bulk/orders', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { status } = req.query;
+      const orders = await storage.getAllBulkOrders(status as string);
+      res.json(orders);
+    } catch (error) {
+      console.error('Failed to get bulk orders:', error);
+      res.status(500).json({ error: 'Failed to get bulk orders' });
+    }
+  });
+  
+  // POST /api/admin/bulk/orders/:id/approve - Approve bulk order (admin only)
+  app.post('/api/admin/bulk/orders/:id/approve', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { customPrice } = req.body;
+      await bulkOperationsService.approveBulkOrder(req.params.id, customPrice);
+      
+      const order = await storage.getBulkOrder(req.params.id);
+      if (order) {
+        const user = await storage.getUser(order.userId);
+        if (user) {
+          // Send approval notification to user
+          await sendOrderConfirmation(
+            user.email,
+            order.id,
+            order.totalLeads,
+            parseFloat(order.finalPrice)
+          );
+        }
+      }
+      
+      res.json({ success: true, message: 'Bulk order approved' });
+    } catch (error) {
+      console.error('Failed to approve bulk order:', error);
+      res.status(500).json({ error: 'Failed to approve bulk order' });
+    }
+  });
+  
+  // POST /api/admin/bulk/discounts - Create/update discount tier (admin only)
+  app.post('/api/admin/bulk/discounts', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { tierName, minQuantity, maxQuantity, discountPercentage } = req.body;
+      
+      if (!tierName || !minQuantity || !discountPercentage) {
+        return res.status(400).json({ 
+          error: 'Tier name, minimum quantity, and discount percentage are required' 
+        });
+      }
+      
+      const discount = await storage.createBulkDiscount({
+        tierName,
+        minQuantity,
+        maxQuantity,
+        discountPercentage: discountPercentage.toString(),
+        isActive: true
+      });
+      
+      res.json(discount);
+    } catch (error) {
+      console.error('Failed to create discount tier:', error);
+      res.status(500).json({ error: 'Failed to create discount tier' });
+    }
+  });
+  
+  // GET /api/admin/bulk/stats - Get bulk order statistics (admin only)
+  app.get('/api/admin/bulk/stats', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await bulkOperationsService.getBulkOrderStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Failed to get bulk order stats:', error);
+      res.status(500).json({ error: 'Failed to get bulk order statistics' });
     }
   });
 

@@ -437,6 +437,41 @@ export const qualityGuarantee = pgTable("quality_guarantee", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Bulk discount tiers for volume pricing
+export const bulkDiscounts = pgTable("bulk_discounts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tierName: text("tier_name").notNull(),
+  minQuantity: integer("min_quantity").notNull(),
+  maxQuantity: integer("max_quantity"), // null for unlimited (5000+)
+  discountPercentage: decimal("discount_percentage", { precision: 5, scale: 2 }).notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Bulk orders for large-scale purchases
+export const bulkOrders = pgTable("bulk_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  totalLeads: integer("total_leads").notNull(),
+  originalPrice: decimal("original_price", { precision: 10, scale: 2 }).notNull(),
+  discountApplied: decimal("discount_applied", { precision: 5, scale: 2 }).notNull(),
+  finalPrice: decimal("final_price", { precision: 10, scale: 2 }).notNull(),
+  status: text("status").notNull().default("pending"), // 'pending', 'approved', 'processing', 'completed', 'cancelled'
+  
+  // Additional fields for bulk order management
+  criteria: jsonb("criteria"), // Lead selection criteria
+  leadIds: text("lead_ids").array(), // Selected lead IDs
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
+  paymentStatus: text("payment_status").notNull().default("pending"), // 'pending', 'succeeded', 'failed'
+  notes: text("notes"), // Internal notes or custom quote details
+  
+  // Timestamps
+  approvedAt: timestamp("approved_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -716,6 +751,33 @@ export const insertSavedSearchSchema = createInsertSchema(savedSearches).omit({
   sortOrder: z.enum(["asc", "desc"]).optional(),
 });
 
+export const insertBulkDiscountSchema = createInsertSchema(bulkDiscounts).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  tierName: z.string().min(1),
+  minQuantity: z.number().min(1),
+  maxQuantity: z.number().min(1).nullable(),
+  discountPercentage: z.string().regex(/^\d+(\.\d{1,2})?$/), // Decimal string
+  isActive: z.boolean().default(true),
+});
+
+export const insertBulkOrderSchema = createInsertSchema(bulkOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  totalLeads: z.number().min(1),
+  originalPrice: z.string().regex(/^\d+(\.\d{1,2})?$/), // Decimal string
+  discountApplied: z.string().regex(/^\d+(\.\d{1,2})?$/), // Decimal string
+  finalPrice: z.string().regex(/^\d+(\.\d{1,2})?$/), // Decimal string
+  status: z.enum(["pending", "approved", "processing", "completed", "cancelled"]).default("pending"),
+  paymentStatus: z.enum(["pending", "succeeded", "failed"]).default("pending"),
+  criteria: z.object({}).optional(),
+  leadIds: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -791,3 +853,9 @@ export type SavedSearch = typeof savedSearches.$inferSelect;
 
 export type InsertQualityGuarantee = z.infer<typeof insertQualityGuaranteeSchema>;
 export type QualityGuarantee = typeof qualityGuarantee.$inferSelect;
+
+export type InsertBulkDiscount = z.infer<typeof insertBulkDiscountSchema>;
+export type BulkDiscount = typeof bulkDiscounts.$inferSelect;
+
+export type InsertBulkOrder = z.infer<typeof insertBulkOrderSchema>;
+export type BulkOrder = typeof bulkOrders.$inferSelect;

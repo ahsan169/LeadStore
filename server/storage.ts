@@ -51,6 +51,10 @@ import {
   type InsertQualityGuarantee,
   type LeadAging,
   type InsertLeadAging,
+  type BulkDiscount,
+  type InsertBulkDiscount,
+  type BulkOrder,
+  type InsertBulkOrder,
   users,
   subscriptions,
   leadBatches,
@@ -76,6 +80,8 @@ import {
   leadEnrichment,
   savedSearches,
   qualityGuarantee,
+  bulkDiscounts,
+  bulkOrders,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -292,6 +298,31 @@ export interface IStorage {
     rejectedReports: number;
     replacedReports: number;
     averageResolutionTime: number;
+  }>;
+  
+  // Bulk Discount operations
+  getBulkDiscount(id: string): Promise<BulkDiscount | undefined>;
+  getActiveBulkDiscounts(): Promise<BulkDiscount[]>;
+  getBulkDiscountByQuantity(quantity: number): Promise<BulkDiscount | undefined>;
+  createBulkDiscount(discount: InsertBulkDiscount): Promise<BulkDiscount>;
+  updateBulkDiscount(id: string, data: Partial<InsertBulkDiscount>): Promise<BulkDiscount | undefined>;
+  deleteBulkDiscount(id: string): Promise<void>;
+  
+  // Bulk Order operations
+  getBulkOrder(id: string): Promise<BulkOrder | undefined>;
+  getBulkOrdersByUserId(userId: string): Promise<BulkOrder[]>;
+  getAllBulkOrders(status?: string): Promise<BulkOrder[]>;
+  createBulkOrder(order: InsertBulkOrder): Promise<BulkOrder>;
+  updateBulkOrder(id: string, data: Partial<InsertBulkOrder>): Promise<BulkOrder | undefined>;
+  approveBulkOrder(id: string): Promise<BulkOrder | undefined>;
+  completeBulkOrder(id: string): Promise<BulkOrder | undefined>;
+  cancelBulkOrder(id: string): Promise<BulkOrder | undefined>;
+  calculateBulkDiscount(quantity: number): Promise<{
+    originalPrice: number;
+    discountPercentage: number;
+    discountAmount: number;
+    finalPrice: number;
+    discountTier: string;
   }>;
   
   // Verification session operations
@@ -1603,6 +1634,156 @@ export class DbStorage implements IStorage {
       totalEnriched,
       averageConfidence: Number(avgResult[0]?.avgConfidence || 0),
       sourceBreakdown
+    };
+  }
+  
+  // Bulk Discount operations
+  async getBulkDiscount(id: string): Promise<BulkDiscount | undefined> {
+    const result = await db.select().from(bulkDiscounts).where(eq(bulkDiscounts.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getActiveBulkDiscounts(): Promise<BulkDiscount[]> {
+    return db.select().from(bulkDiscounts)
+      .where(eq(bulkDiscounts.isActive, true))
+      .orderBy(asc(bulkDiscounts.minQuantity));
+  }
+  
+  async getBulkDiscountByQuantity(quantity: number): Promise<BulkDiscount | undefined> {
+    const result = await db.select().from(bulkDiscounts)
+      .where(and(
+        eq(bulkDiscounts.isActive, true),
+        lte(bulkDiscounts.minQuantity, quantity),
+        or(
+          isNull(bulkDiscounts.maxQuantity),
+          gte(bulkDiscounts.maxQuantity, quantity)
+        )
+      ))
+      .orderBy(desc(bulkDiscounts.minQuantity))
+      .limit(1);
+    return result[0];
+  }
+  
+  async createBulkDiscount(discount: InsertBulkDiscount): Promise<BulkDiscount> {
+    const result = await db.insert(bulkDiscounts).values(discount).returning();
+    return result[0];
+  }
+  
+  async updateBulkDiscount(id: string, data: Partial<InsertBulkDiscount>): Promise<BulkDiscount | undefined> {
+    const result = await db.update(bulkDiscounts)
+      .set(data)
+      .where(eq(bulkDiscounts.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteBulkDiscount(id: string): Promise<void> {
+    await db.delete(bulkDiscounts).where(eq(bulkDiscounts.id, id));
+  }
+  
+  // Bulk Order operations
+  async getBulkOrder(id: string): Promise<BulkOrder | undefined> {
+    const result = await db.select().from(bulkOrders).where(eq(bulkOrders.id, id)).limit(1);
+    return result[0];
+  }
+  
+  async getBulkOrdersByUserId(userId: string): Promise<BulkOrder[]> {
+    return db.select().from(bulkOrders)
+      .where(eq(bulkOrders.userId, userId))
+      .orderBy(desc(bulkOrders.createdAt));
+  }
+  
+  async getAllBulkOrders(status?: string): Promise<BulkOrder[]> {
+    if (status) {
+      return db.select().from(bulkOrders)
+        .where(eq(bulkOrders.status, status))
+        .orderBy(desc(bulkOrders.createdAt));
+    }
+    return db.select().from(bulkOrders).orderBy(desc(bulkOrders.createdAt));
+  }
+  
+  async createBulkOrder(order: InsertBulkOrder): Promise<BulkOrder> {
+    const result = await db.insert(bulkOrders).values(order).returning();
+    return result[0];
+  }
+  
+  async updateBulkOrder(id: string, data: Partial<InsertBulkOrder>): Promise<BulkOrder | undefined> {
+    const result = await db.update(bulkOrders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(bulkOrders.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async approveBulkOrder(id: string): Promise<BulkOrder | undefined> {
+    const result = await db.update(bulkOrders)
+      .set({ 
+        status: 'approved', 
+        approvedAt: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(bulkOrders.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async completeBulkOrder(id: string): Promise<BulkOrder | undefined> {
+    const result = await db.update(bulkOrders)
+      .set({ 
+        status: 'completed', 
+        completedAt: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(bulkOrders.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async cancelBulkOrder(id: string): Promise<BulkOrder | undefined> {
+    const result = await db.update(bulkOrders)
+      .set({ 
+        status: 'cancelled',
+        updatedAt: new Date() 
+      })
+      .where(eq(bulkOrders.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async calculateBulkDiscount(quantity: number): Promise<{
+    originalPrice: number;
+    discountPercentage: number;
+    discountAmount: number;
+    finalPrice: number;
+    discountTier: string;
+  }> {
+    // Base price per lead (you may want to adjust this based on your pricing model)
+    const basePrice = 10; // $10 per lead
+    const originalPrice = quantity * basePrice;
+    
+    // Get the applicable discount tier
+    const discount = await this.getBulkDiscountByQuantity(quantity);
+    
+    if (!discount) {
+      return {
+        originalPrice,
+        discountPercentage: 0,
+        discountAmount: 0,
+        finalPrice: originalPrice,
+        discountTier: 'No discount'
+      };
+    }
+    
+    const discountPercentage = parseFloat(discount.discountPercentage);
+    const discountAmount = originalPrice * (discountPercentage / 100);
+    const finalPrice = originalPrice - discountAmount;
+    
+    return {
+      originalPrice,
+      discountPercentage,
+      discountAmount,
+      finalPrice,
+      discountTier: discount.tierName
     };
   }
 }
