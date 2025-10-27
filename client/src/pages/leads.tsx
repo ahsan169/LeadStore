@@ -20,7 +20,8 @@ import {
   Search, Filter, Save, Download, ChevronDown, ChevronUp, X, Plus, Star,
   MapPin, Building, DollarSign, User, Phone, Mail, Calendar, TrendingUp,
   Clock, Shield, Globe, Hash, AlertCircle, CheckCircle2, XCircle,
-  Database, FileText, Settings, Bookmark, BookmarkCheck, Share2, Sparkles
+  Database, FileText, Settings, Bookmark, BookmarkCheck, Share2, Sparkles,
+  Brain, Target, TrendingDown, Info
 } from "lucide-react";
 import { QualityScoreBadge } from "@/components/QualityScoreBadge";
 import { EnrichmentBadge } from "@/components/EnrichmentBadge";
@@ -117,6 +118,9 @@ export default function LeadsPage() {
   const [pageSize, setPageSize] = useState(50);
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [scoringModalOpen, setScoringModalOpen] = useState(false);
+  const [selectedLeadForScoring, setSelectedLeadForScoring] = useState<Lead | null>(null);
+  const [scoringDetails, setScoringDetails] = useState<any>(null);
 
   // Fetch leads with filters
   const { data: leadsData, isLoading: leadsLoading, refetch: refetchLeads } = useQuery({
@@ -222,6 +226,27 @@ export default function LeadsPage() {
     if (search.sortBy) setSortBy(search.sortBy);
     if (search.sortOrder) setSortOrder(search.sortOrder as "asc" | "desc");
     setPage(0);
+  };
+  
+  // Show ML scoring details
+  const showScoringDetails = async (lead: Lead) => {
+    setSelectedLeadForScoring(lead);
+    setScoringModalOpen(true);
+    
+    try {
+      const response = await fetch(`/api/scoring/factors/${lead.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setScoringDetails(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch scoring details:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load scoring details",
+        variant: "destructive"
+      });
+    }
   };
 
   // Clear all filters
@@ -923,7 +948,17 @@ export default function LeadsPage() {
                           {lead.ownerName}
                         </p>
                       </div>
-                      <QualityScoreBadge score={lead.qualityScore} />
+                      <div className="flex flex-col items-end gap-1">
+                        <QualityScoreBadge score={lead.qualityScore} />
+                        {lead.mlQualityScore && (
+                          <div className="flex items-center gap-1">
+                            <Brain className="w-3 h-3 text-purple-500" />
+                            <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+                              ML: {lead.mlQualityScore}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
                     {lead.urgency && (
@@ -979,6 +1014,57 @@ export default function LeadsPage() {
                       </div>
                       
                       <Separator className="my-2" />
+                      
+                      {/* ML Scoring Information */}
+                      {(lead.conversionProbability || lead.expectedDealSize) && (
+                        <>
+                          <div className="bg-purple-50 dark:bg-purple-900/20 rounded-md p-2 space-y-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
+                                ML Predictions
+                              </span>
+                              {lead.mlQualityScore && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 px-1 text-xs"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    showScoringDetails(lead);
+                                  }}
+                                  data-testid={`button-ml-details-${lead.id}`}
+                                >
+                                  <Info className="w-3 h-3 mr-1" />
+                                  Details
+                                </Button>
+                              )}
+                            </div>
+                            {lead.conversionProbability && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="flex items-center gap-1">
+                                  <Target className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                  <span className="text-muted-foreground">Conversion:</span>
+                                </span>
+                                <span className="font-semibold text-purple-600 dark:text-purple-400">
+                                  {(parseFloat(lead.conversionProbability) * 100).toFixed(1)}%
+                                </span>
+                              </div>
+                            )}
+                            {lead.expectedDealSize && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="flex items-center gap-1">
+                                  <TrendingUp className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                                  <span className="text-muted-foreground">Est. Deal:</span>
+                                </span>
+                                <span className="font-semibold text-purple-600 dark:text-purple-400">
+                                  ${parseInt(lead.expectedDealSize).toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <Separator className="my-2" />
+                        </>
+                      )}
                       
                       <FreshnessInfo
                         uploadedAt={lead.uploadedAt}
@@ -1120,6 +1206,162 @@ export default function LeadsPage() {
               data-testid="button-confirm-save"
             >
               Save Search
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ML Scoring Breakdown Modal */}
+      <Dialog open={scoringModalOpen} onOpenChange={setScoringModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="w-5 h-5 text-purple-600" />
+              ML Scoring Analysis
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedLeadForScoring && (
+            <div className="space-y-4">
+              {/* Lead Overview */}
+              <div className="bg-muted rounded-lg p-3">
+                <h3 className="font-semibold">{selectedLeadForScoring.businessName}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {selectedLeadForScoring.ownerName} • {selectedLeadForScoring.stateCode}
+                </p>
+              </div>
+
+              {/* Scoring Summary */}
+              {scoringDetails ? (
+                <>
+                  <div className="grid grid-cols-3 gap-4">
+                    <Card className="p-4">
+                      <div className="flex flex-col items-center">
+                        <Brain className="w-8 h-8 text-purple-500 mb-2" />
+                        <p className="text-xs text-muted-foreground">ML Score</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {scoringDetails.mlQualityScore || "N/A"}
+                        </p>
+                      </div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="flex flex-col items-center">
+                        <Target className="w-8 h-8 text-green-500 mb-2" />
+                        <p className="text-xs text-muted-foreground">Conversion</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {scoringDetails.conversionProbability 
+                            ? `${(parseFloat(scoringDetails.conversionProbability) * 100).toFixed(1)}%`
+                            : "N/A"}
+                        </p>
+                      </div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="flex flex-col items-center">
+                        <DollarSign className="w-8 h-8 text-blue-500 mb-2" />
+                        <p className="text-xs text-muted-foreground">Expected Deal</p>
+                        <p className="text-xl font-bold text-blue-600">
+                          {scoringDetails.expectedDealSize 
+                            ? `$${parseInt(scoringDetails.expectedDealSize).toLocaleString()}`
+                            : "N/A"}
+                        </p>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Scoring Factors Breakdown */}
+                  {scoringDetails.scoringFactors && (
+                    <Card className="p-4">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <Info className="w-4 h-4" />
+                        Scoring Factors Breakdown
+                      </h4>
+                      <div className="space-y-3">
+                        {/* Quality Factors */}
+                        {scoringDetails.scoringFactors.qualityFactors && (
+                          <div>
+                            <p className="text-sm font-medium mb-2">Quality Factors</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {Object.entries(scoringDetails.scoringFactors.qualityFactors).map(([key, value]: any) => (
+                                <div key={key} className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground capitalize">
+                                    {key.replace(/([A-Z])/g, ' $1').trim()}:
+                                  </span>
+                                  <span className="font-medium">{value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Business Factors */}
+                        {scoringDetails.scoringFactors.businessFactors && (
+                          <div>
+                            <p className="text-sm font-medium mb-2">Business Factors</p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {Object.entries(scoringDetails.scoringFactors.businessFactors).map(([key, value]: any) => (
+                                <div key={key} className="flex justify-between text-xs">
+                                  <span className="text-muted-foreground capitalize">
+                                    {key.replace(/([A-Z])/g, ' $1').trim()}:
+                                  </span>
+                                  <span className="font-medium">
+                                    {typeof value === "boolean" ? (value ? "Yes" : "No") : value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Scoring Reasoning */}
+                        {scoringDetails.scoringFactors.reasoning && (
+                          <div>
+                            <p className="text-sm font-medium mb-2">AI Reasoning</p>
+                            <div className="bg-muted rounded-md p-3 space-y-2">
+                              {scoringDetails.scoringFactors.reasoning.map((reason: string, idx: number) => (
+                                <p key={idx} className="text-xs flex items-start gap-2">
+                                  <CheckCircle2 className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
+                                  <span>{reason}</span>
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  )}
+
+                  {/* Similar Leads Comparison */}
+                  {scoringDetails.scoringFactors?.marketComparison && (
+                    <Card className="p-4">
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" />
+                        Market Comparison
+                      </h4>
+                      <div className="text-sm text-muted-foreground">
+                        <p>
+                          This lead ranks in the <span className="font-semibold text-purple-600">
+                            top {scoringDetails.scoringFactors.marketComparison.percentile}%
+                          </span> of similar leads in the market.
+                        </p>
+                        <div className="mt-2 text-xs">
+                          <p>Average conversion for similar leads: {scoringDetails.scoringFactors.marketComparison.avgConversion}%</p>
+                          <p>Average deal size: ${scoringDetails.scoringFactors.marketComparison.avgDealSize?.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScoringModalOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

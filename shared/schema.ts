@@ -83,6 +83,12 @@ export const leads = pgTable("leads", {
   yearFounded: integer("year_founded"),
   naicsCode: text("naics_code"), // NAICS industry classification code
   
+  // ML scoring fields
+  mlQualityScore: integer("ml_quality_score").default(0), // 0-100
+  conversionProbability: decimal("conversion_probability", { precision: 5, scale: 4 }), // 0.0000-1.0000
+  expectedDealSize: decimal("expected_deal_size", { precision: 12, scale: 2 }),
+  scoringFactors: jsonb("scoring_factors"), // Detailed breakdown of scoring factors
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -502,6 +508,31 @@ export const campaigns = pgTable("campaigns", {
   clickCount: integer("click_count").notNull().default(0),
   responseCount: integer("response_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Lead Scoring Models table for ML model tracking
+export const leadScoringModels = pgTable("lead_scoring_models", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  modelName: text("model_name").notNull(),
+  modelVersion: text("model_version").notNull(),
+  features: jsonb("features").notNull(), // JSON array of features used in the model
+  accuracy: decimal("accuracy", { precision: 5, scale: 2 }), // Model accuracy percentage
+  trainedAt: timestamp("trained_at").notNull().defaultNow(),
+  isActive: boolean("is_active").notNull().default(false), // Only one model should be active at a time
+  
+  // Model performance metrics
+  precision: decimal("precision", { precision: 5, scale: 2 }),
+  recall: decimal("recall", { precision: 5, scale: 2 }),
+  f1Score: decimal("f1_score", { precision: 5, scale: 2 }),
+  
+  // Model metadata
+  trainingDataSize: integer("training_data_size"),
+  modelParameters: jsonb("model_parameters"), // Hyperparameters and configuration
+  performanceMetrics: jsonb("performance_metrics"), // Detailed performance by tier/industry
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Insert schemas with validation
@@ -932,6 +963,25 @@ export const insertApiUsageSchema = createInsertSchema(apiUsage).omit({
   userAgent: z.string().optional(),
 });
 
+export const insertLeadScoringModelSchema = createInsertSchema(leadScoringModels).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  trainedAt: true,
+}).extend({
+  modelName: z.string().min(1).max(100),
+  modelVersion: z.string().min(1).max(50),
+  features: z.array(z.string()).min(1),
+  accuracy: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  precision: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  recall: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  f1Score: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  isActive: z.boolean().default(false),
+  trainingDataSize: z.number().int().min(0).optional(),
+  modelParameters: z.record(z.any()).optional(),
+  performanceMetrics: z.record(z.any()).optional(),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -1028,3 +1078,6 @@ export type Webhook = typeof webhooks.$inferSelect;
 
 export type InsertApiUsage = z.infer<typeof insertApiUsageSchema>;
 export type ApiUsage = typeof apiUsage.$inferSelect;
+
+export type InsertLeadScoringModel = z.infer<typeof insertLeadScoringModelSchema>;
+export type LeadScoringModel = typeof leadScoringModels.$inferSelect;

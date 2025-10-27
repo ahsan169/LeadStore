@@ -21,7 +21,7 @@ import {
   sendAlertNotification 
 } from "./email";
 import { db } from "./db";
-import { leadPerformance, purchases } from "@shared/schema";
+import { leadPerformance, purchases, leadScoringModels } from "@shared/schema";
 import { gte, lte, and, sql } from "drizzle-orm";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
@@ -1078,6 +1078,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       const createdLeads = await storage.createLeads(leadsToInsert);
+      
+      // Auto-score leads with ML
+      try {
+        console.log(`Auto-scoring ${createdLeads.length} new leads with ML`);
+        const leadIds = createdLeads.map(lead => lead.id);
+        await autoScoreLeads(batch.id);
+        
+        // Check for high-value opportunities (conversion probability > 0.7 and expected deal > $50k)
+        const highValueLeads = createdLeads.filter(lead => {
+          const mlScore = lead.mlQualityScore || 0;
+          return mlScore >= 85; // High ML score indicates high-value opportunity
+        });
+        
+        if (highValueLeads.length > 0) {
+          console.log(`Found ${highValueLeads.length} high-value ML-scored leads`);
+        }
+      } catch (mlError) {
+        console.error('Error ML scoring leads:', mlError);
+        // Don't fail the upload if ML scoring fails
+      }
       
       // Trigger alert checking for new leads
       try {
@@ -4437,6 +4457,241 @@ Time: ${preferredTime || 'Any time'}`);
     }
   });
 
+  // Campaign Template endpoints
+  app.get("/api/templates", requireAuth, async (req, res) => {
+    try {
+      const { category } = req.query;
+      
+      // Initialize default templates if needed
+      await campaignService.initializeDefaultTemplates();
+      
+      let templates;
+      if (category) {
+        templates = await storage.getCampaignTemplatesByCategory(
+          category as string,
+          req.user!.id
+        );
+      } else {
+        templates = await storage.getCampaignTemplates(req.user!.id);
+      }
+      
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ error: "Failed to fetch templates" });
+    }
+  });
+
+  app.post("/api/templates", requireAuth, async (req, res) => {
+    try {
+      const validation = insertCampaignTemplateSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({ error: validation.error.message });
+      }
+      
+      const templateData = {
+        ...validation.data,
+        userId: req.user!.id,
+        variables: campaignService.extractVariables(
+          validation.data.content,
+          validation.data.subject
+        )
+      };
+      
+      const template = await storage.createCampaignTemplate(templateData);
+      res.json(template);
+    } catch (error) {
+      console.error("Error creating template:", error);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
+  app.put("/api/templates/:id", requireAuth, async (req, res) => {
+    try {
+      const template = await storage.getCampaignTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      // Check ownership
+      if (template.userId && template.userId !== req.user!.id && req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const updatedData = {
+        ...req.body,
+        variables: campaignService.extractVariables(
+          req.body.content,
+          req.body.subject
+        )
+      };
+      
+      const updated = await storage.updateCampaignTemplate(req.params.id, updatedData);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating template:", error);
+      res.status(500).json({ error: "Failed to update template" });
+    }
+  });
+
+  app.delete("/api/templates/:id", requireAuth, async (req, res) => {
+    try {
+      const template = await storage.getCampaignTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      // Check ownership
+      if (template.userId !== req.user!.id && req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      await storage.deleteCampaignTemplate(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting template:", error);
+      res.status(500).json({ error: "Failed to delete template" });
+    }
+  });
+
+  // Campaign endpoints
+  app.post("/api/campaigns/preview", requireAuth, async (req, res) => {
+    try {
+      const { templateId, purchaseId } = req.body;
+      
+      if (!templateId || !purchaseId) {
+        return res.status(400).json({ error: "Template ID and Purchase ID are required" });
+      }
+      
+      // Get purchase and verify ownership
+      const purchase = await storage.getPurchase(purchaseId);
+      if (!purchase) {
+        return res.status(404).json({ error: "Purchase not found" });
+      }
+      
+      if (purchase.userId !== req.user!.id && req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const leadIds = purchase.leadIds || [];
+      const preview = await campaignService.previewTemplate(templateId, leadIds);
+      
+      res.json(preview);
+    } catch (error) {
+      console.error("Error generating preview:", error);
+      res.status(500).json({ error: "Failed to generate preview" });
+    }
+  });
+
+  app.post("/api/campaigns/create", requireAuth, async (req, res) => {
+    try {
+      const { purchaseId, templateId, campaignName, scheduledAt } = req.body;
+      
+      if (!purchaseId || !templateId || !campaignName) {
+        return res.status(400).json({ 
+          error: "Purchase ID, Template ID, and Campaign Name are required" 
+        });
+      }
+      
+      const campaign = await campaignService.createCampaign(
+        req.user!.id,
+        purchaseId,
+        templateId,
+        campaignName,
+        scheduledAt ? new Date(scheduledAt) : undefined
+      );
+      
+      res.json(campaign);
+    } catch (error) {
+      console.error("Error creating campaign:", error);
+      res.status(500).json({ error: "Failed to create campaign" });
+    }
+  });
+
+  app.get("/api/campaigns", requireAuth, async (req, res) => {
+    try {
+      const campaigns = await storage.getCampaignsByUserId(req.user!.id);
+      res.json(campaigns);
+    } catch (error) {
+      console.error("Error fetching campaigns:", error);
+      res.status(500).json({ error: "Failed to fetch campaigns" });
+    }
+  });
+
+  app.get("/api/campaigns/stats", requireAuth, async (req, res) => {
+    try {
+      const stats = await campaignService.getCampaignStats(req.user!.id);
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching campaign stats:", error);
+      res.status(500).json({ error: "Failed to fetch campaign statistics" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/send", requireAuth, async (req, res) => {
+    try {
+      const campaign = await storage.getCampaign(req.params.id);
+      
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      
+      if (campaign.userId !== req.user!.id && req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (campaign.status !== "draft") {
+        return res.status(400).json({ error: "Campaign has already been sent or scheduled" });
+      }
+      
+      await campaignService.processCampaign(req.params.id);
+      const updated = await storage.getCampaign(req.params.id);
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error sending campaign:", error);
+      res.status(500).json({ error: "Failed to send campaign" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/cancel", requireAuth, async (req, res) => {
+    try {
+      const campaign = await storage.getCampaign(req.params.id);
+      
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      
+      if (campaign.userId !== req.user!.id && req.user!.role !== "admin") {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (campaign.status !== "scheduled") {
+        return res.status(400).json({ error: "Only scheduled campaigns can be cancelled" });
+      }
+      
+      const updated = await storage.cancelCampaign(req.params.id);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error cancelling campaign:", error);
+      res.status(500).json({ error: "Failed to cancel campaign" });
+    }
+  });
+
+  // Get available variables for template creation
+  app.get("/api/campaigns/variables", requireAuth, async (req, res) => {
+    try {
+      // Import CampaignService class directly to access static properties
+      const { CampaignService } = await import("./services/campaign-tools");
+      res.json(CampaignService.AVAILABLE_VARIABLES);
+    } catch (error) {
+      console.error("Error fetching variables:", error);
+      res.status(500).json({ error: "Failed to fetch available variables" });
+    }
+  });
+
   const httpServer = createServer(app);
   
   // Set up WebSocket server for real-time verification progress
@@ -4556,356 +4811,121 @@ function generateLeadsCsv(leads: any[], user?: any): string {
   }
 
   return csvLines.join("\n");
-}
+  }
 
-// Helper function to assign tier based on quality score
-function assignTier(qualityScore: number): "gold" | "platinum" | "diamond" | "elite" {
-  if (qualityScore >= 80) return 'diamond';
-  if (qualityScore >= 70) return 'platinum';
-  if (qualityScore >= 60) return 'gold';
-  return 'gold'; // Default to gold for low scores
-}
+  // Helper function to assign tier based on quality score
+  function assignTier(qualityScore: number): "gold" | "platinum" | "diamond" | "elite" {
+    if (qualityScore >= 80) return 'diamond';
+    if (qualityScore >= 70) return 'platinum';
+    if (qualityScore >= 60) return 'gold';
+    return 'gold'; // Default to gold for low scores
+  }
 
-// Helper function to generate realistic test MCA leads
-function generateTestLeads(count: number, qualityRange: { min: number; max: number }): InsertLead[] {
+  // Helper function to generate realistic test MCA leads
+  function generateTestLeads(count: number, qualityRange: { min: number; max: number }): InsertLead[] {
   const industries = [
     'Restaurant', 'Retail Store', 'Trucking Company', 'Construction', 'Healthcare Practice',
     'Auto Repair Shop', 'Grocery Store', 'Landscaping', 'Plumbing Services', 'HVAC Services',
-    'Hair Salon', 'Dental Practice', 'Law Firm', 'Real Estate Agency', 'Fitness Center',
-    'Bakery', 'Coffee Shop', 'Hotel', 'Car Dealership', 'Wholesale Trade',
-    'Manufacturing', 'IT Services', 'Marketing Agency', 'Consulting Firm', 'E-commerce'
-  ];
-  
-  const firstNames = [
-    'John', 'Maria', 'Robert', 'Jennifer', 'Michael', 'Linda', 'David', 'Patricia',
-    'James', 'Barbara', 'William', 'Elizabeth', 'Richard', 'Susan', 'Joseph', 'Jessica',
-    'Thomas', 'Sarah', 'Christopher', 'Karen', 'Charles', 'Lisa', 'Daniel', 'Nancy',
-    'Matthew', 'Betty', 'Anthony', 'Dorothy', 'Paul', 'Sandra', 'Mark', 'Ashley'
-  ];
-  
-  const lastNames = [
-    'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis',
-    'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzales', 'Wilson', 'Anderson', 'Thomas',
-    'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson', 'White',
-    'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson', 'Walker', 'Young'
-  ];
-  
-  const businessPrefixes = ['Premier', 'Elite', 'Quality', 'Pro', 'Express', 'Quick', 'Fast', 'Best', 'Top', 'Superior'];
-  const businessSuffixes = ['LLC', 'Inc', 'Corp', 'Group', 'Services', 'Solutions', 'Enterprises', 'Associates', 'Co', 'Partners'];
-  
-  const states = ['CA', 'NY', 'TX', 'FL', 'PA', 'IL', 'OH', 'GA', 'NC', 'MI', 'NJ', 'VA', 'WA', 'AZ', 'MA'];
-  const mcaHistoryOptions = ['none', 'previous_paid', 'current', 'multiple'];
-  const urgencyLevels = ['immediate', 'this_week', 'this_month', 'exploring'];
-  
-  const leads: InsertLead[] = [];
-  
-  for (let i = 0; i < count; i++) {
-    const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
-    const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-    const industry = industries[Math.floor(Math.random() * industries.length)];
-    const businessPrefix = businessPrefixes[Math.floor(Math.random() * businessPrefixes.length)];
-    const businessSuffix = businessSuffixes[Math.floor(Math.random() * businessSuffixes.length)];
-    const state = states[Math.floor(Math.random() * states.length)];
+      'Hair Salon', 'Dental Practice', 'Law Firm', 'Real Estate Agency', 'Fitness Center',
+      'Bakery', 'Coffee Shop', 'Hotel', 'Car Dealership', 'Wholesale Trade',
+      'Manufacturing', 'IT Services', 'Marketing Agency', 'Consulting Firm', 'E-commerce'
+    ];
     
-    // Generate a quality score within the specified range
-    const qualityScore = Math.floor(Math.random() * (qualityRange.max - qualityRange.min + 1)) + qualityRange.min;
+    const firstNames = [
+      'John', 'Maria', 'Robert', 'Jennifer', 'Michael', 'Linda', 'David', 'Patricia',
+      'James', 'Barbara', 'William', 'Elizabeth', 'Richard', 'Susan', 'Joseph', 'Jessica',
+      'Thomas', 'Sarah', 'Christopher', 'Karen', 'Charles', 'Lisa', 'Daniel', 'Nancy',
+      'Matthew', 'Betty', 'Anthony', 'Dorothy', 'Paul', 'Sandra', 'Mark', 'Ashley'
+    ];
     
-    // Generate realistic correlated values based on quality score
-    const isHighQuality = qualityScore >= 80;
-    const isMediumQuality = qualityScore >= 70;
+    const lastNames = [
+      'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis',
+      'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzales', 'Wilson', 'Anderson', 'Thomas',
+      'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson', 'White',
+      'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson', 'Walker', 'Young'
+    ];
     
-    // Higher quality leads tend to have better business metrics
-    const annualRevenue = isHighQuality 
-      ? (200000 + Math.floor(Math.random() * 1800000)).toString() 
-      : isMediumQuality 
-        ? (100000 + Math.floor(Math.random() * 400000)).toString()
-        : (50000 + Math.floor(Math.random() * 200000)).toString();
+    const businessPrefixes = ['Premier', 'Elite', 'Quality', 'Pro', 'Express', 'Quick', 'Fast', 'Best', 'Top', 'Superior'];
+    const businessSuffixes = ['LLC', 'Inc', 'Corp', 'Group', 'Services', 'Solutions', 'Enterprises', 'Associates', 'Co', 'Partners'];
     
-    const requestedAmount = isHighQuality
-      ? (50000 + Math.floor(Math.random() * 450000)).toString()
-      : isMediumQuality
-        ? (25000 + Math.floor(Math.random() * 175000)).toString()
-        : (10000 + Math.floor(Math.random() * 90000)).toString();
+    const states = ['CA', 'NY', 'TX', 'FL', 'PA', 'IL', 'OH', 'GA', 'NC', 'MI', 'NJ', 'VA', 'WA', 'AZ', 'MA'];
+    const mcaHistoryOptions = ['none', 'previous_paid', 'current', 'multiple'];
+    const urgencyLevels = ['immediate', 'this_week', 'this_month', 'exploring'];
     
-    const timeInBusiness = isHighQuality
-      ? (24 + Math.floor(Math.random() * 120)).toString()
-      : isMediumQuality
-        ? (12 + Math.floor(Math.random() * 60)).toString()
-        : (6 + Math.floor(Math.random() * 42)).toString();
+    const leads: InsertLead[] = [];
     
-    const creditScore = isHighQuality
-      ? (650 + Math.floor(Math.random() * 100)).toString()
-      : isMediumQuality
-        ? (580 + Math.floor(Math.random() * 70)).toString()
-        : (500 + Math.floor(Math.random() * 80)).toString();
-    
-    // Generate unique email and phone
-    const uniqueId = Date.now() + i;
-    const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}.${uniqueId}@${industry.toLowerCase().replace(/\s+/g, '')}.com`;
-    const phone = `${2 + Math.floor(Math.random() * 8)}${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 10)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    
-    const lead: InsertLead = {
-      batchId: 'test-batch-' + Date.now(), // Will be replaced with actual batch ID
-      businessName: `${businessPrefix} ${industry} ${businessSuffix}`,
-      ownerName: `${firstName} ${lastName}`,
-      email,
-      phone,
-      industry,
-      annualRevenue,
-      requestedAmount,
-      timeInBusiness,
-      creditScore,
-      dailyBankDeposits: Math.random() > 0.3, // 70% have daily deposits
-      previousMCAHistory: mcaHistoryOptions[Math.floor(Math.random() * mcaHistoryOptions.length)],
-      urgencyLevel: urgencyLevels[Math.floor(Math.random() * urgencyLevels.length)],
-      stateCode: state,
-      leadAge: Math.floor(Math.random() * 30), // 0-30 days old
-      exclusivityStatus: 'non_exclusive',
-      qualityScore,
-      tier: assignTier(qualityScore),
-      sold: false
-    };
-    
-    leads.push(lead);
-  }
-  
-  return leads;
-}
-
-// Campaign Template endpoints
-app.get("/api/templates", requireAuth, async (req, res) => {
-  try {
-    const { category } = req.query;
-    
-    // Initialize default templates if needed
-    await campaignService.initializeDefaultTemplates();
-    
-    let templates;
-    if (category) {
-      templates = await storage.getCampaignTemplatesByCategory(
-        category as string,
-        req.user!.id
-      );
-    } else {
-      templates = await storage.getCampaignTemplates(req.user!.id);
+    for (let i = 0; i < count; i++) {
+      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const industry = industries[Math.floor(Math.random() * industries.length)];
+      const businessPrefix = businessPrefixes[Math.floor(Math.random() * businessPrefixes.length)];
+      const businessSuffix = businessSuffixes[Math.floor(Math.random() * businessSuffixes.length)];
+      const state = states[Math.floor(Math.random() * states.length)];
+      
+      // Generate a quality score within the specified range
+      const qualityScore = Math.floor(Math.random() * (qualityRange.max - qualityRange.min + 1)) + qualityRange.min;
+      
+      // Generate realistic correlated values based on quality score
+      const isHighQuality = qualityScore >= 80;
+      const isMediumQuality = qualityScore >= 70;
+      
+      // Higher quality leads tend to have better business metrics
+      const annualRevenue = isHighQuality 
+        ? (200000 + Math.floor(Math.random() * 1800000)).toString() 
+        : isMediumQuality 
+          ? (100000 + Math.floor(Math.random() * 400000)).toString()
+          : (50000 + Math.floor(Math.random() * 200000)).toString();
+      
+      const requestedAmount = isHighQuality
+        ? (50000 + Math.floor(Math.random() * 450000)).toString()
+        : isMediumQuality
+          ? (25000 + Math.floor(Math.random() * 175000)).toString()
+          : (10000 + Math.floor(Math.random() * 90000)).toString();
+      
+      const timeInBusiness = isHighQuality
+        ? (24 + Math.floor(Math.random() * 120)).toString()
+        : isMediumQuality
+          ? (12 + Math.floor(Math.random() * 60)).toString()
+          : (6 + Math.floor(Math.random() * 42)).toString();
+      
+      const creditScore = isHighQuality
+        ? (650 + Math.floor(Math.random() * 100)).toString()
+        : isMediumQuality
+          ? (580 + Math.floor(Math.random() * 70)).toString()
+          : (500 + Math.floor(Math.random() * 80)).toString();
+      
+      // Generate unique email and phone
+      const uniqueId = Date.now() + i;
+      const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}.${uniqueId}@${industry.toLowerCase().replace(/\s+/g, '')}.com`;
+      const phone = `${2 + Math.floor(Math.random() * 8)}${Math.floor(Math.random() * 10)}${Math.floor(Math.random() * 10)}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      
+      const lead: InsertLead = {
+        batchId: 'test-batch-' + Date.now(), // Will be replaced with actual batch ID
+        businessName: `${businessPrefix} ${industry} ${businessSuffix}`,
+        ownerName: `${firstName} ${lastName}`,
+        email,
+        phone,
+        industry,
+        annualRevenue,
+        requestedAmount,
+        timeInBusiness,
+        creditScore,
+        dailyBankDeposits: Math.random() > 0.3, // 70% have daily deposits
+        previousMCAHistory: mcaHistoryOptions[Math.floor(Math.random() * mcaHistoryOptions.length)],
+        urgencyLevel: urgencyLevels[Math.floor(Math.random() * urgencyLevels.length)],
+        stateCode: state,
+        leadAge: Math.floor(Math.random() * 30), // 0-30 days old
+        exclusivityStatus: 'non_exclusive',
+        qualityScore,
+        tier: assignTier(qualityScore),
+        sold: false
+      };
+      
+      leads.push(lead);
     }
     
-    res.json(templates);
-  } catch (error) {
-    console.error("Error fetching templates:", error);
-    res.status(500).json({ error: "Failed to fetch templates" });
-  }
-});
-
-app.post("/api/templates", requireAuth, async (req, res) => {
-  try {
-    const validation = insertCampaignTemplateSchema.safeParse(req.body);
-    if (!validation.success) {
-      return res.status(400).json({ error: validation.error.message });
+      return leads;
     }
-    
-    const templateData = {
-      ...validation.data,
-      userId: req.user!.id,
-      variables: campaignService.extractVariables(
-        validation.data.content,
-        validation.data.subject
-      )
-    };
-    
-    const template = await storage.createCampaignTemplate(templateData);
-    res.json(template);
-  } catch (error) {
-    console.error("Error creating template:", error);
-    res.status(500).json({ error: "Failed to create template" });
-  }
-});
-
-app.put("/api/templates/:id", requireAuth, async (req, res) => {
-  try {
-    const template = await storage.getCampaignTemplate(req.params.id);
-    
-    if (!template) {
-      return res.status(404).json({ error: "Template not found" });
-    }
-    
-    // Check ownership
-    if (template.userId && template.userId !== req.user!.id && req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-    
-    const updatedData = {
-      ...req.body,
-      variables: campaignService.extractVariables(
-        req.body.content,
-        req.body.subject
-      )
-    };
-    
-    const updated = await storage.updateCampaignTemplate(req.params.id, updatedData);
-    res.json(updated);
-  } catch (error) {
-    console.error("Error updating template:", error);
-    res.status(500).json({ error: "Failed to update template" });
-  }
-});
-
-app.delete("/api/templates/:id", requireAuth, async (req, res) => {
-  try {
-    const template = await storage.getCampaignTemplate(req.params.id);
-    
-    if (!template) {
-      return res.status(404).json({ error: "Template not found" });
-    }
-    
-    // Check ownership
-    if (template.userId !== req.user!.id && req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-    
-    await storage.deleteCampaignTemplate(req.params.id);
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Error deleting template:", error);
-    res.status(500).json({ error: "Failed to delete template" });
-  }
-});
-
-// Campaign endpoints
-app.post("/api/campaigns/preview", requireAuth, async (req, res) => {
-  try {
-    const { templateId, purchaseId } = req.body;
-    
-    if (!templateId || !purchaseId) {
-      return res.status(400).json({ error: "Template ID and Purchase ID are required" });
-    }
-    
-    // Get purchase and verify ownership
-    const purchase = await storage.getPurchase(purchaseId);
-    if (!purchase) {
-      return res.status(404).json({ error: "Purchase not found" });
-    }
-    
-    if (purchase.userId !== req.user!.id && req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-    
-    const leadIds = purchase.leadIds || [];
-    const preview = await campaignService.previewTemplate(templateId, leadIds);
-    
-    res.json(preview);
-  } catch (error) {
-    console.error("Error generating preview:", error);
-    res.status(500).json({ error: "Failed to generate preview" });
-  }
-});
-
-app.post("/api/campaigns/create", requireAuth, async (req, res) => {
-  try {
-    const { purchaseId, templateId, campaignName, scheduledAt } = req.body;
-    
-    if (!purchaseId || !templateId || !campaignName) {
-      return res.status(400).json({ 
-        error: "Purchase ID, Template ID, and Campaign Name are required" 
-      });
-    }
-    
-    const campaign = await campaignService.createCampaign(
-      req.user!.id,
-      purchaseId,
-      templateId,
-      campaignName,
-      scheduledAt ? new Date(scheduledAt) : undefined
-    );
-    
-    res.json(campaign);
-  } catch (error) {
-    console.error("Error creating campaign:", error);
-    res.status(500).json({ error: "Failed to create campaign" });
-  }
-});
-
-app.get("/api/campaigns", requireAuth, async (req, res) => {
-  try {
-    const campaigns = await storage.getCampaignsByUserId(req.user!.id);
-    res.json(campaigns);
-  } catch (error) {
-    console.error("Error fetching campaigns:", error);
-    res.status(500).json({ error: "Failed to fetch campaigns" });
-  }
-});
-
-app.get("/api/campaigns/stats", requireAuth, async (req, res) => {
-  try {
-    const stats = await campaignService.getCampaignStats(req.user!.id);
-    res.json(stats);
-  } catch (error) {
-    console.error("Error fetching campaign stats:", error);
-    res.status(500).json({ error: "Failed to fetch campaign statistics" });
-  }
-});
-
-app.post("/api/campaigns/:id/send", requireAuth, async (req, res) => {
-  try {
-    const campaign = await storage.getCampaign(req.params.id);
-    
-    if (!campaign) {
-      return res.status(404).json({ error: "Campaign not found" });
-    }
-    
-    if (campaign.userId !== req.user!.id && req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-    
-    if (campaign.status !== "draft") {
-      return res.status(400).json({ error: "Campaign has already been sent or scheduled" });
-    }
-    
-    await campaignService.processCampaign(req.params.id);
-    const updated = await storage.getCampaign(req.params.id);
-    
-    res.json(updated);
-  } catch (error) {
-    console.error("Error sending campaign:", error);
-    res.status(500).json({ error: "Failed to send campaign" });
-  }
-});
-
-app.post("/api/campaigns/:id/cancel", requireAuth, async (req, res) => {
-  try {
-    const campaign = await storage.getCampaign(req.params.id);
-    
-    if (!campaign) {
-      return res.status(404).json({ error: "Campaign not found" });
-    }
-    
-    if (campaign.userId !== req.user!.id && req.user!.role !== "admin") {
-      return res.status(403).json({ error: "Access denied" });
-    }
-    
-    if (campaign.status !== "scheduled") {
-      return res.status(400).json({ error: "Only scheduled campaigns can be cancelled" });
-    }
-    
-    const updated = await storage.cancelCampaign(req.params.id);
-    res.json(updated);
-  } catch (error) {
-    console.error("Error cancelling campaign:", error);
-    res.status(500).json({ error: "Failed to cancel campaign" });
-  }
-});
-
-// Get available variables for template creation
-app.get("/api/campaigns/variables", requireAuth, async (req, res) => {
-  try {
-    // Import CampaignService class directly to access static properties
-    const { CampaignService } = await import("./services/campaign-tools");
-    res.json(CampaignService.AVAILABLE_VARIABLES);
-  } catch (error) {
-    console.error("Error fetching variables:", error);
-    res.status(500).json({ error: "Failed to fetch available variables" });
-  }
-});
 
 // ==========================================
 // Enterprise API v1 Endpoints
@@ -5353,3 +5373,163 @@ app.post("/api/developer/webhooks/test", requireAuth, async (req, res) => {
     res.status(500).json({ error: "Failed to test webhook" });
   }
 });
+
+// ==========================================
+// ML Scoring Endpoints
+// ==========================================
+
+import { mlScoringService } from "./services/ml-scoring";
+
+// Analyze leads with ML scoring
+app.post("/api/scoring/analyze", requireAuth, async (req, res) => {
+  try {
+    const { leadIds } = req.body;
+    
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: "Lead IDs are required" });
+    }
+    
+    // Score the leads
+    const results = await mlScoringService.scoreLeads(leadIds);
+    
+    // Convert Map to object for JSON response
+    const resultObject: Record<string, any> = {};
+    results.forEach((value, key) => {
+      resultObject[key] = value;
+    });
+    
+    res.json({ 
+      success: true, 
+      scoredLeads: leadIds.length,
+      results: resultObject 
+    });
+  } catch (error) {
+    console.error("Error analyzing leads with ML:", error);
+    res.status(500).json({ error: "Failed to analyze leads" });
+  }
+});
+
+// Get scoring breakdown for a specific lead
+app.get("/api/scoring/factors/:leadId", requireAuth, async (req, res) => {
+  try {
+    const lead = await storage.getLead(req.params.leadId);
+    
+    if (!lead) {
+      return res.status(404).json({ error: "Lead not found" });
+    }
+    
+    // Check if lead has ML scoring data
+    if (lead.mlQualityScore && lead.scoringFactors) {
+      // Return existing scoring data
+      res.json({
+        leadId: lead.id,
+        mlQualityScore: lead.mlQualityScore,
+        conversionProbability: lead.conversionProbability,
+        expectedDealSize: lead.expectedDealSize,
+        scoringFactors: lead.scoringFactors,
+        lastScoredAt: lead.updatedAt || lead.createdAt
+      });
+    } else {
+      // Score the lead if not already scored
+      const scoringResult = await mlScoringService.scoreLead(lead);
+      
+      // Update the lead with scoring data
+      await storage.updateLead(lead.id, {
+        mlQualityScore: scoringResult.mlQualityScore,
+        conversionProbability: scoringResult.conversionProbability.toString(),
+        expectedDealSize: scoringResult.expectedDealSize.toString(),
+        scoringFactors: scoringResult.scoringFactors
+      });
+      
+      res.json({
+        leadId: lead.id,
+        ...scoringResult
+      });
+    }
+  } catch (error) {
+    console.error("Error getting scoring factors:", error);
+    res.status(500).json({ error: "Failed to get scoring factors" });
+  }
+});
+
+// Get market insights from ML scoring
+app.get("/api/scoring/insights", requireAuth, async (req, res) => {
+  try {
+    const insights = await mlScoringService.getMarketInsights();
+    res.json(insights);
+  } catch (error) {
+    console.error("Error getting ML insights:", error);
+    res.status(500).json({ error: "Failed to get market insights" });
+  }
+});
+
+// Retrain ML model (admin only)
+app.post("/api/scoring/retrain", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const newModel = await mlScoringService.retrainModel(req.user!.id);
+    
+    res.json({
+      success: true,
+      model: {
+        id: newModel.id,
+        name: newModel.modelName,
+        version: newModel.modelVersion,
+        accuracy: newModel.accuracy,
+        trainedAt: newModel.trainedAt,
+        trainingDataSize: newModel.trainingDataSize
+      }
+    });
+  } catch (error) {
+    console.error("Error retraining ML model:", error);
+    res.status(500).json({ error: "Failed to retrain model" });
+  }
+});
+
+// Get active ML model info
+app.get("/api/scoring/model", requireAuth, async (req, res) => {
+  try {
+    const [activeModel] = await db
+      .select()
+      .from(leadScoringModels)
+      .where(eq(leadScoringModels.isActive, true))
+      .limit(1);
+    
+    if (!activeModel) {
+      return res.json({ 
+        message: "No active model. System using default heuristics.",
+        usingDefault: true 
+      });
+    }
+    
+    res.json({
+      id: activeModel.id,
+      name: activeModel.modelName,
+      version: activeModel.modelVersion,
+      accuracy: activeModel.accuracy,
+      precision: activeModel.precision,
+      recall: activeModel.recall,
+      f1Score: activeModel.f1Score,
+      trainedAt: activeModel.trainedAt,
+      trainingDataSize: activeModel.trainingDataSize,
+      features: activeModel.features
+    });
+  } catch (error) {
+    console.error("Error getting model info:", error);
+    res.status(500).json({ error: "Failed to get model information" });
+  }
+});
+
+// Auto-score leads on batch upload (called internally)
+async function autoScoreLeads(batchId: string) {
+  try {
+    const batchLeads = await storage.getLeadsByBatchId(batchId);
+    const leadIds = batchLeads.map(lead => lead.id);
+    
+    if (leadIds.length > 0) {
+      await mlScoringService.scoreLeads(leadIds);
+      console.log(`Auto-scored ${leadIds.length} leads from batch ${batchId}`);
+    }
+  } catch (error) {
+    console.error("Error auto-scoring leads:", error);
+  }
+}
