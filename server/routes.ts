@@ -226,8 +226,10 @@ function mapColumnToField(columnName: string): string | null {
     .replace(/[\s\-_\.]+/g, ' ')  // Replace separators with space
     .replace(/\s+/g, ' ');  // Remove multiple spaces
   
-  // Debug logging for specific problematic columns
-  if (columnName.toLowerCase().includes('company') || columnName.toLowerCase().includes('owner')) {
+  // Debug logging for specific problematic columns - REDUCED TO PREVENT EXCESSIVE LOGGING
+  // Only log for debugging when explicitly enabled
+  const debugEnabled = false;
+  if (debugEnabled && (columnName.toLowerCase().includes('company') || columnName.toLowerCase().includes('owner'))) {
     console.log(`Mapping column "${columnName}" -> normalized: "${normalized}"`);
   }
   
@@ -240,14 +242,16 @@ function mapColumnToField(columnName: string): string | null {
   };
   
   if (directMap[normalized]) {
-    console.log(`  -> Direct mapping: "${normalized}" to "${directMap[normalized]}"`);
+    if (debugEnabled) {
+      console.log(`  -> Direct mapping: "${normalized}" to "${directMap[normalized]}"`);
+    }
     return directMap[normalized];
   }
   
   // Check exact matches first
   for (const [field, patterns] of Object.entries(COLUMN_MAPPINGS)) {
     if (patterns.includes(normalized)) {
-      if (columnName.toLowerCase().includes('company') || columnName.toLowerCase().includes('owner')) {
+      if (debugEnabled && (columnName.toLowerCase().includes('company') || columnName.toLowerCase().includes('owner'))) {
         console.log(`  -> Matched to field: ${field}`);
       }
       return field;
@@ -1058,10 +1062,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Insert leads into database
       const leadsToInsert: InsertLead[] = validLeads.map(lead => ({
         batchId: batch.id,
-        businessName: lead.businessName?.trim(),
-        ownerName: lead.ownerName?.trim(),
-        email: lead.email?.trim().toLowerCase(),
-        phone: lead.phone?.trim(),
+        businessName: lead.businessName?.trim() || "Unknown Business",
+        ownerName: lead.ownerName?.trim() || "Not Provided",
+        email: lead.email?.trim().toLowerCase() || "noemail@example.com",
+        phone: lead.phone?.trim() || "0000000000",
         industry: lead.industry?.trim() || null,
         annualRevenue: lead.annualRevenue?.trim() || null,
         requestedAmount: lead.requestedAmount?.trim() || null,
@@ -1271,6 +1275,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/verify-upload-ai", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
     // Track batch save status for accurate error reporting (defined outside to be available in catch block)
     const batchSaveStatus: { [key: number]: { saved: boolean; error?: string; leadsSaved: number } } = {};
+    // Define leadBatch outside try block to be accessible in catch block
+    let leadBatch: any = null;
     
     try {
       if (!req.file) {
@@ -1354,7 +1360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const strictnessLevel = (req.query.strictness as 'strict' | 'moderate' | 'lenient') || 'moderate';
       
       // Create lead batch at the START with processing status
-      const leadBatch = await storage.createLeadBatch({
+      leadBatch = await storage.createLeadBatch({
         uploadedBy: req.user!.id,
         filename: file.originalname + ' (AI Verified)',
         storageKey: `ai_verified_${Date.now()}`,
@@ -1495,10 +1501,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               leadsToImport.push({
                 batchId: leadBatch.id,
-                businessName: leadData.businessName?.trim(),
-                ownerName: leadData.ownerName?.trim(),
-                email: leadData.email?.trim().toLowerCase(),
-                phone: leadData.phone?.trim(),
+                businessName: leadData.businessName?.trim() || "Unknown Business",
+                ownerName: leadData.ownerName?.trim() || "Not Provided",
+                email: leadData.email?.trim().toLowerCase() || "noemail@example.com",
+                phone: leadData.phone?.trim() || "0000000000",
                 industry: leadData.industry?.trim() || null,
                 annualRevenue: leadData.annualRevenue?.trim() || null,
                 requestedAmount: leadData.requestedAmount?.trim() || null,
@@ -1983,10 +1989,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         leadsToImport.push({
           batchId: batch.id,
-          businessName: leadData.businessName?.trim(),
-          ownerName: leadData.ownerName?.trim(),
-          email: leadData.email?.trim().toLowerCase(),
-          phone: leadData.phone?.trim(),
+          businessName: leadData.businessName?.trim() || "Unknown Business",
+          ownerName: leadData.ownerName?.trim() || "Not Provided",
+          email: leadData.email?.trim().toLowerCase() || "noemail@example.com",
+          phone: leadData.phone?.trim() || "0000000000",
           industry: leadData.industry?.trim() || null,
           annualRevenue: leadData.annualRevenue?.trim() || null,
           requestedAmount: leadData.requestedAmount?.trim() || null,
