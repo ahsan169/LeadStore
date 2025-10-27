@@ -30,6 +30,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { leadAlertService, addAlertClient } from "./services/lead-alerts";
 import { leadEnrichmentService } from "./services/lead-enrichment";
 import { qualityGuaranteeService } from "./services/quality-guarantee";
+import { numverifyService } from "./numverify-service";
 import { leadFreshnessService, FreshnessCategory } from "./services/lead-freshness";
 import { bulkOperationsService } from "./services/bulk-operations";
 import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema, insertApiKeySchema, insertWebhookSchema } from "@shared/schema";
@@ -3419,6 +3420,42 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
     } catch (error) {
       console.error('Test email failed:', error);
       res.status(500).json({ error: 'Failed to send test email' });
+    }
+  });
+
+  // Test Numverify phone validation (admin only)
+  app.post('/api/test-numverify', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { phone } = req.body;
+      
+      if (!phone) {
+        return res.status(400).json({ error: 'Phone number is required' });
+      }
+      
+      const result = await numverifyService.validatePhone(phone, 'US');
+      
+      res.json({
+        success: true,
+        result: {
+          isValid: result.isValid,
+          formattedLocal: result.formattedLocal,
+          formattedInternational: result.formattedInternational,
+          carrier: result.carrier,
+          lineType: result.lineType,
+          location: result.location,
+          countryName: result.countryName,
+          riskScore: result.riskScore,
+          riskFactors: result.riskFactors,
+        },
+        message: result.isValid ? 'Phone number is valid' : 'Phone number is invalid',
+        apiSource: result.carrier ? 'Numverify API' : 'Basic validation (API key may not be configured)',
+      });
+    } catch (error) {
+      console.error('Numverify test failed:', error);
+      res.status(500).json({ 
+        error: 'Failed to validate phone number',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 

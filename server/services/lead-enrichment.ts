@@ -1,5 +1,6 @@
 import { Lead, InsertLeadEnrichment, LeadEnrichment } from "@shared/schema";
 import crypto from "crypto";
+import { numverifyService } from "../numverify-service";
 
 // Mock data for generating realistic enrichment
 const COMPANY_SIZES = ["1-10", "11-50", "51-200", "201-500", "500-1000", "1000+"];
@@ -45,9 +46,9 @@ const NAICS_CODES: Record<string, string> = {
 
 export class LeadEnrichmentService {
   /**
-   * Generate mock enrichment data for a lead
+   * Generate enrichment data for a lead with real phone validation
    */
-  generateMockEnrichment(lead: Lead): Partial<InsertLeadEnrichment> {
+  async generateMockEnrichment(lead: Lead): Promise<Partial<InsertLeadEnrichment>> {
     const industry = lead.industry || "General Business";
     const businessName = lead.businessName;
     const ownerName = lead.ownerName;
@@ -101,8 +102,8 @@ export class LeadEnrichmentService {
     // Generate industry details
     const industryDetails = this.generateIndustryDetails(industry, seedNum);
     
-    // Generate additional contact info
-    const contactInfo = this.generateContactInfo(ownerName, businessName, lead.email, seedNum);
+    // Generate additional contact info with real phone enrichment
+    const contactInfo = await this.generateContactInfo(ownerName, businessName, lead.email, lead.phone, seedNum);
     
     // Build enriched data object
     const enrichedData = {
@@ -228,9 +229,9 @@ export class LeadEnrichmentService {
   }
   
   /**
-   * Generate additional contact information
+   * Generate additional contact information with real phone data
    */
-  private generateContactInfo(ownerName: string, businessName: string, email: string, seed: number): any {
+  private async generateContactInfo(ownerName: string, businessName: string, email: string, phone: string | undefined, seed: number): Promise<any> {
     const domain = email.split('@')[1] || 'example.com';
     const executiveCount = 2 + (seed % 3);
     const executives: any[] = [];
@@ -255,15 +256,47 @@ export class LeadEnrichmentService {
       });
     }
     
+    // Enrich phone data with Numverify
+    const phoneNumbers: any[] = [];
+    if (phone) {
+      try {
+        const phoneEnrichment = await numverifyService.enrichPhone(phone);
+        phoneNumbers.push({
+          type: "Main",
+          number: phoneEnrichment.formattedLocal || phone,
+          carrier: phoneEnrichment.carrier,
+          lineType: phoneEnrichment.lineType,
+          location: phoneEnrichment.location,
+          verified: phoneEnrichment.isValid,
+          riskScore: phoneEnrichment.riskScore,
+        });
+        
+        // Add quality indicator for business phones
+        if (phoneEnrichment.qualityIndicators?.isBusinessLine) {
+          phoneNumbers[0].isBusinessLine = true;
+        }
+      } catch (error) {
+        console.log('[Lead Enrichment] Phone enrichment failed, using basic data');
+        phoneNumbers.push({
+          type: "Main",
+          number: phone,
+          verified: false
+        });
+      }
+    }
+    
+    // Add sales extension
+    phoneNumbers.push({
+      type: "Sales",
+      number: phone ? `${phone} ext. 101` : "Extension 101"
+    });
+    
     return {
       domain,
       website: `https://www.${domain}`,
       executives,
       additionalEmails: executives.slice(1).map(e => e.email),
-      phoneNumbers: [
-        { type: "Main", number: "Generated from lead phone" },
-        { type: "Sales", number: "Extension 101" },
-      ],
+      phoneNumbers,
     };
   }
   
@@ -300,10 +333,10 @@ export class LeadEnrichmentService {
   }
   
   /**
-   * Batch enrich multiple leads
+   * Batch enrich multiple leads with real phone validation
    */
   async enrichBatch(leads: Lead[]): Promise<Partial<InsertLeadEnrichment>[]> {
-    return leads.map(lead => this.generateMockEnrichment(lead));
+    return Promise.all(leads.map(lead => this.generateMockEnrichment(lead)));
   }
   
   /**

@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type { InsertVerificationResult } from "@shared/schema";
 import { storage } from "./storage";
 import * as levenshtein from 'fast-levenshtein';
+import { numverifyService } from "./numverify-service";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "default",
@@ -325,10 +326,62 @@ Return a JSON object with:
       };
     }
 
-    const areaCode = cleanPhone.substring(0, 3);
     const issues: string[] = [];
     const warnings: string[] = [];
     const suggestions: string[] = [];
+    
+    // Try Numverify first for real carrier data
+    try {
+      const numverifyResult = await numverifyService.validatePhone(cleanPhone, 'US');
+      
+      if (!numverifyResult.isValid) {
+        return {
+          valid: false,
+          confidence: 100,
+          issues: ['Phone number is invalid according to carrier verification'],
+          warnings: [],
+          suggestions: ['Please provide a valid phone number'],
+          aiInsights: 'Numverify confirms this number is invalid',
+          correctedValue: numverifyResult.formattedLocal
+        };
+      }
+      
+      // Build insights from real carrier data
+      const aiInsights = `Verified ${numverifyResult.lineType} number${numverifyResult.carrier ? ` from ${numverifyResult.carrier}` : ''}${numverifyResult.location ? ` in ${numverifyResult.location}` : ''}`;
+      
+      // Add risk-based warnings
+      if (numverifyResult.riskScore > 60) {
+        issues.push(...numverifyResult.riskFactors);
+      } else if (numverifyResult.riskScore > 30) {
+        warnings.push(...numverifyResult.riskFactors);
+      }
+      
+      // Additional checks for MCA-specific risks
+      if (numverifyResult.lineType === 'voip') {
+        warnings.push('VoIP numbers have higher fraud risk for MCA');
+        suggestions.push('Request additional verification for VoIP numbers');
+      } else if (numverifyResult.lineType === 'toll_free') {
+        warnings.push('Toll-free number may not be direct business line');
+      }
+      
+      const confidence = 100 - numverifyResult.riskScore;
+      
+      return {
+        valid: issues.length === 0,
+        confidence,
+        issues,
+        warnings,
+        suggestions,
+        aiInsights,
+        correctedValue: numverifyResult.formattedLocal || numverifyResult.formattedInternational
+      };
+      
+    } catch (numverifyError) {
+      console.log('[AI Verification] Numverify unavailable, using AI fallback');
+    }
+
+    // Fallback to AI if Numverify fails
+    const areaCode = cleanPhone.substring(0, 3);
     
     // Check for toll-free
     if (TOLL_FREE_PREFIXES.includes(areaCode)) {

@@ -1,0 +1,4 @@
+business_name,owner_first_name,owner_last_name,phone,email,industry,address,city,state,zip,annual_revenue,years_in_business,funding_needed,credit_score
+Tech Solutions LLC,John,Smith,4158586273,john@techsol.com,Technology,123 Main St,San Francisco,CA,94105,500000,3,50000,700
+Pizza Palace,Maria,Garcia,2025550123,maria@pizza.com,Restaurant,456 Oak Ave,Washington,DC,20001,300000,5,30000,650
+Auto Repair Pro,James,Johnson,5551234567,james@autorepair.com,Automotive,789 Elm St,Los Angeles,CA,90001,400000,7,40000,680

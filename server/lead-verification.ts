@@ -1,5 +1,6 @@
 import type { Lead, VerificationResult, InsertVerificationResult } from "@shared/schema";
 import { storage } from "./storage";
+import { numverifyService } from "./numverify-service";
 
 // Strictness levels
 export enum StrictnessLevel {
@@ -75,6 +76,7 @@ interface ValidationResult {
   issues: string[];
   warnings: string[];
   formatted?: string;
+  enrichmentData?: Record<string, any>;
 }
 
 interface LeadValidationResult {
@@ -108,8 +110,8 @@ export class LeadVerificationEngine {
     const warnings: string[] = [];
     let verificationScore = 100;
 
-    // Validate phone
-    const phoneValidation = this.validatePhone(leadData.phone);
+    // Validate phone with Numverify
+    const phoneValidation = await this.validatePhone(leadData.phone);
     if (!phoneValidation.valid) {
       issues.push(...phoneValidation.issues);
       verificationScore -= 20;
@@ -208,8 +210,8 @@ export class LeadVerificationEngine {
     };
   }
 
-  // Phone validation
-  private validatePhone(phone: string | undefined): ValidationResult {
+  // Phone validation with Numverify integration
+  private async validatePhone(phone: string | undefined): Promise<ValidationResult> {
     const issues: string[] = [];
     const warnings: string[] = [];
     
@@ -220,13 +222,56 @@ export class LeadVerificationEngine {
     // Clean phone number
     const cleanPhone = phone.replace(/\D/g, '');
     
-    // Check length
+    // Basic length check
     if (cleanPhone.length !== 10) {
       issues.push(`Invalid phone length: ${cleanPhone.length} digits (should be 10)`);
       return { valid: false, issues, warnings };
     }
 
-    // Extract area code
+    // Try Numverify API validation first
+    try {
+      const numverifyResult = await numverifyService.validatePhone(cleanPhone, 'US');
+      
+      if (!numverifyResult.isValid) {
+        issues.push('Phone number is invalid according to carrier verification');
+        return { valid: false, issues, warnings, formatted: numverifyResult.formattedLocal };
+      }
+      
+      // Add warnings based on risk factors
+      if (numverifyResult.riskScore > 60) {
+        if (this.strictnessLevel === StrictnessLevel.STRICT) {
+          issues.push(...numverifyResult.riskFactors);
+        } else {
+          warnings.push(...numverifyResult.riskFactors);
+        }
+      } else if (numverifyResult.riskScore > 30) {
+        warnings.push(...numverifyResult.riskFactors);
+      }
+      
+      // Additional warnings for line type
+      if (numverifyResult.lineType === 'voip' && this.strictnessLevel === StrictnessLevel.STRICT) {
+        warnings.push(`VoIP number from ${numverifyResult.carrier || 'unknown carrier'}`);
+      }
+      
+      return {
+        valid: issues.length === 0,
+        issues,
+        warnings,
+        formatted: numverifyResult.formattedLocal || numverifyResult.formattedInternational,
+        enrichmentData: {
+          carrier: numverifyResult.carrier,
+          lineType: numverifyResult.lineType,
+          location: numverifyResult.location,
+          countryName: numverifyResult.countryName
+        }
+      };
+      
+    } catch (error) {
+      console.log('[Lead Verification] Numverify API unavailable, using fallback validation');
+      // Fall back to basic validation if Numverify fails
+    }
+
+    // Fallback: Basic validation without API
     const areaCode = parseInt(cleanPhone.substring(0, 3));
     
     // Check valid area code
