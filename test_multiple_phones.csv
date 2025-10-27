@@ -1,0 +1,11 @@
+Company Name,Phone,Owner Name,Email,Industry,Annual Revenue
+"ABC Corp","(555) 123-4567, 555-987-6543","John Smith","john@abc.com","Technology","1000000"
+"XYZ Inc","555.123.4567 / 555.987.6543","Jane Doe","jane@xyz.com","Finance","2000000"
+"Test Company","5551234567 or 5559876543","Bob Johnson","bob@test.com","Retail","500000"
+"Demo LLC","Phone1: 555-123-4567 Phone2: 555-987-6543","Alice Brown","alice@demo.com","Services","750000"
+"Single Phone Co","(555) 123-4567","Tom Wilson","tom@single.com","Manufacturing","1500000"
+"Multi Format","555 123 4567; Mobile: 555-987-6543","Sarah Davis","sarah@multi.com","Healthcare","3000000"
+"International","+1 555 123 4567, 1-555-987-6543","Mike Jones","mike@intl.com","Education","800000"
+"Extensions","555-123-4567 ext. 123, 555-987-6543","Lisa White","lisa@ext.com","Real Estate","2500000"
+"Mixed Text","Main office: (555) 123-4567 (ask for sales), Cell: 555.987.6543","Chris Green","chris@mixed.com","Consulting","900000"
+"No Formatting","5551234567 5559876543","Pat Black","pat@noformat.com","Logistics","1200000"

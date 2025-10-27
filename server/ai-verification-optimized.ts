@@ -274,6 +274,7 @@ export class OptimizedAIVerificationEngine {
               // Apply any corrections from AI
               businessName: aiResult.correctedData?.businessName || leadData.businessName,
               phone: aiResult.correctedData?.phone || leadData.phone,
+              secondaryPhone: leadData.secondaryPhone, // Include secondary phone if present
               email: aiResult.correctedData?.email || leadData.email,
               ownerName: aiResult.correctedData?.ownerName || leadData.ownerName,
             },
@@ -427,6 +428,15 @@ export class OptimizedAIVerificationEngine {
     startIdx: number
   ): Promise<OptimizedLeadResult[]> {
     try {
+      // Log phone extraction for debugging
+      console.log(`[AI Verification] Processing batch with phone data:`, 
+        batch.slice(0, 2).map(lead => ({ 
+          businessName: lead.businessName,
+          phone: lead.phone,
+          secondaryPhone: lead.secondaryPhone 
+        }))
+      );
+
       // Prepare the batch for verification
       const batchRequest: BatchVerificationRequest = {
         leads: batch.map((lead, idx) => ({
@@ -435,6 +445,7 @@ export class OptimizedAIVerificationEngine {
           ownerName: lead.ownerName,
           email: lead.email,
           phone: lead.phone,
+          secondaryPhone: lead.secondaryPhone, // Include secondary phone if present
           address: lead.address || lead.street,
           city: lead.city,
           state: lead.state || lead.stateCode,

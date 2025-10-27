@@ -48,6 +48,7 @@ export const leads = pgTable("leads", {
   ownerName: text("owner_name").notNull(),
   email: text("email").notNull(),
   phone: text("phone").notNull(),
+  secondaryPhone: text("secondary_phone"), // Additional phone number if present
   industry: text("industry"),
   annualRevenue: text("annual_revenue"),
   requestedAmount: text("requested_amount"),

@@ -217,6 +217,191 @@ const COLUMN_MAPPINGS = {
 };
 
 /**
+ * Extract and normalize phone numbers from various formats
+ * Handles multiple phone numbers in a single cell
+ * @param phoneString - Raw phone string from CSV that may contain multiple phones
+ * @returns Object with primary and secondary phone numbers (normalized)
+ */
+function extractPhoneNumbers(phoneString: string): { primary: string | null, secondary: string | null } {
+  if (!phoneString || typeof phoneString !== 'string') {
+    return { primary: null, secondary: null };
+  }
+
+  // Debug logging
+  const debugEnabled = false;
+  if (debugEnabled) {
+    console.log(`[Phone Extraction] Input: "${phoneString}"`);
+  }
+
+  // Common separators for multiple phone numbers
+  const separatorPatterns = [
+    /[,;\/\\|]/,  // Comma, semicolon, forward/back slash, pipe
+    /\s+or\s+/i,  // "or" with spaces
+    /\s+and\s+/i, // "and" with spaces
+    /\s*[&]\s*/,  // Ampersand with optional spaces
+    /\s{2,}/,     // Multiple spaces
+    /[\n\r]+/,    // Line breaks
+  ];
+
+  // Split the input by common separators to find multiple phone numbers
+  let potentialPhones: string[] = [phoneString];
+  
+  for (const separator of separatorPatterns) {
+    const newPotentialPhones: string[] = [];
+    for (const phone of potentialPhones) {
+      const parts = phone.split(separator);
+      newPotentialPhones.push(...parts);
+    }
+    potentialPhones = newPotentialPhones;
+  }
+
+  // Also check for patterns like "phone1: xxx phone2: xxx"
+  const labeledPhonePattern = /(?:phone\s*\d*\s*[:#]?\s*|tel\s*[:#]?\s*|mobile\s*[:#]?\s*|cell\s*[:#]?\s*)([^\s].*?)(?=(?:phone|tel|mobile|cell|\s*$))/gi;
+  const labeledMatches = phoneString.matchAll(labeledPhonePattern);
+  for (const match of labeledMatches) {
+    if (match[1]) {
+      potentialPhones.push(match[1].trim());
+    }
+  }
+
+  // Regular expressions for various phone formats
+  const phonePatterns = [
+    // International format with country code
+    /(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/,
+    // Standard US formats
+    /\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/,
+    // 10 digits with no formatting
+    /\b([0-9]{10})\b/,
+    // With extensions (capture base number only)
+    /\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})(?:\s*(?:ext|x|extension)\.?\s*\d+)?/i,
+    // Dots as separators
+    /([0-9]{3})\.([0-9]{3})\.([0-9]{4})/,
+    // Spaces as separators
+    /([0-9]{3})\s+([0-9]{3})\s+([0-9]{4})/,
+  ];
+
+  const extractedPhones: string[] = [];
+  const processedNumbers = new Set<string>();
+
+  for (const potential of potentialPhones) {
+    if (!potential || potential.trim().length === 0) continue;
+
+    const trimmed = potential.trim();
+    
+    // Try each pattern
+    for (const pattern of phonePatterns) {
+      const matches = trimmed.matchAll(new RegExp(pattern, 'g'));
+      
+      for (const match of matches) {
+        let phoneNumber = '';
+        
+        // Extract digits from the match
+        const fullMatch = match[0];
+        const digits = fullMatch.replace(/\D/g, '');
+        
+        // Handle different digit lengths
+        if (digits.length === 11 && digits.startsWith('1')) {
+          // Remove country code
+          phoneNumber = digits.substring(1);
+        } else if (digits.length === 10) {
+          phoneNumber = digits;
+        } else if (digits.length === 7) {
+          // Local number without area code - skip for now
+          continue;
+        } else {
+          continue;
+        }
+
+        // Validate the phone number
+        if (phoneNumber.length === 10) {
+          // Check for invalid patterns
+          const firstThree = phoneNumber.substring(0, 3);
+          const secondThree = phoneNumber.substring(3, 6);
+          const lastFour = phoneNumber.substring(6);
+          
+          // Skip invalid area codes (000, 111, etc)
+          if (firstThree === '000' || firstThree === '111' || firstThree === '999') {
+            continue;
+          }
+          
+          // Skip if all digits are the same (e.g., 111-111-1111, 000-000-0000)
+          if (/^(\d)\1{9}$/.test(phoneNumber)) {
+            continue;
+          }
+          
+          // Skip specific invalid patterns
+          if (phoneNumber === '0000000000' || 
+              phoneNumber === '1111111111' || 
+              phoneNumber === '9999999999' ||
+              phoneNumber === '8888888888' ||
+              phoneNumber === '7777777777') {
+            continue;
+          }
+          
+          // Skip sequential patterns like 1234567890
+          if (phoneNumber === '1234567890' || phoneNumber === '0123456789') {
+            continue;
+          }
+          
+          // Skip if middle three digits are all the same AND first/last match
+          if (firstThree === secondThree && secondThree === lastFour.substring(0, 3)) {
+            continue;
+          }
+
+          // Format the phone number consistently
+          const formatted = `${phoneNumber.substring(0, 3)}-${phoneNumber.substring(3, 6)}-${phoneNumber.substring(6)}`;
+          
+          // Avoid duplicates
+          if (!processedNumbers.has(phoneNumber)) {
+            processedNumbers.add(phoneNumber);
+            extractedPhones.push(formatted);
+            
+            if (debugEnabled) {
+              console.log(`[Phone Extraction] Found: ${formatted}`);
+            }
+          }
+        }
+      }
+    }
+
+    // If no pattern matched, try extracting raw 10-digit sequence
+    const rawDigits = trimmed.replace(/\D/g, '');
+    if (rawDigits.length === 10 && !processedNumbers.has(rawDigits)) {
+      const formatted = `${rawDigits.substring(0, 3)}-${rawDigits.substring(3, 6)}-${rawDigits.substring(6)}`;
+      processedNumbers.add(rawDigits);
+      extractedPhones.push(formatted);
+      
+      if (debugEnabled) {
+        console.log(`[Phone Extraction] Found (raw): ${formatted}`);
+      }
+    } else if (rawDigits.length === 11 && rawDigits.startsWith('1')) {
+      const withoutCountryCode = rawDigits.substring(1);
+      if (!processedNumbers.has(withoutCountryCode)) {
+        const formatted = `${withoutCountryCode.substring(0, 3)}-${withoutCountryCode.substring(3, 6)}-${withoutCountryCode.substring(6)}`;
+        processedNumbers.add(withoutCountryCode);
+        extractedPhones.push(formatted);
+        
+        if (debugEnabled) {
+          console.log(`[Phone Extraction] Found (11-digit): ${formatted}`);
+        }
+      }
+    }
+  }
+
+  // Return primary and secondary phone numbers
+  const result = {
+    primary: extractedPhones[0] || null,
+    secondary: extractedPhones[1] || null
+  };
+
+  if (debugEnabled) {
+    console.log(`[Phone Extraction] Result:`, result);
+  }
+
+  return result;
+}
+
+/**
  * Flexible column mapper that handles case-insensitive matching,
  * partial matching, and various formats
  */
@@ -445,6 +630,7 @@ function parseCSVFile(buffer: Buffer, filename: string): { rows: any[], headers:
 function normalizeLeadData(row: any, debug: boolean = false): any {
   const normalized: any = {};
   const unmappedFields: any = {};
+  let phoneFieldsFound: string[] = [];
   
   for (const [originalKey, value] of Object.entries(row)) {
     if (!value || String(value).trim() === '') continue;
@@ -452,8 +638,12 @@ function normalizeLeadData(row: any, debug: boolean = false): any {
     const mappedField = mapColumnToField(originalKey);
     
     if (mappedField) {
+      // Special handling for phone fields - collect all phone columns
+      if (mappedField === 'phone') {
+        phoneFieldsFound.push(String(value).trim());
+      } 
       // Special handling for boolean fields
-      if (mappedField === 'dailyBankDeposits') {
+      else if (mappedField === 'dailyBankDeposits') {
         const strValue = String(value).toLowerCase();
         normalized[mappedField] = strValue === 'true' || strValue === 'yes' || 
                                   strValue === '1' || strValue === 'y';
@@ -466,6 +656,26 @@ function normalizeLeadData(row: any, debug: boolean = false): any {
     }
   }
   
+  // Process phone numbers using the extraction function
+  if (phoneFieldsFound.length > 0) {
+    // Combine all phone fields (in case phone1 and phone2 are in separate columns)
+    const combinedPhoneString = phoneFieldsFound.join(', ');
+    const extractedPhones = extractPhoneNumbers(combinedPhoneString);
+    
+    normalized.phone = extractedPhones.primary || '';
+    if (extractedPhones.secondary) {
+      normalized.secondaryPhone = extractedPhones.secondary;
+    }
+    
+    if (debug) {
+      console.log('Phone extraction:', {
+        input: combinedPhoneString,
+        primary: extractedPhones.primary,
+        secondary: extractedPhones.secondary
+      });
+    }
+  }
+  
   // Set defaults for optional fields
   normalized.previousMCAHistory = normalized.previousMCAHistory || 'none';
   normalized.urgencyLevel = normalized.urgencyLevel || 'exploring';
@@ -475,7 +685,8 @@ function normalizeLeadData(row: any, debug: boolean = false): any {
   if (debug) {
     console.log('Column mapping result:', {
       mapped: Object.keys(normalized),
-      unmapped: Object.keys(unmappedFields)
+      unmapped: Object.keys(unmappedFields),
+      phoneFields: phoneFieldsFound
     });
   }
   
