@@ -100,6 +100,7 @@ import {
   uccFilings,
   type UccFiling,
   type InsertUccFiling,
+  leadActivationHistory,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -466,6 +467,13 @@ export interface IStorage {
     recentFilings: number;
     filingsByType: Record<string, number>;
   }>;
+  
+  // Lead Activation History operations
+  createLeadActivationHistory(data: any): Promise<any>;
+  getLeadActivationHistory(leadId: string): Promise<any[]>;
+  getActivationHistoryById(activationId: string): Promise<any | undefined>;
+  getAllActivationHistory(userId?: string, limit?: number): Promise<any[]>;
+  getCrmIntegrations(): Promise<CrmIntegration[]>;
 }
 
 export class DbStorage implements IStorage {
@@ -2236,6 +2244,46 @@ export class DbStorage implements IStorage {
       recentFilings,
       filingsByType
     };
+  }
+  
+  // Lead Activation History operations
+  async createLeadActivationHistory(data: any): Promise<any> {
+    const result = await db.insert(leadActivationHistory).values(data).returning();
+    return result[0];
+  }
+  
+  async getLeadActivationHistory(leadId: string): Promise<any[]> {
+    const history = await db.select()
+      .from(leadActivationHistory)
+      .where(sql`${leadActivationHistory.leadIds} @> ARRAY[${leadId}]::text[]`)
+      .orderBy(desc(leadActivationHistory.createdAt));
+    return history;
+  }
+  
+  async getActivationHistoryById(activationId: string): Promise<any | undefined> {
+    const result = await db.select()
+      .from(leadActivationHistory)
+      .where(eq(leadActivationHistory.activationId, activationId))
+      .limit(1);
+    return result[0];
+  }
+  
+  async getAllActivationHistory(userId?: string, limit: number = 50): Promise<any[]> {
+    let query = db.select().from(leadActivationHistory);
+    
+    if (userId) {
+      query = query.where(eq(leadActivationHistory.userId, userId));
+    }
+    
+    const results = await query
+      .orderBy(desc(leadActivationHistory.createdAt))
+      .limit(limit);
+      
+    return results;
+  }
+  
+  async getCrmIntegrations(): Promise<CrmIntegration[]> {
+    return db.select().from(crmIntegrations).orderBy(desc(crmIntegrations.createdAt));
   }
 }
 

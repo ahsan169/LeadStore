@@ -109,6 +109,10 @@ export const leads = pgTable("leads", {
   intelligenceMetadata: jsonb("intelligence_metadata"), // Detailed breakdown and explanations
   intelligenceCalculatedAt: timestamp("intelligence_calculated_at"),
   
+  // Lead activation tracking
+  lastActivatedAt: timestamp("last_activated_at"),
+  activationCount: integer("activation_count").notNull().default(0),
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -136,6 +140,29 @@ export const leadAging = pgTable("lead_aging", {
   leadCount: integer("lead_count").notNull().default(0),
   averageFreshnessScore: decimal("average_freshness_score", { precision: 5, scale: 2 }),
   calculatedAt: timestamp("calculated_at").notNull().defaultNow(),
+});
+
+// Lead activation history for unified workflow tracking
+export const leadActivationHistory = pgTable("lead_activation_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  activationId: text("activation_id").notNull().unique(),
+  leadIds: text("lead_ids").array().notNull(),
+  userId: varchar("user_id").references(() => users.id),
+  
+  // Activation workflow steps
+  steps: jsonb("steps").notNull(), // Array of ActivationStep objects
+  overallStatus: text("overall_status").notNull(), // 'pending', 'processing', 'completed', 'failed'
+  
+  // Results from each step
+  enrichmentResults: jsonb("enrichment_results"),
+  campaignId: varchar("campaign_id"),
+  crmExportResults: jsonb("crm_export_results"),
+  
+  // Metadata
+  quickActionId: text("quick_action_id"), // If triggered by quick action
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  executionTimeMs: integer("execution_time_ms"),
 });
 
 // Purchase transactions

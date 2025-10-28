@@ -30,12 +30,13 @@ import AlertsPage from "@/pages/alerts";
 import LeadsPage from "@/pages/leads";
 import GuaranteeReportsPage from "@/pages/guarantee-reports";
 import CampaignsPage from "@/pages/campaigns";
+import LeadActivationPage from "@/pages/lead-activation";
 import DeveloperPage from "@/pages/developer";
 import ApiDocsPage from "@/pages/api-docs";
 import SmartMatchingPage from "@/pages/smart-matching";
 import AdvancedFilteringPage from "@/pages/advanced-filtering";
 import MLScoringPage from "@/pages/ml-scoring";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book } from "lucide-react";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -104,16 +105,15 @@ function AppSidebar() {
   const buyerMenuItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home },
     { title: "Analytics", url: "/analytics", icon: TrendingUp },
+    { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Advanced Filtering", url: "/advanced-filtering", icon: Search },
     { title: "Smart Matching", url: "/smart-matching", icon: Bell },
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
-    { title: "Campaigns", url: "/campaigns", icon: Send },
     { title: "Quality Guarantee", url: "/guarantee-reports", icon: ShieldCheck },
     { title: "Alerts", url: "/alerts", icon: Bell },
-    { title: "CRM Integrations", url: "/integrations", icon: Link2 },
     { title: "ML Scoring", url: "/ml-scoring", icon: TrendingUp },
     { title: "Developer Portal", url: "/developer", icon: Key },
     { title: "API Docs", url: "/api-docs", icon: Book },
@@ -122,6 +122,7 @@ function AppSidebar() {
   const adminMenuItems = [
     { title: "Dashboard", url: "/admin/dashboard", icon: BarChart },
     { title: "Analytics", url: "/analytics", icon: TrendingUp },
+    { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Advanced Filtering", url: "/advanced-filtering", icon: Search },
     { title: "Smart Matching", url: "/smart-matching", icon: Bell },
@@ -130,9 +131,7 @@ function AppSidebar() {
     { title: "Quality Guarantees", url: "/admin/manage-guarantees", icon: ShieldCheck },
     { title: "Pricing Tiers", url: "/admin/tiers", icon: Tags },
     { title: "Bulk Operations", url: "/admin/bulk-management", icon: Calculator },
-    { title: "CRM Integrations", url: "/integrations", icon: Link2 },
     { title: "ML Scoring", url: "/ml-scoring", icon: TrendingUp },
-    { title: "Campaigns", url: "/campaigns", icon: Send },
     { title: "Customers", url: "/admin/customers", icon: Users },
     { title: "Contact Forms", url: "/admin/contact-submissions", icon: MessageSquare },
   ];
@@ -255,6 +254,7 @@ function Router() {
               <Route path="/" component={DashboardPage} />
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/analytics" component={AnalyticsPage} />
+              <Route path="/lead-activation" component={LeadActivationPage} />
               <Route path="/leads" component={LeadsPage} />
               <Route path="/pricing" component={PricingPage} />
               <Route path="/purchase" component={PurchaseFlowPage} />

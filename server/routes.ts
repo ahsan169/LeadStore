@@ -6044,6 +6044,132 @@ Time: ${preferredTime || 'Any time'}`);
     }
   );
 
+  // Lead Activation Hub endpoints
+  app.post("/api/lead-activation/activate", requireAuth, async (req, res) => {
+    try {
+      const { leadIds, actions, options } = req.body;
+      
+      if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "Lead IDs are required" });
+      }
+      
+      // Import the lead activation hub
+      const { leadActivationHub } = await import("./services/lead-activation-hub");
+      
+      const result = await leadActivationHub.activateLeads({
+        leadIds,
+        actions: actions || {},
+        options: {
+          ...options,
+          userId: req.user!.id
+        }
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Lead activation error:", error);
+      res.status(500).json({ error: error.message || "Failed to activate leads" });
+    }
+  });
+  
+  app.post("/api/lead-activation/quick-action", requireAuth, async (req, res) => {
+    try {
+      const { actionId, leadIds, options } = req.body;
+      
+      if (!actionId || !leadIds || !Array.isArray(leadIds)) {
+        return res.status(400).json({ error: "Action ID and lead IDs are required" });
+      }
+      
+      const { leadActivationHub } = await import("./services/lead-activation-hub");
+      
+      const result = await leadActivationHub.executeQuickAction(
+        actionId,
+        leadIds,
+        {
+          ...options,
+          userId: req.user!.id
+        }
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Quick action error:", error);
+      res.status(500).json({ error: error.message || "Failed to execute quick action" });
+    }
+  });
+  
+  app.get("/api/lead-activation/quick-actions", requireAuth, async (req, res) => {
+    try {
+      const { LeadActivationHub } = await import("./services/lead-activation-hub");
+      res.json(LeadActivationHub.QUICK_ACTIONS);
+    } catch (error: any) {
+      console.error("Error fetching quick actions:", error);
+      res.status(500).json({ error: "Failed to fetch quick actions" });
+    }
+  });
+  
+  app.post("/api/lead-activation/preview", requireAuth, async (req, res) => {
+    try {
+      const { leadIds, actions, options } = req.body;
+      
+      if (!leadIds || !Array.isArray(leadIds)) {
+        return res.status(400).json({ error: "Lead IDs are required" });
+      }
+      
+      const { leadActivationHub } = await import("./services/lead-activation-hub");
+      
+      const preview = await leadActivationHub.previewActivation({
+        leadIds,
+        actions: actions || {},
+        options: options || {}
+      });
+      
+      res.json(preview);
+    } catch (error: any) {
+      console.error("Preview error:", error);
+      res.status(500).json({ error: "Failed to generate preview" });
+    }
+  });
+  
+  app.get("/api/lead-activation/history", requireAuth, async (req, res) => {
+    try {
+      const { leadId, limit } = req.query;
+      const { leadActivationHub } = await import("./services/lead-activation-hub");
+      
+      let history;
+      if (leadId) {
+        history = await leadActivationHub.getLeadActivationHistory(leadId as string);
+      } else {
+        history = await leadActivationHub.getActivationHistory(
+          req.user!.id,
+          limit ? parseInt(limit as string) : 50
+        );
+      }
+      
+      res.json(history);
+    } catch (error: any) {
+      console.error("History error:", error);
+      res.status(500).json({ error: "Failed to fetch activation history" });
+    }
+  });
+  
+  app.get("/api/lead-activation/status/:activationId", requireAuth, async (req, res) => {
+    try {
+      const { leadActivationHub } = await import("./services/lead-activation-hub");
+      
+      const status = leadActivationHub.getActivationStatus(req.params.activationId);
+      
+      if (!status) {
+        return res.status(404).json({ error: "Activation not found" });
+      }
+      
+      res.json(status);
+    } catch (error: any) {
+      console.error("Status error:", error);
+      res.status(500).json({ error: "Failed to fetch activation status" });
+    }
+  });
+
   // API v1 - Webhook Management
   app.post(
     "/api/v1/webhooks",
