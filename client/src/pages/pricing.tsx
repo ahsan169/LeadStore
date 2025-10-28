@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { PricingCard } from "@/components/PricingCard";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, Clock, Award, FileCheck, Waves, Droplets, CheckCircle2, ShieldCheck, Package, Calculator } from "lucide-react";
+import { Shield, Clock, Award, FileCheck, Check, X, Droplets, ShieldCheck, Package, Calculator, ArrowRight, Zap, Users, Rocket, HeadphonesIcon, SearchIcon, Database, Globe, ChartBarIcon, RefreshCw } from "lucide-react";
 import type { ProductTier } from "@shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 import { InteractiveTooltip, DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
@@ -13,7 +12,16 @@ import { ContactModal } from "@/components/modals/ContactModal";
 import { BulkDiscountCalculator } from "@/components/BulkDiscountCalculator";
 import { BulkPurchaseDialog } from "@/components/BulkPurchaseDialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
@@ -48,14 +56,57 @@ export default function PricingPage() {
   });
 
   const handleSelectTier = (tier: string) => {
-    if (tier === "elite") {
-      // For Elite tier, open contact sales modal
-      setShowContactModal(true);
-    } else {
-      // Create checkout session for other tiers
-      createCheckoutSession.mutate(tier);
-    }
+    createCheckoutSession.mutate(tier);
   };
+
+  // Comparison table data
+  const comparisonFeatures = [
+    { 
+      category: "Leads & Quality",
+      features: [
+        { name: "Monthly Lead Volume", starter: "100 leads", pro: "500 leads" },
+        { name: "Intelligence Score", starter: "70+ score", pro: "80+ score" },
+        { name: "Lead Freshness Guarantee", starter: true, pro: true },
+        { name: "Verified & TCPA Compliant", starter: true, pro: true },
+      ]
+    },
+    {
+      category: "Lead Activation Hub",
+      features: [
+        { name: "Lead Enrichment", starter: true, pro: true },
+        { name: "Email Campaign Tools", starter: true, pro: true },
+        { name: "CRM Export", starter: "Basic", pro: "Advanced with custom mapping" },
+        { name: "Smart Search", starter: "Basic filters", pro: "Advanced with saved searches" },
+      ]
+    },
+    {
+      category: "Automation & Integration",
+      features: [
+        { name: "API Access", starter: false, pro: true },
+        { name: "Webhook Support", starter: false, pro: true },
+        { name: "Bulk Operations", starter: false, pro: true },
+        { name: "Custom Integrations", starter: false, pro: true },
+      ]
+    },
+    {
+      category: "Support & Guarantees",
+      features: [
+        { name: "Support Channel", starter: "Email", pro: "Priority + Dedicated Manager" },
+        { name: "Response Time", starter: "24-48 hours", pro: "< 2 hours" },
+        { name: "Lead Quality Guarantee", starter: "30-day report", pro: "Instant replacements" },
+        { name: "Download Window", starter: "30 days", pro: "Unlimited" },
+      ]
+    },
+    {
+      category: "Advanced Features",
+      features: [
+        { name: "AI-Powered Insights", starter: "Basic", pro: "Full ML scoring & predictions" },
+        { name: "Custom Industry Targeting", starter: false, pro: true },
+        { name: "Volume Discounts", starter: false, pro: "Up to 25% off" },
+        { name: "Real-time Lead Delivery", starter: false, pro: true },
+      ]
+    }
+  ];
 
   // Show loading state while fetching tiers
   if (isLoading) {
@@ -92,10 +143,10 @@ export default function PricingPage() {
               />
             </div>
             <h1 className="text-5xl md:text-6xl font-bold" data-testid="heading-pricing">
-              Choose Your <span className="text-gradient">Plan</span>
+              Simple, Transparent <span className="text-gradient">Pricing</span>
             </h1>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-              Access verified, high-quality MCA leads with transparent pricing and guaranteed delivery
+              Choose the perfect plan for your team. Start small or go pro - upgrade anytime.
             </p>
             
             {/* 30-Day Guarantee Badge */}
@@ -115,84 +166,224 @@ export default function PricingPage() {
               <div className="h-px bg-primary/20 w-16"></div>
             </div>
           </div>
-
-          {/* Trust Badges */}
-          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto animate-slide-up animate-delay-100">
-            <div className="flex flex-col items-center gap-2 text-center glass p-4 rounded-xl">
-              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-                <Shield className="w-6 h-6 text-primary" />
-              </div>
-              <span className="text-sm font-semibold">TCPA Compliant</span>
-              <span className="text-xs text-muted-foreground">100% Verified</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 text-center glass p-4 rounded-xl">
-              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-                <Award className="w-6 h-6 text-primary" />
-              </div>
-              <span className="text-sm font-semibold">Quality Guaranteed</span>
-              <span className="text-xs text-muted-foreground">Hand-Selected</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 text-center glass p-4 rounded-xl">
-              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-                <Clock className="w-6 h-6 text-primary" />
-              </div>
-              <span className="text-sm font-semibold">Instant Delivery</span>
-              <span className="text-xs text-muted-foreground">Download Now</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 text-center glass p-4 rounded-xl">
-              <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-                <FileCheck className="w-6 h-6 text-primary" />
-              </div>
-              <span className="text-sm font-semibold">Verified Sources</span>
-              <span className="text-xs text-muted-foreground">Expert Team</span>
-            </div>
-          </div>
-
-          {/* Trust Indicators */}
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-8 animate-fade-in animate-delay-200">
-            <VisitorCounter />
-            <StockIndicator tier="Diamond" remaining={89} />
-          </div>
         </div>
       </div>
 
-      {/* Pricing Cards */}
-      <div className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="text-lg text-muted-foreground">Loading pricing tiers...</div>
-          </div>
-        ) : tiers.length === 0 ? (
+      {/* Pricing Cards - 2 Tiers Only */}
+      <div className="max-w-5xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
+        {tiers.length === 0 ? (
           <div className="flex items-center justify-center py-16">
             <div className="text-lg text-muted-foreground">No pricing tiers available at this time.</div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {tiers.map((tier) => (
-              <PricingCard
-                key={tier.tier}
-                tier={tier.tier}
-                name={tier.name}
-                price={tier.price / 100}
-                leadCount={tier.leadCount}
-                minQuality={tier.minQuality}
-                maxQuality={tier.maxQuality}
-                features={tier.features}
-                recommended={tier.recommended}
-                onSelect={() => handleSelectTier(tier.tier)}
-              />
+              <Card 
+                key={tier.tier} 
+                className={`relative overflow-hidden transform transition-all duration-300 hover:scale-105 ${tier.recommended ? 'border-primary shadow-xl' : ''}`}
+              >
+                {tier.recommended && (
+                  <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-4 py-1 text-sm font-semibold rounded-bl-lg">
+                    MOST POPULAR
+                  </div>
+                )}
+                
+                <CardHeader className="space-y-4 pb-6">
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-bold">{tier.name}</h3>
+                    <p className="text-muted-foreground">
+                      {tier.tier === 'starter' 
+                        ? 'Perfect for small teams just starting with MCA leads'
+                        : 'Ideal for growing teams and enterprise customers'
+                      }
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-black" data-testid={`text-price-${tier.tier}`}>
+                        ${(tier.price / 100).toLocaleString()}
+                      </span>
+                      <span className="text-muted-foreground">/month</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-muted-foreground" />
+                        <span className="font-semibold">{tier.leadCount} leads</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-muted-foreground" />
+                        <Badge variant="secondary" className="font-semibold">
+                          {tier.minQuality}+ Score
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    {tier.features.slice(0, 8).map((feature, idx) => (
+                      <div key={idx} className="flex items-start gap-3" data-testid={`feature-${tier.tier}-${idx}`}>
+                        <Check className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                        <span className="text-sm">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+                
+                <CardFooter className="pt-6">
+                  <Button 
+                    className="w-full" 
+                    size="lg"
+                    variant={tier.recommended ? "default" : "outline"}
+                    onClick={() => handleSelectTier(tier.tier)}
+                    data-testid={`button-select-${tier.tier}`}
+                  >
+                    Get Started
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </CardFooter>
+              </Card>
             ))}
           </div>
         )}
+
+        {/* Feature Comparison Table */}
+        <div className="mt-20">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold mb-4">
+              Compare <span className="text-gradient">Plans</span>
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              See which plan is right for your business
+            </p>
+          </div>
+
+          <Card className="overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[40%]">Features</TableHead>
+                  <TableHead className="text-center">
+                    <div className="space-y-1">
+                      <div className="font-semibold">Starter</div>
+                      <div className="text-sm text-muted-foreground">$997/month</div>
+                    </div>
+                  </TableHead>
+                  <TableHead className="text-center bg-primary/5">
+                    <div className="space-y-1">
+                      <div className="font-semibold">Pro</div>
+                      <Badge variant="secondary" className="text-xs">RECOMMENDED</Badge>
+                      <div className="text-sm text-muted-foreground">$2,997/month</div>
+                    </div>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {comparisonFeatures.map((category) => (
+                  <>
+                    <TableRow key={category.category}>
+                      <TableCell colSpan={3} className="bg-muted/50 font-semibold">
+                        {category.category}
+                      </TableCell>
+                    </TableRow>
+                    {category.features.map((feature) => (
+                      <TableRow key={feature.name}>
+                        <TableCell className="font-medium">{feature.name}</TableCell>
+                        <TableCell className="text-center">
+                          {typeof feature.starter === 'boolean' ? (
+                            feature.starter ? (
+                              <Check className="w-5 h-5 text-green-500 mx-auto" />
+                            ) : (
+                              <X className="w-5 h-5 text-muted-foreground mx-auto" />
+                            )
+                          ) : (
+                            <span className="text-sm">{feature.starter}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-center bg-primary/5">
+                          {typeof feature.pro === 'boolean' ? (
+                            feature.pro ? (
+                              <Check className="w-5 h-5 text-green-500 mx-auto" />
+                            ) : (
+                              <X className="w-5 h-5 text-muted-foreground mx-auto" />
+                            )
+                          ) : (
+                            <span className="text-sm font-medium">{feature.pro}</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </div>
+
+        {/* Value Props Section */}
+        <div className="mt-20">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold mb-4">
+              Why Choose <span className="text-gradient">Lakefront Leadworks</span>
+            </h2>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card className="text-center">
+              <CardHeader>
+                <div className="mx-auto p-3 rounded-full bg-primary/10 w-fit mb-2">
+                  <Shield className="w-8 h-8 text-primary" />
+                </div>
+                <CardTitle>100% Verified</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Every lead is verified for accuracy and TCPA compliance. We guarantee data quality.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardHeader>
+                <div className="mx-auto p-3 rounded-full bg-primary/10 w-fit mb-2">
+                  <Rocket className="w-8 h-8 text-primary" />
+                </div>
+                <CardTitle>Instant Access</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Start working leads immediately. Our Lead Activation Hub helps you connect faster.
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="text-center">
+              <CardHeader>
+                <div className="mx-auto p-3 rounded-full bg-primary/10 w-fit mb-2">
+                  <RefreshCw className="w-8 h-8 text-primary" />
+                </div>
+                <CardTitle>Quality Guarantee</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  30-day quality guarantee with instant replacements for Pro customers.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
         {/* Bulk Purchase Section */}
         <div className="mt-20">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold mb-4">
-              Need More Leads? <span className="text-gradient">Save with Bulk Purchases</span>
+              Need More Leads? <span className="text-gradient">Save with Bulk</span>
             </h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Purchase 100+ leads and unlock automatic volume discounts up to 25% off
+              Pro customers get automatic volume discounts up to 25% off
             </p>
           </div>
 
@@ -210,47 +401,36 @@ export default function PricingPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Package className="h-5 w-5" />
-                  Why Buy in Bulk?
+                  Bulk Purchase Benefits
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                    <div>
-                      <p className="font-medium">Significant Cost Savings</p>
-                      <p className="text-sm text-muted-foreground">
-                        Save up to 25% on large orders with automatic volume discounts
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                    <div>
-                      <p className="font-medium">Priority Processing</p>
-                      <p className="text-sm text-muted-foreground">
-                        Bulk orders receive priority processing and dedicated support
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                    <div>
-                      <p className="font-medium">Custom Criteria Selection</p>
-                      <p className="text-sm text-muted-foreground">
-                        Filter by industry, location, quality score, and more
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-primary mt-0.5" />
-                    <div>
-                      <p className="font-medium">Enterprise Support</p>
-                      <p className="text-sm text-muted-foreground">
-                        Dedicated account manager for orders of 5000+ leads
-                      </p>
-                    </div>
-                  </div>
+                  <Badge variant="outline" className="w-full justify-start p-3">
+                    <span className="text-sm">
+                      <span className="font-semibold">100-499 leads:</span> 5% discount
+                    </span>
+                  </Badge>
+                  <Badge variant="outline" className="w-full justify-start p-3">
+                    <span className="text-sm">
+                      <span className="font-semibold">500-999 leads:</span> 10% discount
+                    </span>
+                  </Badge>
+                  <Badge variant="outline" className="w-full justify-start p-3">
+                    <span className="text-sm">
+                      <span className="font-semibold">1,000-2,499 leads:</span> 15% discount
+                    </span>
+                  </Badge>
+                  <Badge variant="outline" className="w-full justify-start p-3">
+                    <span className="text-sm">
+                      <span className="font-semibold">2,500-4,999 leads:</span> 20% discount
+                    </span>
+                  </Badge>
+                  <Badge variant="outline" className="w-full justify-start p-3 border-primary">
+                    <span className="text-sm">
+                      <span className="font-semibold">5,000+ leads:</span> 25% discount + custom pricing
+                    </span>
+                  </Badge>
                 </div>
 
                 <div className="pt-4 border-t">
@@ -264,11 +444,35 @@ export default function PricingPage() {
                     data-testid="button-start-bulk"
                   >
                     <Calculator className="h-4 w-4 mr-2" />
-                    Start Bulk Order
+                    Calculate Bulk Savings
                   </Button>
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </div>
+
+        {/* Trust Badges */}
+        <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Shield className="w-8 h-8 text-primary" />
+            <span className="text-sm font-semibold">TCPA Compliant</span>
+            <span className="text-xs text-muted-foreground">100% Verified</span>
+          </div>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Award className="w-8 h-8 text-primary" />
+            <span className="text-sm font-semibold">Quality Guaranteed</span>
+            <span className="text-xs text-muted-foreground">Hand-Selected</span>
+          </div>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <Clock className="w-8 h-8 text-primary" />
+            <span className="text-sm font-semibold">Instant Delivery</span>
+            <span className="text-xs text-muted-foreground">Download Now</span>
+          </div>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <FileCheck className="w-8 h-8 text-primary" />
+            <span className="text-sm font-semibold">Verified Sources</span>
+            <span className="text-xs text-muted-foreground">Expert Team</span>
           </div>
         </div>
 
@@ -284,7 +488,7 @@ export default function PricingPage() {
         </div>
       </div>
       
-      {/* Contact Modal for Elite tier */}
+      {/* Contact Modal for custom pricing */}
       <ContactModal
         isOpen={showContactModal}
         onClose={() => setShowContactModal(false)}

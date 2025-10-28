@@ -17,16 +17,15 @@ export function QuickQuoteCalculator({ isOpen, onClose }: QuickQuoteCalculatorPr
   
   // Calculator states
   const [leadVolume, setLeadVolume] = useState(200);
-  const [qualityTier, setQualityTier] = useState('platinum');
+  const [qualityTier, setQualityTier] = useState('starter');
   const [conversionRate, setConversionRate] = useState(2.5);
   const [avgDealSize, setAvgDealSize] = useState(50000);
   const [commissionRate, setCommissionRate] = useState(10);
   
   // Pricing by tier
   const tierPricing = {
-    gold: { pricePerLead: 10, minQuality: 60, maxQuality: 79 },
-    platinum: { pricePerLead: 7.5, minQuality: 70, maxQuality: 89 },
-    diamond: { pricePerLead: 6.67, minQuality: 80, maxQuality: 100 },
+    starter: { pricePerLead: 9.97, minQuality: 70, maxQuality: 100 },
+    pro: { pricePerLead: 5.99, minQuality: 80, maxQuality: 100 },
   };
   
   // Calculate ROI

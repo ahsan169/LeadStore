@@ -7,81 +7,51 @@ async function seedTiers() {
 
   const tiers = [
     {
-      name: "Gold",
-      tier: "gold",
-      price: 50000, // $500 in cents
-      leadCount: 50,
-      minQuality: 60,
-      maxQuality: 75,
+      name: "Starter",
+      tier: "starter",
+      price: 99700, // $997 in cents
+      leadCount: 100,
+      minQuality: 70,
+      maxQuality: 100,
       features: [
-        "50 verified MCA leads",
-        "60-75 quality score",
-        "Basic industry filtering",
+        "100 high-quality leads (Intelligence Score 70+)",
+        "Lead Activation Hub access",
+        "Lead enrichment & data validation",
+        "Email campaign tools",
+        "CRM export functionality",
+        "Smart Search with basic filters",
         "Email support",
-        "CSV download",
-        "7-day download window"
+        "CSV & Excel download",
+        "30-day download window",
+        "Perfect for small teams just starting with MCA leads"
       ],
       active: true,
       recommended: false,
     },
     {
-      name: "Platinum",
-      tier: "platinum",
-      price: 150000, // $1500 in cents
-      leadCount: 200,
-      minQuality: 70,
-      maxQuality: 85,
-      features: [
-        "200 verified MCA leads",
-        "70-85 quality score",
-        "Advanced filtering options",
-        "Priority email support",
-        "CSV + Excel download",
-        "30-day download window",
-        "Lead freshness guarantee"
-      ],
-      active: true,
-      recommended: true, // Most popular
-    },
-    {
-      name: "Diamond",
-      tier: "diamond",
-      price: 400000, // $4000 in cents
-      leadCount: 600,
+      name: "Pro",
+      tier: "pro",
+      price: 299700, // $2,997 in cents
+      leadCount: 500,
       minQuality: 80,
       maxQuality: 100,
       features: [
-        "600 premium MCA leads",
-        "80-100 quality score",
-        "Custom filtering options",
-        "Dedicated account manager",
-        "Multiple format exports",
-        "90-day download window",
-        "Lead replacement guarantee",
-        "AI-powered insights"
-      ],
-      active: true,
-      recommended: false,
-    },
-    {
-      name: "Elite",
-      tier: "elite",
-      price: 0, // Contact for pricing
-      leadCount: 0,
-      minQuality: 85,
-      maxQuality: 100,
-      features: [
-        "Custom lead volume",
-        "85+ quality score only",
-        "Exclusive leads available",
-        "White-glove service",
-        "Custom integrations",
+        "500 premium leads (Intelligence Score 80+)",
+        "Everything in Starter, plus:",
+        "Advanced Smart Search with saved searches",
+        "API access for automation",
+        "Priority support with dedicated success manager",
+        "Custom CRM field mapping",
+        "Bulk operations and volume discounts",
+        "Lead quality guarantee with replacements",
         "Unlimited downloads",
-        "Lead quality guarantee",
-        "Real-time lead delivery"
+        "Real-time lead delivery",
+        "AI-powered insights & scoring",
+        "Custom industry targeting",
+        "Perfect for growing teams and enterprise customers"
       ],
       active: true,
-      recommended: false,
+      recommended: true, // Most popular
     },
   ];
 

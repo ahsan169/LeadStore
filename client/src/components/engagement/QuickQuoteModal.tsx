@@ -109,9 +109,8 @@ export function QuickQuoteModal({ isOpen, onClose }: QuickQuoteModalProps) {
                 data-testid="slider-lead-quality"
               />
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Gold (60-69)</span>
-                <span>Platinum (70-79)</span>
-                <span>Diamond (80-100)</span>
+                <span>Starter (70+)</span>
+                <span>Pro (80+)</span>
               </div>
             </div>
             

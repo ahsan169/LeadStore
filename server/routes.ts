@@ -57,10 +57,8 @@ const SALT_ROUNDS = 10;
 
 // Pricing configuration
 const PRICING = {
-  gold: { price: 500, leadsPerPurchase: 50 },
-  platinum: { price: 1500, leadsPerPurchase: 200 },
-  diamond: { price: 4000, leadsPerPurchase: 600 },
-  elite: { price: 0, leadsPerPurchase: 0 }, // Contact sales
+  starter: { price: 997, leadsPerPurchase: 100 },
+  pro: { price: 2997, leadsPerPurchase: 500 },
 };
 
 // Comprehensive column mapping for flexible field detection

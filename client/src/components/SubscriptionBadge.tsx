@@ -7,13 +7,11 @@ interface SubscriptionBadgeProps {
 
 export function SubscriptionBadge({ tier, className }: SubscriptionBadgeProps) {
   const tierConfig = {
-    gold: { label: "Gold", className: "bg-yellow-500 text-white" },
-    platinum: { label: "Platinum", className: "bg-slate-400 text-white" },
-    diamond: { label: "Diamond", className: "bg-blue-500 text-white" },
-    elite: { label: "Elite", className: "bg-purple-600 text-white" },
+    starter: { label: "Starter", className: "bg-green-500 text-white" },
+    pro: { label: "Pro", className: "bg-gradient-to-r from-purple-500 to-indigo-600 text-white" },
   };
 
-  const config = tierConfig[tier as keyof typeof tierConfig] || tierConfig.gold;
+  const config = tierConfig[tier as keyof typeof tierConfig] || tierConfig.starter;
 
   return (
     <Badge className={`${config.className} ${className || ""}`} data-testid={`badge-tier-${tier}`}>

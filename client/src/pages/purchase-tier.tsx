@@ -12,9 +12,8 @@ import { ArrowLeft } from "lucide-react";
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 const TIER_DETAILS = {
-  gold: { name: "Gold", price: 500, leads: 50 },
-  platinum: { name: "Platinum", price: 1500, leads: 200 },
-  diamond: { name: "Diamond", price: 4000, leads: 600 },
+  starter: { name: "Starter", price: 997, leads: 100 },
+  pro: { name: "Pro", price: 2997, leads: 500 },
 };
 
 function CheckoutForm({ purchaseId, tier }: { purchaseId: string; tier: string }) {
