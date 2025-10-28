@@ -13,6 +13,8 @@ import multer from "multer";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import crypto from "crypto";
+import fs from "fs/promises";
+import path from "path";
 import { 
   sendOrderConfirmation, 
   sendDownloadReady, 
@@ -2081,21 +2083,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No Google Drive link provided" });
       }
 
-      // Extract file ID from the Google Drive URL
+      // Extract file/folder ID from the Google Drive URL
       const fileId = googleDriveService.extractFileId(driveLink);
       if (!fileId) {
         return res.status(400).json({ 
           error: "Invalid Google Drive link",
           details: "Please provide a valid Google Drive sharing link. Supported formats:\n" +
                    "• https://drive.google.com/file/d/FILE_ID/view\n" +
+                   "• https://drive.google.com/drive/folders/FOLDER_ID\n" +
                    "• https://drive.google.com/open?id=FILE_ID\n" +
                    "• https://docs.google.com/spreadsheets/d/FILE_ID\n" +
-                   "• Or just paste the file ID directly",
-          providedLink: driveLink.substring(0, 100) // Show part of what they provided for debugging
+                   "• Or just paste the file/folder ID directly",
+          providedLink: driveLink.substring(0, 100)
         });
       }
 
-      console.log(`Processing Google Drive file: ${fileId}`);
+      console.log(`Processing Google Drive resource: ${fileId}`);
 
       // Create a WebSocket connection for progress updates
       const progressCallback = (progress: any) => {
@@ -2110,11 +2113,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       };
 
-      // Download the file from Google Drive
-      let localFilePath: string;
+      // Check if it's a folder and download all files
+      let filePaths: string[] = [];
       try {
-        localFilePath = await googleDriveService.downloadFile(fileId, progressCallback);
-        console.log(`File downloaded to: ${localFilePath}`);
+        // Check file metadata to determine if it's a folder
+        const metadata = await googleDriveService.getFileMetadata(fileId);
+        
+        if (metadata.mimeType === 'application/vnd.google-apps.folder') {
+          // It's a folder - download all files
+          console.log(`Detected folder, downloading all files...`);
+          filePaths = await googleDriveService.downloadAllFilesFromFolder(fileId, progressCallback);
+          console.log(`Downloaded ${filePaths.length} files from folder`);
+        } else {
+          // Single file - use existing download method
+          const singleFilePath = await googleDriveService.downloadFile(fileId, progressCallback);
+          filePaths = [singleFilePath];
+          console.log(`Downloaded single file to: ${singleFilePath}`);
+        }
       } catch (downloadError: any) {
         console.error('Google Drive download error:', downloadError);
         
@@ -2122,7 +2137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (downloadError.message?.includes('Permission denied')) {
           return res.status(403).json({ 
             error: "Permission denied",
-            details: "Make sure the file is shared with 'Anyone with the link' permission"
+            details: "Make sure the file/folder is shared with 'Anyone with the link' permission"
           });
         } else if (downloadError.message?.includes('File too large')) {
           return res.status(413).json({ 
@@ -2137,113 +2152,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         return res.status(500).json({ 
-          error: "Failed to download file from Google Drive",
+          error: "Failed to download from Google Drive",
           details: downloadError.message
         });
       }
 
       try {
-        // Read the downloaded file
-        const fileBuffer = await require('fs').promises.readFile(localFilePath);
-        const fileName = require('path').basename(localFilePath);
+        // Process multiple files using the enhanced UCC parser
+        const files = filePaths.map(p => ({
+          path: p,
+          name: path.basename(p)
+        }));
         
-        // Determine file type and parse accordingly
-        let parseResult;
-        if (fileName.endsWith('.csv')) {
-          const csvContent = fileBuffer.toString('utf8');
-          parseResult = await uccParser.parseUccCsv(csvContent);
-        } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-          parseResult = await uccParser.parseUccExcel(fileBuffer);
-        } else if (fileName.endsWith('.pdf')) {
-          // For PDF files, we'll need to handle them differently
-          // For now, return an error as PDF parsing for UCC data needs special handling
-          throw new Error('PDF parsing for UCC data is not yet implemented');
-        } else {
-          throw new Error(`Unsupported file format: ${fileName}`);
-        }
-
-        if (!parseResult.success) {
-          throw new Error(`Failed to parse UCC data: ${parseResult.errors.join(', ')}`);
-        }
-
-        // Match UCC records to existing leads
-        const matches = await uccParser.matchToLeads(parseResult.records);
+        console.log(`Processing ${files.length} file(s) with enhanced UCC parser...`);
+        const processingResult = await uccParser.processMultipleFiles(files);
         
-        // Process matched records
-        const matchedRecords = [];
-        const unmatchedRecords = [];
-        const enrichedLeads = [];
-        
-        for (const [record, lead] of matches.entries()) {
-          if (lead) {
-            // Create matched record info
-            const matchedRecord = {
-              uccRecord: record,
-              matchedLead: {
-                id: lead.id,
-                businessName: lead.businessName,
-                ownerName: lead.ownerName,
-                stateCode: lead.stateCode
+        // Send progress update
+        wss.clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: 'ucc-processing-complete',
+              data: {
+                filesProcessed: processingResult.summary.filesProcessed,
+                totalRecords: processingResult.summary.totalRecords,
+                uniqueBusinesses: processingResult.summary.uniqueDebtors
               }
-            };
-            matchedRecords.push(matchedRecord);
-            
-            // Calculate MCA eligibility signals for this filing
-            const signals = uccParser.calculateMcaSignals([{
-              id: `temp-${Date.now()}`,
-              leadId: lead.id,
-              debtorName: record.debtorName,
-              securedParty: record.securedParty,
-              filingDate: record.filingDate,
-              fileNumber: record.fileNumber,
-              collateralDescription: record.collateralDescription,
-              loanAmount: record.loanAmount,
-              filingType: record.filingType || 'original',
-              jurisdiction: record.jurisdiction || lead.stateCode,
-              source: 'google_drive',
-              sourceFileId: fileId
-            } as any]);
-            
-            // Add enriched lead info
-            enrichedLeads.push({
-              leadId: lead.id,
-              businessName: lead.businessName,
-              uccData: {
-                hasRecentFiling: record.filingDate > new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
-                filingDate: record.filingDate,
-                securedParty: record.securedParty,
-                loanAmount: record.loanAmount,
-                mcaSignals: signals
-              }
-            });
-          } else {
-            unmatchedRecords.push(record);
+            }));
+          }
+        });
+        
+        // Create response with comprehensive results
+        const debtorProfilesArray = Array.from(processingResult.debtorProfiles.values());
+        
+        // Sort profiles by MCA readiness score (descending)
+        const topOpportunities = debtorProfilesArray
+          .sort((a, b) => b.mcaReadinessScore - a.mcaReadinessScore)
+          .slice(0, 20);
+        
+        // High risk profiles
+        const highRiskProfiles = debtorProfilesArray
+          .filter(p => p.riskScore > 70)
+          .slice(0, 10);
+        
+        // Matched leads with enriched data
+        const enrichedLeads = debtorProfilesArray
+          .filter(p => p.businessMatch)
+          .map(profile => ({
+            leadId: profile.businessMatch!.id,
+            businessName: profile.businessMatch!.businessName,
+            debtorName: profile.debtorName,
+            uccData: {
+              totalDebtLoad: profile.totalDebtLoad,
+              activeFilings: profile.activeFilings,
+              terminatedFilings: profile.terminatedFilings,
+              lastFilingDate: profile.lastFilingDate,
+              daysSinceLastFiling: profile.daysSinceLastFiling,
+              stackingIndicator: profile.stackingIndicator,
+              refinancingPattern: profile.refinancingPattern,
+              growthIndicator: profile.growthIndicator,
+              mcaReadinessScore: profile.mcaReadinessScore,
+              riskScore: profile.riskScore,
+              insights: profile.insights
+            }
+          }));
+        
+        // Send comprehensive response
+        const response = {
+          success: true,
+          summary: {
+            filesProcessed: processingResult.summary.filesProcessed,
+            totalRecords: processingResult.summary.totalRecords,
+            uniqueRecords: processingResult.summary.uniqueRecords,
+            duplicatesRemoved: processingResult.summary.duplicatesRemoved,
+            uniqueBusinesses: processingResult.summary.uniqueDebtors,
+            uniqueSecuredParties: processingResult.summary.uniqueSecuredParties,
+            totalDebtLoad: `$${(processingResult.summary.totalDebtLoad / 100).toLocaleString()}`,
+            averageLoanAmount: `$${(processingResult.summary.averageLoanAmount / 100).toLocaleString()}`,
+            dateRange: processingResult.summary.dateRange,
+            matchedLeads: enrichedLeads.length,
+            unmatchedBusinesses: processingResult.summary.uniqueDebtors - enrichedLeads.length
+          },
+          insights: processingResult.insights,
+          topOpportunities: topOpportunities.map(p => ({
+            businessName: p.debtorName,
+            mcaReadinessScore: p.mcaReadinessScore,
+            riskScore: p.riskScore,
+            daysSinceLastFiling: p.daysSinceLastFiling,
+            insights: p.insights
+          })),
+          highRiskProfiles: highRiskProfiles.map(p => ({
+            businessName: p.debtorName,
+            riskScore: p.riskScore,
+            stackingIndicator: p.stackingIndicator,
+            activeFilings: p.activeFilings
+          })),
+          enrichedLeads: enrichedLeads.slice(0, 50), // Return first 50 enriched leads
+          message: `Successfully processed ${processingResult.summary.filesProcessed} file(s) containing ${processingResult.summary.totalRecords} UCC records. Found ${processingResult.summary.uniqueDebtors} unique businesses. Matched ${enrichedLeads.length} to existing leads.`
+        };
+        
+        res.json(response);
+
+        // Clean up temporary files
+        for (const filePath of filePaths) {
+          try {
+            await googleDriveService.cleanupTempFile(filePath);
+          } catch (cleanupError) {
+            console.error('Failed to clean up temporary file:', cleanupError);
           }
         }
-
-        // Update summary stats
-        parseResult.summary.matchedLeads = matchedRecords.length;
-        parseResult.summary.unmatchedRecords = unmatchedRecords.length;
-
-        // Send success response
-        res.json({
-          success: true,
-          summary: parseResult.summary,
-          matchedLeads: enrichedLeads.length,
-          enrichedLeads: enrichedLeads.slice(0, 100), // Return first 100 enriched leads
-          unmatchedCount: unmatchedRecords.length,
-          message: `Successfully processed ${parseResult.records.length} UCC records from Google Drive. Matched ${matchedRecords.length} records to existing leads.`
-        });
-
-        // Clean up temporary file
-        await googleDriveService.cleanupTempFile(localFilePath);
         
       } catch (processingError: any) {
-        // Clean up temporary file even on error
-        try {
-          await googleDriveService.cleanupTempFile(localFilePath);
-        } catch (cleanupError) {
-          console.error('Failed to clean up temporary file:', cleanupError);
+        // Clean up temporary files even on error
+        for (const filePath of filePaths) {
+          try {
+            await googleDriveService.cleanupTempFile(filePath);
+          } catch (cleanupError) {
+            console.error('Failed to clean up temporary file:', cleanupError);
+          }
         }
         
         console.error('UCC processing error:', processingError);

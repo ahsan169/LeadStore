@@ -202,6 +202,69 @@ class GoogleDriveService {
   }
 
   /**
+   * Download all files from a Google Drive folder
+   */
+  async downloadAllFilesFromFolder(
+    folderId: string,
+    onProgress?: (progress: DownloadProgress & { fileName?: string; fileIndex?: number; totalFiles?: number }) => void
+  ): Promise<string[]> {
+    try {
+      // Get all files in the folder
+      const filesInFolder = await this.listFolderFiles(folderId);
+      
+      if (filesInFolder.length === 0) {
+        throw new Error('No supported files found in the folder. Please upload CSV, Excel, or ZIP files.');
+      }
+      
+      console.log(`Found ${filesInFolder.length} files in folder to process`);
+      
+      const downloadedPaths: string[] = [];
+      
+      // Download all CSV and Excel files
+      for (let i = 0; i < filesInFolder.length; i++) {
+        const file = filesInFolder[i];
+        
+        // Filter for data files
+        if (file.name?.toLowerCase().endsWith('.csv') ||
+            file.name?.toLowerCase().endsWith('.xlsx') ||
+            file.name?.toLowerCase().endsWith('.xls') ||
+            file.mimeType === 'application/vnd.google-apps.spreadsheet') {
+          
+          console.log(`Downloading file ${i + 1}/${filesInFolder.length}: ${file.name}`);
+          
+          // Create progress callback for individual file
+          const fileProgress = onProgress ? (progress: DownloadProgress) => {
+            onProgress({
+              ...progress,
+              fileName: file.name,
+              fileIndex: i + 1,
+              totalFiles: filesInFolder.length
+            });
+          } : undefined;
+          
+          try {
+            const filePath = await this.downloadSingleFile(file.id, fileProgress);
+            downloadedPaths.push(filePath);
+            console.log(`Successfully downloaded: ${file.name}`);
+          } catch (error: any) {
+            console.error(`Failed to download ${file.name}: ${error.message}`);
+            // Continue with other files even if one fails
+          }
+        }
+      }
+      
+      if (downloadedPaths.length === 0) {
+        throw new Error('No valid data files could be downloaded from the folder');
+      }
+      
+      return downloadedPaths;
+    } catch (error: any) {
+      console.error('Error downloading files from folder:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Download file from Google Drive with progress tracking
    */
   async downloadFile(
@@ -216,47 +279,28 @@ class GoogleDriveService {
       
       // Check if it's a folder
       if (fileMetadata.mimeType === 'application/vnd.google-apps.folder') {
-        // List files in the folder
-        const filesInFolder = await this.listFolderFiles(fileId);
-        
-        if (filesInFolder.length === 0) {
-          throw new Error('No supported files found in the folder. Please upload CSV, Excel, or ZIP files.');
-        }
-        
-        // If there's only one file, use it automatically
-        if (filesInFolder.length === 1) {
-          console.log(`Found single file in folder: ${filesInFolder[0].name}, using it automatically`);
-          return await this.downloadFile(filesInFolder[0].id, onProgress);
-        }
-        
-        // If multiple files, try to find the most likely UCC data file
-        const uccFile = filesInFolder.find(f => 
-          f.name?.toLowerCase().includes('ucc') ||
-          f.name?.toLowerCase().includes('filing') ||
-          f.name?.toLowerCase().includes('lien')
-        );
-        
-        if (uccFile) {
-          console.log(`Found UCC-related file: ${uccFile.name}, using it automatically`);
-          return await this.downloadFile(uccFile.id, onProgress);
-        }
-        
-        // Otherwise, use the first CSV or Excel file
-        const dataFile = filesInFolder.find(f => 
-          f.name?.toLowerCase().endsWith('.csv') ||
-          f.name?.toLowerCase().endsWith('.xlsx') ||
-          f.name?.toLowerCase().endsWith('.xls')
-        );
-        
-        if (dataFile) {
-          console.log(`Found data file: ${dataFile.name}, using it automatically`);
-          return await this.downloadFile(dataFile.id, onProgress);
-        }
-        
-        // If still no clear choice, provide helpful error with file list
-        const fileList = filesInFolder.slice(0, 5).map(f => `• ${f.name}`).join('\n');
-        throw new Error(`Multiple files found in folder. Please share the specific file directly:\n${fileList}${filesInFolder.length > 5 ? `\n... and ${filesInFolder.length - 5} more files` : ''}`);
+        // For single file download from folder, get all files and return the first valid one
+        const files = await this.downloadAllFilesFromFolder(fileId, onProgress);
+        return files[0]; // Return first file for backwards compatibility
       }
+      
+      // For regular files, use the single file download
+      return await this.downloadSingleFile(fileId, onProgress);
+    } catch (error: any) {
+      throw error;
+    }
+  }
+  
+  /**
+   * Download a single file (internal method)
+   */
+  private async downloadSingleFile(
+    fileId: string,
+    onProgress?: (progress: DownloadProgress) => void
+  ): Promise<string> {
+    try {
+      const drive = await this.getGoogleDriveClient();
+      const fileMetadata = await this.getFileMetadata(fileId);
       
       // Check file size
       const fileSize = parseInt(fileMetadata.size || '0', 10);

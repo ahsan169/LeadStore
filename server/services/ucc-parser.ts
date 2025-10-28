@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+import fs from "fs/promises";
 import type { InsertUccFiling, UccFiling, Lead } from "@shared/schema";
 import { storage } from "../storage";
 
@@ -24,6 +25,10 @@ interface UccParseResult {
     invalidRecords: number;
     matchedLeads: number;
     unmatchedRecords: number;
+    uniqueDebtors: number;
+    uniqueSecuredParties: number;
+    averageLoanAmount?: number;
+    dateRange?: { earliest: Date; latest: Date };
   };
 }
 
@@ -31,6 +36,23 @@ interface McaEligibilitySignal {
   signal: 'positive' | 'negative' | 'neutral';
   reason: string;
   score: number; // -100 to +100
+}
+
+interface DebtorProfile {
+  debtorName: string;
+  businessMatch?: Lead;
+  filings: UccRecord[];
+  totalDebtLoad: number;
+  activeFilings: number;
+  terminatedFilings: number;
+  lastFilingDate: Date;
+  daysSinceLastFiling: number;
+  stackingIndicator: boolean;
+  refinancingPattern: boolean;
+  growthIndicator: 'growing' | 'stable' | 'declining';
+  mcaReadinessScore: number;
+  riskScore: number;
+  insights: string[];
 }
 
 class UccParserService {
@@ -72,6 +94,168 @@ class UccParserService {
   };
 
   /**
+   * Process multiple UCC files and merge results intelligently
+   */
+  async processMultipleFiles(
+    files: { path: string; name: string }[]
+  ): Promise<{
+    allRecords: UccRecord[];
+    mergedRecords: UccRecord[];
+    debtorProfiles: Map<string, DebtorProfile>;
+    summary: {
+      filesProcessed: number;
+      totalRecords: number;
+      uniqueRecords: number;
+      duplicatesRemoved: number;
+      uniqueDebtors: number;
+      uniqueSecuredParties: number;
+      totalDebtLoad: number;
+      averageLoanAmount: number;
+      dateRange: { earliest: Date; latest: Date };
+    };
+    insights: string[];
+  }> {
+    const allRecords: UccRecord[] = [];
+    const processedFileNumbers = new Set<string>();
+    const insights: string[] = [];
+    let filesProcessed = 0;
+    
+    // Process each file
+    for (const file of files) {
+      try {
+        let parseResult: UccParseResult;
+        
+        // Read file and parse based on type
+        const fileBuffer = await fs.readFile(file.path);
+        
+        if (file.name.toLowerCase().endsWith('.csv')) {
+          const csvContent = fileBuffer.toString('utf8');
+          parseResult = await this.parseUccCsv(csvContent);
+        } else if (file.name.toLowerCase().endsWith('.xlsx') || 
+                   file.name.toLowerCase().endsWith('.xls')) {
+          parseResult = await this.parseUccExcel(fileBuffer);
+        } else {
+          console.log(`Skipping unsupported file: ${file.name}`);
+          continue;
+        }
+        
+        if (parseResult.success) {
+          allRecords.push(...parseResult.records);
+          filesProcessed++;
+          console.log(`Processed ${file.name}: ${parseResult.records.length} records`);
+        } else {
+          console.error(`Failed to process ${file.name}: ${parseResult.errors.join(', ')}`);
+        }
+      } catch (error: any) {
+        console.error(`Error processing ${file.name}: ${error.message}`);
+      }
+    }
+    
+    // Deduplicate and merge records
+    const mergedRecords = this.deduplicateAndMerge(allRecords);
+    const duplicatesRemoved = allRecords.length - mergedRecords.length;
+    
+    // Calculate statistics
+    const uniqueDebtors = new Set(mergedRecords.map(r => 
+      this.cleanBusinessName(r.debtorName).toLowerCase()
+    )).size;
+    
+    const uniqueSecuredParties = new Set(mergedRecords.map(r => r.securedParty)).size;
+    
+    const totalDebtLoad = mergedRecords.reduce((sum, r) => 
+      sum + (r.loanAmount || 0), 0
+    );
+    
+    const recordsWithAmount = mergedRecords.filter(r => r.loanAmount);
+    const averageLoanAmount = recordsWithAmount.length > 0 
+      ? totalDebtLoad / recordsWithAmount.length 
+      : 0;
+    
+    // Find date range
+    const dates = mergedRecords.map(r => r.filingDate);
+    const earliest = new Date(Math.min(...dates.map(d => d.getTime())));
+    const latest = new Date(Math.max(...dates.map(d => d.getTime())));
+    
+    // Match to leads and create debtor profiles
+    const leadMatches = await this.matchToLeads(mergedRecords);
+    const debtorProfiles = this.createDebtorProfiles(mergedRecords, leadMatches);
+    
+    // Generate portfolio insights
+    insights.push(`📁 Processed ${filesProcessed} files with ${allRecords.length} total records`);
+    insights.push(`🔍 Found ${uniqueDebtors} unique businesses across all files`);
+    insights.push(`💰 Total debt load: $${(totalDebtLoad / 100).toLocaleString()}`);
+    insights.push(`📊 Average loan amount: $${(averageLoanAmount / 100).toLocaleString()}`);
+    
+    // Analyze portfolio patterns
+    const stackingBusinesses = Array.from(debtorProfiles.values())
+      .filter(p => p.stackingIndicator).length;
+    
+    if (stackingBusinesses > 0) {
+      insights.push(`⚠️ ${stackingBusinesses} businesses show stacking behavior`);
+    }
+    
+    const highRiskBusinesses = Array.from(debtorProfiles.values())
+      .filter(p => p.riskScore > 70).length;
+      
+    if (highRiskBusinesses > 0) {
+      insights.push(`🚨 ${highRiskBusinesses} high-risk businesses identified`);
+    }
+    
+    const primeOpportunities = Array.from(debtorProfiles.values())
+      .filter(p => p.mcaReadinessScore > 70).length;
+      
+    if (primeOpportunities > 0) {
+      insights.push(`🎯 ${primeOpportunities} prime MCA opportunities identified`);
+    }
+    
+    return {
+      allRecords,
+      mergedRecords,
+      debtorProfiles,
+      summary: {
+        filesProcessed,
+        totalRecords: allRecords.length,
+        uniqueRecords: mergedRecords.length,
+        duplicatesRemoved,
+        uniqueDebtors,
+        uniqueSecuredParties,
+        totalDebtLoad,
+        averageLoanAmount,
+        dateRange: { earliest, latest }
+      },
+      insights
+    };
+  }
+
+  /**
+   * Deduplicate and merge UCC records
+   */
+  private deduplicateAndMerge(records: UccRecord[]): UccRecord[] {
+    const recordMap = new Map<string, UccRecord>();
+    
+    for (const record of records) {
+      const key = `${record.fileNumber}_${record.filingDate.toISOString()}`;
+      
+      if (!recordMap.has(key)) {
+        recordMap.set(key, record);
+      } else {
+        // Merge records - prefer the one with more complete data
+        const existing = recordMap.get(key)!;
+        const merged: UccRecord = {
+          ...existing,
+          collateralDescription: existing.collateralDescription || record.collateralDescription,
+          loanAmount: existing.loanAmount || record.loanAmount,
+          filingType: existing.filingType || record.filingType,
+          jurisdiction: existing.jurisdiction || record.jurisdiction
+        };
+        recordMap.set(key, merged);
+      }
+    }
+    
+    return Array.from(recordMap.values());
+  }
+
+  /**
    * Parse CSV file containing UCC data
    */
   async parseUccCsv(csvContent: string): Promise<UccParseResult> {
@@ -85,7 +269,9 @@ class UccParserService {
           validRecords: 0,
           invalidRecords: 0,
           matchedLeads: 0,
-          unmatchedRecords: 0
+          unmatchedRecords: 0,
+          uniqueDebtors: 0,
+          uniqueSecuredParties: 0
         }
       };
 
@@ -353,6 +539,254 @@ class UccParserService {
       .replace(/\b(inc|llc|ltd|corp|corporation|company|co|enterprises|group)\b\.?/gi, '')
       .replace(/[^\w\s]/g, '')
       .trim();
+  }
+
+  /**
+   * Create comprehensive debtor profiles from UCC records
+   */
+  createDebtorProfiles(records: UccRecord[], leadMatches: Map<UccRecord, Lead | null>): Map<string, DebtorProfile> {
+    const profilesMap = new Map<string, DebtorProfile>();
+    
+    // Group records by debtor
+    const recordsByDebtor = new Map<string, UccRecord[]>();
+    for (const record of records) {
+      const key = this.cleanBusinessName(record.debtorName).toLowerCase();
+      if (!recordsByDebtor.has(key)) {
+        recordsByDebtor.set(key, []);
+      }
+      recordsByDebtor.get(key)!.push(record);
+    }
+    
+    // Create profile for each debtor
+    for (const [debtorKey, debtorRecords] of recordsByDebtor.entries()) {
+      const profile = this.analyzeDebtorFilings(debtorRecords, leadMatches);
+      profilesMap.set(debtorKey, profile);
+    }
+    
+    return profilesMap;
+  }
+
+  /**
+   * Analyze filings for a single debtor
+   */
+  private analyzeDebtorFilings(records: UccRecord[], leadMatches: Map<UccRecord, Lead | null>): DebtorProfile {
+    const now = new Date();
+    const insights: string[] = [];
+    
+    // Sort records by date
+    const sortedRecords = [...records].sort((a, b) => 
+      a.filingDate.getTime() - b.filingDate.getTime()
+    );
+    
+    // Find matched lead
+    const businessMatch = leadMatches.get(records[0]) || undefined;
+    
+    // Calculate metrics
+    const activeFilings = records.filter(r => r.filingType !== 'termination');
+    const terminatedFilings = records.filter(r => r.filingType === 'termination');
+    const lastFiling = sortedRecords[sortedRecords.length - 1];
+    const daysSinceLastFiling = Math.floor((now.getTime() - lastFiling.filingDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Calculate total debt load
+    const totalDebtLoad = records.reduce((sum, r) => {
+      if (r.loanAmount && r.filingType !== 'termination') {
+        return sum + r.loanAmount;
+      }
+      return sum;
+    }, 0);
+    
+    // Check for stacking (multiple filings within 90 days)
+    const stackingIndicator = this.detectStacking(sortedRecords);
+    
+    // Check for refinancing patterns
+    const refinancingPattern = this.detectRefinancing(sortedRecords);
+    
+    // Analyze growth trend from collateral descriptions
+    const growthIndicator = this.analyzeGrowthTrend(sortedRecords);
+    
+    // Calculate MCA readiness score (0-100)
+    const mcaReadinessScore = this.calculateMcaReadinessScore(
+      activeFilings.length,
+      terminatedFilings.length,
+      daysSinceLastFiling,
+      stackingIndicator,
+      refinancingPattern
+    );
+    
+    // Calculate risk score (0-100)
+    const riskScore = this.calculateRiskScore(
+      activeFilings.length,
+      stackingIndicator,
+      daysSinceLastFiling,
+      growthIndicator
+    );
+    
+    // Generate insights
+    if (stackingIndicator) {
+      insights.push('⚠️ Multiple fundings detected within 90 days - potential stacking behavior');
+    }
+    
+    if (refinancingPattern) {
+      insights.push('🔄 Refinancing pattern detected - business actively manages debt');
+    }
+    
+    if (terminatedFilings.length > 0) {
+      insights.push(`✅ ${terminatedFilings.length} successfully paid off financing(s)`);
+    }
+    
+    if (daysSinceLastFiling < 90) {
+      insights.push('📅 Recent UCC filing - may have existing MCA obligations');
+    } else if (daysSinceLastFiling > 180) {
+      insights.push('💚 No recent filings - good timing for new MCA offer');
+    }
+    
+    if (growthIndicator === 'growing') {
+      insights.push('📈 Business shows growth based on collateral expansion');
+    } else if (growthIndicator === 'declining') {
+      insights.push('📉 Potential business contraction based on collateral changes');
+    }
+    
+    return {
+      debtorName: records[0].debtorName,
+      businessMatch,
+      filings: sortedRecords,
+      totalDebtLoad,
+      activeFilings: activeFilings.length,
+      terminatedFilings: terminatedFilings.length,
+      lastFilingDate: lastFiling.filingDate,
+      daysSinceLastFiling,
+      stackingIndicator,
+      refinancingPattern,
+      growthIndicator,
+      mcaReadinessScore,
+      riskScore,
+      insights
+    };
+  }
+
+  /**
+   * Detect stacking behavior
+   */
+  private detectStacking(sortedRecords: UccRecord[]): boolean {
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    
+    for (let i = 0; i < sortedRecords.length - 1; i++) {
+      const current = sortedRecords[i];
+      const next = sortedRecords[i + 1];
+      
+      if (current.filingType !== 'termination' && next.filingType !== 'termination') {
+        const timeDiff = next.filingDate.getTime() - current.filingDate.getTime();
+        if (timeDiff <= ninetyDaysMs && 
+            current.securedParty !== next.securedParty) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Detect refinancing patterns
+   */
+  private detectRefinancing(sortedRecords: UccRecord[]): boolean {
+    // Look for termination followed by new filing within 30 days
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    
+    for (let i = 0; i < sortedRecords.length - 1; i++) {
+      const current = sortedRecords[i];
+      const next = sortedRecords[i + 1];
+      
+      if (current.filingType === 'termination' && next.filingType === 'original') {
+        const timeDiff = next.filingDate.getTime() - current.filingDate.getTime();
+        if (timeDiff <= thirtyDaysMs) {
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Analyze growth trend from collateral descriptions
+   */
+  private analyzeGrowthTrend(sortedRecords: UccRecord[]): 'growing' | 'stable' | 'declining' {
+    const withCollateral = sortedRecords.filter(r => r.collateralDescription);
+    
+    if (withCollateral.length < 2) return 'stable';
+    
+    // Simple heuristic: check if collateral descriptions are getting longer/more complex
+    const firstCollateral = withCollateral[0].collateralDescription || '';
+    const lastCollateral = withCollateral[withCollateral.length - 1].collateralDescription || '';
+    
+    // Check for keywords indicating growth or decline
+    const growthKeywords = ['additional', 'expanded', 'new', 'increased', 'more'];
+    const declineKeywords = ['reduced', 'limited', 'partial', 'specific'];
+    
+    const lastHasGrowth = growthKeywords.some(kw => lastCollateral.toLowerCase().includes(kw));
+    const lastHasDecline = declineKeywords.some(kw => lastCollateral.toLowerCase().includes(kw));
+    
+    if (lastHasGrowth) return 'growing';
+    if (lastHasDecline) return 'declining';
+    
+    // Compare length/complexity as a proxy for business size
+    if (lastCollateral.length > firstCollateral.length * 1.2) return 'growing';
+    if (lastCollateral.length < firstCollateral.length * 0.8) return 'declining';
+    
+    return 'stable';
+  }
+
+  /**
+   * Calculate MCA readiness score
+   */
+  private calculateMcaReadinessScore(
+    activeFilings: number,
+    terminatedFilings: number,
+    daysSinceLastFiling: number,
+    hasStacking: boolean,
+    hasRefinancing: boolean
+  ): number {
+    let score = 50; // Base score
+    
+    // Positive factors
+    if (daysSinceLastFiling > 180) score += 20;
+    else if (daysSinceLastFiling > 90) score += 10;
+    else score -= 20;
+    
+    if (terminatedFilings > 0) score += 15 * Math.min(terminatedFilings, 2);
+    if (hasRefinancing) score += 10; // Shows good debt management
+    
+    // Negative factors
+    if (activeFilings > 2) score -= 10 * (activeFilings - 2);
+    if (hasStacking) score -= 25;
+    if (daysSinceLastFiling < 30) score -= 15;
+    
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /**
+   * Calculate risk score
+   */
+  private calculateRiskScore(
+    activeFilings: number,
+    hasStacking: boolean,
+    daysSinceLastFiling: number,
+    growthIndicator: string
+  ): number {
+    let score = 30; // Base risk
+    
+    // Risk factors
+    score += activeFilings * 15;
+    if (hasStacking) score += 30;
+    if (daysSinceLastFiling < 60) score += 20;
+    if (growthIndicator === 'declining') score += 15;
+    
+    // Risk mitigation
+    if (daysSinceLastFiling > 180) score -= 10;
+    if (growthIndicator === 'growing') score -= 10;
+    
+    return Math.max(0, Math.min(100, score));
   }
 
   /**
