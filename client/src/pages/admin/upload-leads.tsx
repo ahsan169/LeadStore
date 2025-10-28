@@ -250,7 +250,7 @@ export default function UploadLeadsPage() {
 
       // Show summary
       setSummary({
-        totalLeads: data.summary.totalRecords,
+        totalLeads: data.summary.totalLeads || data.summary.totalRecords, // Use totalLeads if available (from UCC), else totalRecords
         averageQualityScore: 0,
         tierDistribution: {
           gold: 0,
@@ -259,7 +259,7 @@ export default function UploadLeadsPage() {
         },
         validationResults: {
           total: data.summary.totalRecords,
-          valid: data.summary.validRecords,
+          valid: data.summary.validRecords || data.summary.totalRecords,
           errors: [],
           warnings: [],
         },
@@ -1206,7 +1206,7 @@ export default function UploadLeadsPage() {
                 Upload Another Batch
               </Button>
               <Button 
-                onClick={() => window.location.href = `/admin/batches`}
+                onClick={() => window.location.href = `/admin/leads`}
                 className="flex-1"
                 data-testid="button-view-batch"
               >

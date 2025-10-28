@@ -2216,6 +2216,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           }));
         
+        // Create new leads from unmatched UCC records
+        const unmatchedProfiles = debtorProfilesArray.filter(p => !p.businessMatch);
+        const newLeadsCreated: any[] = [];
+        
+        for (const profile of unmatchedProfiles) {
+          try {
+            // Prepare lead data from UCC profile
+            const newLeadData: InsertLead = {
+              businessName: profile.debtorName,
+              ownerName: '',
+              email: '',
+              phone: '',
+              industry: 'Unknown (from UCC)',
+              annualRevenue: profile.totalDebtLoad > 0 ? Math.round(profile.totalDebtLoad / 100) : undefined,
+              stateCode: '',
+              city: '',
+              zipCode: '',
+              address: '',
+              website: '',
+              timeInBusiness: '',
+              creditScore: '',
+              requestedAmount: undefined,
+              qualityScore: Math.round(profile.mcaReadinessScore),
+              tier: profile.mcaReadinessScore >= 80 ? 'diamond' : 
+                    profile.mcaReadinessScore >= 70 ? 'platinum' : 
+                    profile.mcaReadinessScore >= 60 ? 'gold' : 'gold',
+              isQualified: true,
+              isVerified: false,
+              source: 'UCC Filing',
+              previousMCAHistory: profile.refinancingPattern || profile.activeFilings > 0 ? 'Yes' : 'No',
+              urgencyLevel: profile.daysSinceLastFiling < 90 ? 'High' : 
+                           profile.daysSinceLastFiling < 180 ? 'Medium' : 'Low',
+              exclusivityStatus: 'Non-Exclusive',
+              leadAge: profile.daysSinceLastFiling,
+              notes: `UCC Import - ${profile.insights.join('. ')}`,
+              fundingUrgency: profile.daysSinceLastFiling < 90 ? 'immediate' : 
+                             profile.daysSinceLastFiling < 180 ? 'this_month' : 'future',
+              createdAt: new Date()
+            };
+            
+            // Create the lead
+            const createdLead = await storage.createLead(newLeadData);
+            newLeadsCreated.push({
+              leadId: createdLead.id,
+              businessName: createdLead.businessName,
+              debtorName: profile.debtorName,
+              createdFromUCC: true,
+              uccData: {
+                totalDebtLoad: profile.totalDebtLoad,
+                activeFilings: profile.activeFilings,
+                terminatedFilings: profile.terminatedFilings,
+                lastFilingDate: profile.lastFilingDate,
+                daysSinceLastFiling: profile.daysSinceLastFiling,
+                stackingIndicator: profile.stackingIndicator,
+                refinancingPattern: profile.refinancingPattern,
+                growthIndicator: profile.growthIndicator,
+                mcaReadinessScore: profile.mcaReadinessScore,
+                riskScore: profile.riskScore,
+                insights: profile.insights
+              }
+            });
+            
+            console.log(`Created new lead from UCC: ${profile.debtorName}`);
+          } catch (error) {
+            console.error(`Failed to create lead for ${profile.debtorName}:`, error);
+          }
+        }
+        
+        const totalLeads = enrichedLeads.length + newLeadsCreated.length;
+        
         // Send comprehensive response
         const response = {
           success: true,
@@ -2230,7 +2300,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             averageLoanAmount: `$${(processingResult.summary.averageLoanAmount / 100).toLocaleString()}`,
             dateRange: processingResult.summary.dateRange,
             matchedLeads: enrichedLeads.length,
-            unmatchedBusinesses: processingResult.summary.uniqueDebtors - enrichedLeads.length
+            newLeadsCreated: newLeadsCreated.length,
+            totalLeads: totalLeads,
+            unmatchedBusinesses: processingResult.summary.uniqueDebtors - enrichedLeads.length - newLeadsCreated.length
           },
           insights: processingResult.insights,
           topOpportunities: topOpportunities.map(p => ({
@@ -2246,8 +2318,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             stackingIndicator: p.stackingIndicator,
             activeFilings: p.activeFilings
           })),
-          enrichedLeads: enrichedLeads.slice(0, 50), // Return first 50 enriched leads
-          message: `Successfully processed ${processingResult.summary.filesProcessed} file(s) containing ${processingResult.summary.totalRecords} UCC records. Found ${processingResult.summary.uniqueDebtors} unique businesses. Matched ${enrichedLeads.length} to existing leads.`
+          enrichedLeads: [...enrichedLeads, ...newLeadsCreated].slice(0, 50), // Return first 50 leads (both enriched and new)
+          message: `Successfully processed ${processingResult.summary.filesProcessed} file(s) containing ${processingResult.summary.totalRecords} UCC records. Found ${processingResult.summary.uniqueDebtors} unique businesses. Matched ${enrichedLeads.length} to existing leads and created ${newLeadsCreated.length} new leads. Total Leads: ${totalLeads}`
         };
         
         res.json(response);
