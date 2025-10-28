@@ -2886,6 +2886,285 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Smart Search endpoints (unified search and alert system)
+  app.post("/api/smart-search", requireAuth, async (req, res) => {
+    try {
+      const { searchQuery, filters, searchMode, searchName, emailNotifications } = req.body;
+      const userId = req.session.userId || req.user?.id;
+      
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      // Track search in history
+      const startTime = Date.now();
+      
+      if (searchMode === 'instant') {
+        // Search existing leads immediately
+        const searchFilters = {
+          ...filters,
+          limit: filters.limit || 100,
+          offset: filters.offset || 0,
+          sortBy: filters.sortBy || 'qualityScore',
+          sortOrder: filters.sortOrder || 'desc'
+        };
+        
+        const results = await storage.getFilteredLeads(searchFilters);
+        
+        // Track search history
+        const executionTime = Date.now() - startTime;
+        await storage.createSearchHistory({
+          userId,
+          searchQuery,
+          filters,
+          resultCount: results.total,
+          executionTime,
+          searchType: searchQuery ? 'natural_language' : 'filters',
+        });
+        
+        // Update popular searches if natural language was used
+        if (searchQuery) {
+          await storage.incrementPopularSearchCount(searchQuery);
+        }
+        
+        res.json({ 
+          mode: 'instant',
+          leads: results.leads, 
+          total: results.total 
+        });
+      } else if (searchMode === 'alert') {
+        // Create smart search alert for future matches
+        const smartSearch = await storage.createSmartSearch({
+          userId,
+          searchName,
+          searchQuery,
+          filters,
+          searchMode: 'alert',
+          isActive: true,
+          emailNotifications: emailNotifications || false,
+        });
+        
+        // Also create a lead alert for backward compatibility
+        await storage.createLeadAlert({
+          userId,
+          alertName: searchName || searchQuery || 'Smart Search Alert',
+          criteria: filters,
+          isActive: true,
+          emailNotifications: emailNotifications || false,
+        });
+        
+        res.json({ 
+          mode: 'alert',
+          smartSearch,
+          message: 'Alert created successfully' 
+        });
+      } else {
+        res.status(400).json({ error: "Invalid search mode. Must be 'instant' or 'alert'" });
+      }
+    } catch (error) {
+      console.error('Smart search error:', error);
+      res.status(500).json({ error: "Failed to perform smart search" });
+    }
+  });
+
+  // Parse natural language query to filters
+  app.post("/api/smart-search/parse", requireAuth, async (req, res) => {
+    try {
+      const { query } = req.body;
+      
+      if (!query) {
+        return res.status(400).json({ error: "Query is required" });
+      }
+
+      // Check if OpenAI is configured
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey || apiKey === 'default') {
+        // Return empty filters when OpenAI is not configured
+        return res.json({ filters: {} });
+      }
+
+      // Use OpenAI to parse natural language into structured filters
+      const prompt = `Parse this natural language search query for MCA (Merchant Cash Advance) leads into structured filters.
+
+Query: "${query}"
+
+Extract the following information if present:
+- Industry (restaurant, retail, healthcare, construction, etc.)
+- State or location (use 2-letter state codes)
+- Revenue range (min and max annual revenue)
+- Quality score range (0-100)
+- Urgency level (immediate, within_week, within_month, flexible)
+- Time in business
+- Credit score range
+- Any other relevant criteria
+
+Return a JSON object with the extracted filters. Use exact field names:
+- industry: string
+- stateCode: string
+- minRevenue: number
+- maxRevenue: number
+- minQuality: number
+- maxQuality: number
+- urgencyLevel: array of strings
+- minTimeInBusiness: number
+- minCreditScore: number
+- maxCreditScore: number
+- isEnriched: boolean
+- hasWebsite: boolean
+
+Only include fields that are explicitly mentioned or strongly implied in the query.
+If no filters can be extracted, return an empty object {}.
+`;
+
+      const completion = await openai.chat.completions.create({
+        messages: [
+          { 
+            role: "system", 
+            content: "You are a helpful assistant that parses natural language queries into structured database filters. Always return valid JSON."
+          },
+          { role: "user", content: prompt }
+        ],
+        model: "gpt-3.5-turbo",
+        temperature: 0.1,
+        response_format: { type: "json_object" }
+      });
+
+      const filters = JSON.parse(completion.choices[0].message.content || '{}');
+      res.json({ filters });
+    } catch (error) {
+      console.error('Natural language parsing error:', error);
+      res.status(500).json({ error: "Failed to parse natural language query" });
+    }
+  });
+
+  // Get saved smart searches
+  app.get("/api/smart-search/saved", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId || req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const searches = await storage.getSmartSearchesByUserId(userId);
+      res.json(searches);
+    } catch (error) {
+      console.error('Error fetching saved smart searches:', error);
+      res.status(500).json({ error: "Failed to fetch saved searches" });
+    }
+  });
+
+  // Get search history
+  app.get("/api/smart-search/history", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId || req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const limit = parseInt(req.query.limit as string) || 20;
+      const history = await storage.getSearchHistoryByUserId(userId, limit);
+      res.json(history);
+    } catch (error) {
+      console.error('Error fetching search history:', error);
+      res.status(500).json({ error: "Failed to fetch search history" });
+    }
+  });
+
+  // Get popular searches
+  app.get("/api/smart-search/popular", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 10;
+      const searches = await storage.getPopularSearches(limit);
+      res.json(searches);
+    } catch (error) {
+      console.error('Error fetching popular searches:', error);
+      res.status(500).json({ error: "Failed to fetch popular searches" });
+    }
+  });
+
+  // Get AI search suggestions
+  app.get("/api/smart-search/suggestions", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId || req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const limit = parseInt(req.query.limit as string) || 5;
+      const suggestions = await storage.getSearchSuggestionsByUserId(userId, limit);
+      
+      // If no existing suggestions, generate some based on user's history
+      if (suggestions.length === 0) {
+        // Get user's search history
+        const history = await storage.getSearchHistoryByUserId(userId, 10);
+        
+        if (history.length > 0) {
+          // Generate suggestions based on history patterns
+          // This is a simplified version - you could use AI to generate more sophisticated suggestions
+          const commonFilters = history[0].filters;
+          const newSuggestions = [
+            {
+              userId,
+              suggestionText: `High-quality leads in ${commonFilters.stateCode || 'your area'}`,
+              suggestionReason: "Based on your recent searches",
+              filters: { ...commonFilters, minQuality: 80 },
+              score: "90",
+            }
+          ];
+          
+          // Save and return new suggestions
+          for (const suggestion of newSuggestions) {
+            await storage.createSearchSuggestion(suggestion);
+          }
+          
+          return res.json(newSuggestions);
+        }
+      }
+      
+      res.json(suggestions);
+    } catch (error) {
+      console.error('Error fetching search suggestions:', error);
+      res.status(500).json({ error: "Failed to fetch suggestions" });
+    }
+  });
+
+  // Delete smart search
+  app.delete("/api/smart-search/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId || req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const search = await storage.getSmartSearch(req.params.id);
+      if (!search || search.userId !== userId) {
+        return res.status(404).json({ error: "Search not found" });
+      }
+      
+      await storage.deleteSmartSearch(req.params.id);
+      res.json({ message: "Search deleted successfully" });
+    } catch (error) {
+      console.error('Error deleting smart search:', error);
+      res.status(500).json({ error: "Failed to delete search" });
+    }
+  });
+
+  // Clear search history
+  app.delete("/api/smart-search/history", requireAuth, async (req, res) => {
+    try {
+      const userId = req.session.userId || req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      await storage.clearSearchHistory(userId);
+      res.json({ message: "Search history cleared" });
+    } catch (error) {
+      console.error('Error clearing search history:', error);
+      res.status(500).json({ error: "Failed to clear search history" });
+    }
+  });
+
   // Saved searches endpoints
   app.get("/api/saved-searches", requireAuth, async (req, res) => {
     try {

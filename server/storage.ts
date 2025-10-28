@@ -1,4 +1,4 @@
-import { eq, desc, and, or, sql, inArray, notInArray, gte, lte, like, asc, ne, isNotNull, isNull } from "drizzle-orm";
+import { eq, desc, and, or, sql, inArray, notInArray, gte, lte, like, asc, ne, isNotNull, isNull, not, gt } from "drizzle-orm";
 import { db } from "./db";
 import {
   type User,
@@ -101,6 +101,18 @@ import {
   type UccFiling,
   type InsertUccFiling,
   leadActivationHistory,
+  smartSearches,
+  type SmartSearch,
+  type InsertSmartSearch,
+  searchHistory,
+  type SearchHistory,
+  type InsertSearchHistory,
+  popularSearches,
+  type PopularSearch,
+  type InsertPopularSearch,
+  searchSuggestions,
+  type SearchSuggestion,
+  type InsertSearchSuggestion,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -396,6 +408,31 @@ export interface IStorage {
   getAlertHistoryByBatchId(batchId: string): Promise<AlertHistory[]>;
   markAlertHistoryViewed(id: string): Promise<void>;
   getUnviewedAlertsCount(userId: string): Promise<number>;
+  
+  // Smart Search operations
+  createSmartSearch(search: InsertSmartSearch): Promise<SmartSearch>;
+  getSmartSearch(id: string): Promise<SmartSearch | undefined>;
+  getSmartSearchesByUserId(userId: string): Promise<SmartSearch[]>;
+  updateSmartSearch(id: string, data: Partial<InsertSmartSearch>): Promise<SmartSearch | undefined>;
+  deleteSmartSearch(id: string): Promise<void>;
+  getActiveSmartSearchAlerts(): Promise<SmartSearch[]>;
+  
+  // Search History operations
+  createSearchHistory(history: InsertSearchHistory): Promise<SearchHistory>;
+  getSearchHistoryByUserId(userId: string, limit?: number): Promise<SearchHistory[]>;
+  clearSearchHistory(userId: string): Promise<void>;
+  
+  // Popular Searches operations
+  createOrUpdatePopularSearch(search: InsertPopularSearch): Promise<PopularSearch>;
+  getPopularSearches(limit?: number): Promise<PopularSearch[]>;
+  incrementPopularSearchCount(searchQuery: string): Promise<void>;
+  
+  // Search Suggestions operations
+  createSearchSuggestion(suggestion: InsertSearchSuggestion): Promise<SearchSuggestion>;
+  getSearchSuggestionsByUserId(userId: string, limit?: number): Promise<SearchSuggestion[]>;
+  markSuggestionClicked(id: string): Promise<void>;
+  markSuggestionDismissed(id: string): Promise<void>;
+  deleteExpiredSuggestions(): Promise<void>;
   
   // Lead Enrichment operations
   createLeadEnrichment(enrichment: InsertLeadEnrichment): Promise<LeadEnrichment>;
@@ -1689,6 +1726,154 @@ export class DbStorage implements IStorage {
         sql`${alertHistory.viewedAt} IS NULL`
       ));
     return Number(result[0]?.count || 0);
+  }
+  
+  // Smart Search operations
+  async createSmartSearch(search: InsertSmartSearch): Promise<SmartSearch> {
+    const result = await db.insert(smartSearches).values(search).returning();
+    return result[0];
+  }
+  
+  async getSmartSearch(id: string): Promise<SmartSearch | undefined> {
+    const result = await db.select().from(smartSearches)
+      .where(and(eq(smartSearches.id, id), isNull(smartSearches.deletedAt)))
+      .limit(1);
+    return result[0];
+  }
+  
+  async getSmartSearchesByUserId(userId: string): Promise<SmartSearch[]> {
+    return db.select().from(smartSearches)
+      .where(and(
+        eq(smartSearches.userId, userId),
+        isNull(smartSearches.deletedAt)
+      ))
+      .orderBy(desc(smartSearches.createdAt));
+  }
+  
+  async updateSmartSearch(id: string, data: Partial<InsertSmartSearch>): Promise<SmartSearch | undefined> {
+    const result = await db.update(smartSearches)
+      .set({ ...data, lastUsedAt: new Date() })
+      .where(eq(smartSearches.id, id))
+      .returning();
+    return result[0];
+  }
+  
+  async deleteSmartSearch(id: string): Promise<void> {
+    await db.update(smartSearches)
+      .set({ deletedAt: new Date() })
+      .where(eq(smartSearches.id, id));
+  }
+  
+  async getActiveSmartSearchAlerts(): Promise<SmartSearch[]> {
+    return db.select().from(smartSearches)
+      .where(and(
+        eq(smartSearches.searchMode, 'alert'),
+        eq(smartSearches.isActive, true),
+        isNull(smartSearches.deletedAt)
+      ))
+      .orderBy(desc(smartSearches.createdAt));
+  }
+  
+  // Search History operations
+  async createSearchHistory(history: InsertSearchHistory): Promise<SearchHistory> {
+    const result = await db.insert(searchHistory).values(history).returning();
+    return result[0];
+  }
+  
+  async getSearchHistoryByUserId(userId: string, limit: number = 10): Promise<SearchHistory[]> {
+    return db.select().from(searchHistory)
+      .where(eq(searchHistory.userId, userId))
+      .orderBy(desc(searchHistory.createdAt))
+      .limit(limit);
+  }
+  
+  async clearSearchHistory(userId: string): Promise<void> {
+    await db.delete(searchHistory).where(eq(searchHistory.userId, userId));
+  }
+  
+  // Popular Searches operations
+  async createOrUpdatePopularSearch(search: InsertPopularSearch): Promise<PopularSearch> {
+    // Check if the search query already exists
+    const existing = await db.select().from(popularSearches)
+      .where(eq(popularSearches.searchQuery, search.searchQuery))
+      .limit(1);
+    
+    if (existing[0]) {
+      // Update counts
+      const result = await db.update(popularSearches)
+        .set({
+          searchCount: sql`${popularSearches.searchCount} + 1`,
+          weeklyCount: sql`${popularSearches.weeklyCount} + 1`,
+          monthlyCount: sql`${popularSearches.monthlyCount} + 1`,
+          filters: search.filters,
+          lastSearchedAt: new Date(),
+          updatedAt: new Date()
+        })
+        .where(eq(popularSearches.id, existing[0].id))
+        .returning();
+      return result[0];
+    } else {
+      // Create new
+      const result = await db.insert(popularSearches).values(search).returning();
+      return result[0];
+    }
+  }
+  
+  async getPopularSearches(limit: number = 10): Promise<PopularSearch[]> {
+    return db.select().from(popularSearches)
+      .orderBy(desc(popularSearches.searchCount))
+      .limit(limit);
+  }
+  
+  async incrementPopularSearchCount(searchQuery: string): Promise<void> {
+    await this.createOrUpdatePopularSearch({
+      searchQuery,
+      filters: {},
+      searchCount: 1,
+      weeklyCount: 1,
+      monthlyCount: 1
+    });
+  }
+  
+  // Search Suggestions operations
+  async createSearchSuggestion(suggestion: InsertSearchSuggestion): Promise<SearchSuggestion> {
+    const result = await db.insert(searchSuggestions).values(suggestion).returning();
+    return result[0];
+  }
+  
+  async getSearchSuggestionsByUserId(userId: string, limit: number = 5): Promise<SearchSuggestion[]> {
+    return db.select().from(searchSuggestions)
+      .where(and(
+        eq(searchSuggestions.userId, userId),
+        eq(searchSuggestions.dismissed, false),
+        eq(searchSuggestions.clicked, false),
+        or(
+          isNull(searchSuggestions.expiresAt),
+          gt(searchSuggestions.expiresAt, new Date())
+        )
+      ))
+      .orderBy(desc(searchSuggestions.score))
+      .limit(limit);
+  }
+  
+  async markSuggestionClicked(id: string): Promise<void> {
+    await db.update(searchSuggestions)
+      .set({ clicked: true })
+      .where(eq(searchSuggestions.id, id));
+  }
+  
+  async markSuggestionDismissed(id: string): Promise<void> {
+    await db.update(searchSuggestions)
+      .set({ dismissed: true })
+      .where(eq(searchSuggestions.id, id));
+  }
+  
+  async deleteExpiredSuggestions(): Promise<void> {
+    await db.delete(searchSuggestions)
+      .where(and(
+        not(isNull(searchSuggestions.expiresAt)),
+        lte(searchSuggestions.expiresAt, new Date())
+      ));
   }
   
   // Lead Enrichment operations

@@ -444,6 +444,62 @@ export const alertHistory = pgTable("alert_history", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Smart Search - Unified search system
+export const smartSearches = pgTable("smart_searches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  searchName: text("search_name"),
+  searchQuery: text("search_query"), // Natural language query
+  filters: jsonb("filters").notNull(), // Parsed filter criteria
+  searchMode: text("search_mode").notNull(), // 'instant' or 'alert'
+  resultCount: integer("result_count").default(0),
+  isActive: boolean("is_active").notNull().default(true), // For alerts
+  emailNotifications: boolean("email_notifications").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastUsedAt: timestamp("last_used_at"),
+  deletedAt: timestamp("deleted_at"),
+});
+
+// Search history for tracking user searches
+export const searchHistory = pgTable("search_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  searchId: varchar("search_id").references(() => smartSearches.id),
+  searchQuery: text("search_query").notNull(),
+  filters: jsonb("filters").notNull(),
+  resultCount: integer("result_count").notNull().default(0),
+  executionTime: integer("execution_time"), // milliseconds
+  searchType: text("search_type").notNull(), // 'natural_language' or 'filters'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Popular searches tracking
+export const popularSearches = pgTable("popular_searches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  searchQuery: text("search_query").notNull().unique(),
+  filters: jsonb("filters").notNull(),
+  searchCount: integer("search_count").notNull().default(1),
+  lastSearchedAt: timestamp("last_searched_at").notNull().defaultNow(),
+  weeklyCount: integer("weekly_count").notNull().default(1),
+  monthlyCount: integer("monthly_count").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// AI search suggestions for personalized recommendations
+export const searchSuggestions = pgTable("search_suggestions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  suggestionText: text("suggestion_text").notNull(),
+  suggestionReason: text("suggestion_reason"), // Why this was suggested
+  filters: jsonb("filters").notNull(),
+  score: decimal("score", { precision: 5, scale: 2 }), // Relevance score
+  dismissed: boolean("dismissed").notNull().default(false),
+  clicked: boolean("clicked").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at"),
+});
+
 // Lead Enrichment - stores enriched business data
 export const leadEnrichment = pgTable("lead_enrichment", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -830,6 +886,57 @@ export const insertLeadEnrichmentSchema = createInsertSchema(leadEnrichment).omi
   contactInfo: z.object({}).passthrough().optional(),
 });
 
+export const insertSmartSearchSchema = createInsertSchema(smartSearches).omit({
+  id: true,
+  createdAt: true,
+  lastUsedAt: true,
+  deletedAt: true,
+}).extend({
+  searchName: z.string().optional(),
+  searchQuery: z.string().optional(),
+  filters: z.object({}).passthrough(),
+  searchMode: z.enum(["instant", "alert"]),
+  resultCount: z.number().default(0),
+  isActive: z.boolean().default(true),
+  emailNotifications: z.boolean().default(false),
+});
+
+export const insertSearchHistorySchema = createInsertSchema(searchHistory).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  searchQuery: z.string(),
+  filters: z.object({}).passthrough(),
+  resultCount: z.number().default(0),
+  executionTime: z.number().optional(),
+  searchType: z.enum(["natural_language", "filters"]),
+});
+
+export const insertPopularSearchSchema = createInsertSchema(popularSearches).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  searchQuery: z.string(),
+  filters: z.object({}).passthrough(),
+  searchCount: z.number().default(1),
+  weeklyCount: z.number().default(1),
+  monthlyCount: z.number().default(1),
+});
+
+export const insertSearchSuggestionSchema = createInsertSchema(searchSuggestions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  suggestionText: z.string(),
+  suggestionReason: z.string().optional(),
+  filters: z.object({}).passthrough(),
+  score: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  dismissed: z.boolean().default(false),
+  clicked: z.boolean().default(false),
+  expiresAt: z.date().optional(),
+});
+
 export const insertSavedSearchSchema = createInsertSchema(savedSearches).omit({
   id: true,
   createdAt: true,
@@ -1155,3 +1262,15 @@ export type ApiUsage = typeof apiUsage.$inferSelect;
 
 export type InsertLeadScoringModel = z.infer<typeof insertLeadScoringModelSchema>;
 export type LeadScoringModel = typeof leadScoringModels.$inferSelect;
+
+export type InsertSmartSearch = z.infer<typeof insertSmartSearchSchema>;
+export type SmartSearch = typeof smartSearches.$inferSelect;
+
+export type InsertSearchHistory = z.infer<typeof insertSearchHistorySchema>;
+export type SearchHistory = typeof searchHistory.$inferSelect;
+
+export type InsertPopularSearch = z.infer<typeof insertPopularSearchSchema>;
+export type PopularSearch = typeof popularSearches.$inferSelect;
+
+export type InsertSearchSuggestion = z.infer<typeof insertSearchSuggestionSchema>;
+export type SearchSuggestion = typeof searchSuggestions.$inferSelect;

@@ -33,8 +33,7 @@ import CampaignsPage from "@/pages/campaigns";
 import LeadActivationPage from "@/pages/lead-activation";
 import DeveloperPage from "@/pages/developer";
 import ApiDocsPage from "@/pages/api-docs";
-import SmartMatchingPage from "@/pages/smart-matching";
-import AdvancedFilteringPage from "@/pages/advanced-filtering";
+import SmartSearchPage from "@/pages/smart-search";
 import MLScoringPage from "@/pages/ml-scoring";
 import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
@@ -107,8 +106,7 @@ function AppSidebar() {
     { title: "Analytics", url: "/analytics", icon: TrendingUp },
     { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
-    { title: "Advanced Filtering", url: "/advanced-filtering", icon: Search },
-    { title: "Smart Matching", url: "/smart-matching", icon: Bell },
+    { title: "Smart Search", url: "/smart-search", icon: Search },
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
@@ -124,8 +122,7 @@ function AppSidebar() {
     { title: "Analytics", url: "/analytics", icon: TrendingUp },
     { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
-    { title: "Advanced Filtering", url: "/advanced-filtering", icon: Search },
-    { title: "Smart Matching", url: "/smart-matching", icon: Bell },
+    { title: "Smart Search", url: "/smart-search", icon: Search },
     { title: "Upload Leads", url: "/admin/upload", icon: Upload },
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
     { title: "Quality Guarantees", url: "/admin/manage-guarantees", icon: ShieldCheck },
@@ -265,8 +262,7 @@ function Router() {
               <Route path="/alerts" component={AlertsPage} />
               <Route path="/integrations" component={IntegrationsPage} />
               <Route path="/crm-integrations" component={IntegrationsPage} />
-              <Route path="/smart-matching" component={SmartMatchingPage} />
-              <Route path="/advanced-filtering" component={AdvancedFilteringPage} />
+              <Route path="/smart-search" component={SmartSearchPage} />
               <Route path="/ml-scoring" component={MLScoringPage} />
               <Route path="/developer" component={DeveloperPage} />
               <Route path="/api-docs" component={ApiDocsPage} />
