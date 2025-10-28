@@ -11,24 +11,42 @@ interface UccRecord {
   fileNumber: string;
   collateralDescription?: string;
   loanAmount?: number;
-  filingType?: 'original' | 'amendment' | 'termination';
+  filingType?: 'original' | 'amendment' | 'termination' | 'continuation';
+  jurisdiction?: string;
+  originalFilingNumber?: string; // For linking continuations to originals
+  continuationCount?: number; // Track number of continuations
+}
+
+interface ContinuationRecord {
+  originalFilingNumber: string;  // UCC1_NUM
+  continuationFilingNumber: string;  // UCC3_NUM
+  amendmentType: string;
+  filingDate?: Date;
+  debtorName?: string;
   jurisdiction?: string;
 }
 
 interface UccParseResult {
   success: boolean;
   records: UccRecord[];
+  continuationRecords: ContinuationRecord[];
+  linkedContinuations: number;
   errors: string[];
   summary: {
     totalRecords: number;
     validRecords: number;
     invalidRecords: number;
+    continuationRecords: number;
+    linkedContinuations: number;
+    orphanedContinuations: number;
     matchedLeads: number;
     unmatchedRecords: number;
     uniqueDebtors: number;
     uniqueSecuredParties: number;
     averageLoanAmount?: number;
     dateRange?: { earliest: Date; latest: Date };
+    activeFinancingRelationships: number;
+    recentFinancingActivity: number;
   };
 }
 
@@ -90,6 +108,19 @@ class UccParserService {
     ],
     jurisdiction: [
       'state', 'jurisdiction', 'filing state', 'filing_state', 'location'
+    ],
+    // Continuation record specific mappings
+    originalFilingNumber: [
+      'ucc1_num', 'ucc1 num', 'original filing', 'original filing number',
+      'original ucc', 'initial filing number', 'parent filing'
+    ],
+    continuationFilingNumber: [
+      'ucc3_num', 'ucc3 num', 'continuation filing', 'continuation number',
+      'continuation filing number', 'amendment filing number'
+    ],
+    amendmentType: [
+      'amendment_type', 'amendment type', 'modification type', 'filing action',
+      'transaction type', 'amendment'
     ]
   };
 
@@ -263,15 +294,22 @@ class UccParserService {
       const result: UccParseResult = {
         success: false,
         records: [],
+        continuationRecords: [],
+        linkedContinuations: 0,
         errors: [],
         summary: {
           totalRecords: 0,
           validRecords: 0,
           invalidRecords: 0,
+          continuationRecords: 0,
+          linkedContinuations: 0,
+          orphanedContinuations: 0,
           matchedLeads: 0,
           unmatchedRecords: 0,
           uniqueDebtors: 0,
-          uniqueSecuredParties: 0
+          uniqueSecuredParties: 0,
+          activeFinancingRelationships: 0,
+          recentFinancingActivity: 0
         }
       };
 
@@ -282,17 +320,54 @@ class UccParserService {
           result.summary.totalRecords = parseResult.data.length;
           
           for (const row of parseResult.data as any[]) {
-            const record = this.extractUccRecord(row);
-            if (record) {
-              result.records.push(record);
-              result.summary.validRecords++;
+            const recordType = this.detectRecordType(row);
+            
+            if (recordType === 'regular') {
+              const record = this.extractUccRecord(row);
+              if (record) {
+                result.records.push(record);
+                result.summary.validRecords++;
+              } else {
+                result.summary.invalidRecords++;
+                result.errors.push(`Invalid regular record: ${JSON.stringify(row).substring(0, 100)}`);
+              }
+            } else if (recordType === 'continuation') {
+              const continuationRecord = this.extractContinuationRecord(row);
+              if (continuationRecord) {
+                result.continuationRecords.push(continuationRecord);
+                result.summary.continuationRecords++;
+                // Log as valuable continuation instead of invalid
+                console.log(`Found continuation amendment: ${continuationRecord.originalFilingNumber} -> ${continuationRecord.continuationFilingNumber}`);
+              } else {
+                result.summary.invalidRecords++;
+                result.errors.push(`Invalid continuation record: ${JSON.stringify(row).substring(0, 100)}`);
+              }
             } else {
               result.summary.invalidRecords++;
-              result.errors.push(`Invalid record: ${JSON.stringify(row).substring(0, 100)}`);
+              result.errors.push(`Unknown record type: ${JSON.stringify(row).substring(0, 100)}`);
             }
           }
           
-          result.success = result.records.length > 0;
+          // Link continuations to original filings
+          const linkingResult = this.linkContinuationsToOriginals(result.records, result.continuationRecords);
+          result.records = linkingResult.enrichedRecords;
+          result.linkedContinuations = linkingResult.linkedCount;
+          result.summary.linkedContinuations = linkingResult.linkedCount;
+          result.summary.orphanedContinuations = result.continuationRecords.length - linkingResult.linkedCount;
+          
+          // Calculate active financing relationships
+          result.summary.activeFinancingRelationships = result.records.filter(r => 
+            r.continuationCount && r.continuationCount > 0 && r.filingType !== 'termination'
+          ).length;
+          
+          // Calculate recent financing activity (continuations in last 6 months)
+          const sixMonthsAgo = new Date();
+          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+          result.summary.recentFinancingActivity = result.continuationRecords.filter(c => 
+            c.filingDate && c.filingDate >= sixMonthsAgo
+          ).length;
+          
+          result.success = (result.records.length > 0 || result.continuationRecords.length > 0);
           resolve(result);
         },
         error: (error) => {
@@ -310,13 +385,22 @@ class UccParserService {
     const result: UccParseResult = {
       success: false,
       records: [],
+      continuationRecords: [],
+      linkedContinuations: 0,
       errors: [],
       summary: {
         totalRecords: 0,
         validRecords: 0,
         invalidRecords: 0,
+        continuationRecords: 0,
+        linkedContinuations: 0,
+        orphanedContinuations: 0,
         matchedLeads: 0,
-        unmatchedRecords: 0
+        unmatchedRecords: 0,
+        uniqueDebtors: 0,
+        uniqueSecuredParties: 0,
+        activeFinancingRelationships: 0,
+        recentFinancingActivity: 0
       }
     };
 
@@ -329,17 +413,53 @@ class UccParserService {
       result.summary.totalRecords = jsonData.length;
       
       for (const row of jsonData) {
-        const record = this.extractUccRecord(row as any);
-        if (record) {
-          result.records.push(record);
-          result.summary.validRecords++;
+        const recordType = this.detectRecordType(row as any);
+        
+        if (recordType === 'regular') {
+          const record = this.extractUccRecord(row as any);
+          if (record) {
+            result.records.push(record);
+            result.summary.validRecords++;
+          } else {
+            result.summary.invalidRecords++;
+            result.errors.push(`Invalid regular record at row ${result.summary.validRecords + result.summary.invalidRecords + result.summary.continuationRecords}`);
+          }
+        } else if (recordType === 'continuation') {
+          const continuationRecord = this.extractContinuationRecord(row as any);
+          if (continuationRecord) {
+            result.continuationRecords.push(continuationRecord);
+            result.summary.continuationRecords++;
+            console.log(`Found continuation amendment: ${continuationRecord.originalFilingNumber} -> ${continuationRecord.continuationFilingNumber}`);
+          } else {
+            result.summary.invalidRecords++;
+            result.errors.push(`Invalid continuation record at row ${result.summary.validRecords + result.summary.invalidRecords + result.summary.continuationRecords}`);
+          }
         } else {
           result.summary.invalidRecords++;
-          result.errors.push(`Invalid record at row ${result.summary.validRecords + result.summary.invalidRecords}`);
+          result.errors.push(`Unknown record type at row ${result.summary.validRecords + result.summary.invalidRecords + result.summary.continuationRecords}`);
         }
       }
       
-      result.success = result.records.length > 0;
+      // Link continuations to original filings
+      const linkingResult = this.linkContinuationsToOriginals(result.records, result.continuationRecords);
+      result.records = linkingResult.enrichedRecords;
+      result.linkedContinuations = linkingResult.linkedCount;
+      result.summary.linkedContinuations = linkingResult.linkedCount;
+      result.summary.orphanedContinuations = result.continuationRecords.length - linkingResult.linkedCount;
+      
+      // Calculate active financing relationships
+      result.summary.activeFinancingRelationships = result.records.filter(r => 
+        r.continuationCount && r.continuationCount > 0 && r.filingType !== 'termination'
+      ).length;
+      
+      // Calculate recent financing activity
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      result.summary.recentFinancingActivity = result.continuationRecords.filter(c => 
+        c.filingDate && c.filingDate >= sixMonthsAgo
+      ).length;
+      
+      result.success = (result.records.length > 0 || result.continuationRecords.length > 0);
     } catch (error: any) {
       result.errors.push(`Excel parse error: ${error.message}`);
     }
@@ -390,6 +510,63 @@ class UccParserService {
     record.jurisdiction = this.findFieldValue(row, this.columnMappings.jurisdiction);
     
     return record as UccRecord;
+  }
+
+  /**
+   * Detect the type of UCC record based on available fields
+   */
+  private detectRecordType(row: Record<string, any>): 'regular' | 'continuation' | 'unknown' {
+    // Check for continuation record fields
+    const hasUcc1Num = this.findFieldValue(row, this.columnMappings.originalFilingNumber) !== undefined;
+    const hasUcc3Num = this.findFieldValue(row, this.columnMappings.continuationFilingNumber) !== undefined;
+    const hasAmendmentType = this.findFieldValue(row, this.columnMappings.amendmentType) !== undefined;
+    
+    if ((hasUcc1Num || hasUcc3Num) && hasAmendmentType) {
+      return 'continuation';
+    }
+    
+    // Check for regular record fields
+    const hasDebtor = this.findFieldValue(row, this.columnMappings.debtorName) !== undefined;
+    const hasSecuredParty = this.findFieldValue(row, this.columnMappings.securedParty) !== undefined;
+    
+    if (hasDebtor && hasSecuredParty) {
+      return 'regular';
+    }
+    
+    return 'unknown';
+  }
+
+  /**
+   * Extract continuation record from row data
+   */
+  private extractContinuationRecord(row: Record<string, any>): ContinuationRecord | null {
+    const record: Partial<ContinuationRecord> = {};
+    
+    // Extract required fields
+    record.originalFilingNumber = this.findFieldValue(row, this.columnMappings.originalFilingNumber);
+    record.continuationFilingNumber = this.findFieldValue(row, this.columnMappings.continuationFilingNumber);
+    record.amendmentType = this.findFieldValue(row, this.columnMappings.amendmentType);
+    
+    // At least need original filing number and amendment type
+    if (!record.originalFilingNumber || !record.amendmentType) {
+      return null;
+    }
+    
+    // Try to extract optional fields
+    const dateStr = this.findFieldValue(row, this.columnMappings.filingDate);
+    if (dateStr) {
+      record.filingDate = this.parseDate(dateStr);
+    }
+    
+    record.debtorName = this.findFieldValue(row, this.columnMappings.debtorName);
+    record.jurisdiction = this.findFieldValue(row, this.columnMappings.jurisdiction);
+    
+    // Default continuation filing number if not provided
+    if (!record.continuationFilingNumber) {
+      record.continuationFilingNumber = 'CONT-' + Date.now();
+    }
+    
+    return record as ContinuationRecord;
   }
 
   /**
@@ -474,12 +651,78 @@ class UccParserService {
   /**
    * Parse filing type
    */
-  private parseFilingType(typeStr: string): 'original' | 'amendment' | 'termination' | undefined {
+  private parseFilingType(typeStr: string): 'original' | 'amendment' | 'termination' | 'continuation' | undefined {
     const lower = typeStr.toLowerCase();
     if (lower.includes('original') || lower.includes('initial')) return 'original';
+    if (lower.includes('continuation')) return 'continuation';
     if (lower.includes('amendment') || lower.includes('amend')) return 'amendment';
     if (lower.includes('termination') || lower.includes('terminate')) return 'termination';
     return 'original'; // Default to original if unclear
+  }
+
+  /**
+   * Link continuation records to original filings
+   */
+  private linkContinuationsToOriginals(
+    records: UccRecord[], 
+    continuations: ContinuationRecord[]
+  ): { enrichedRecords: UccRecord[]; linkedCount: number } {
+    let linkedCount = 0;
+    const recordsByFileNumber = new Map<string, UccRecord>();
+    
+    // Index records by file number for quick lookup
+    for (const record of records) {
+      recordsByFileNumber.set(record.fileNumber, record);
+      // Also try without any prefix (in case numbers have different formats)
+      const cleanNumber = record.fileNumber.replace(/^[A-Z]+/, '');
+      if (cleanNumber !== record.fileNumber) {
+        recordsByFileNumber.set(cleanNumber, record);
+      }
+    }
+    
+    // Link continuations to originals
+    for (const continuation of continuations) {
+      let originalRecord = recordsByFileNumber.get(continuation.originalFilingNumber);
+      
+      if (!originalRecord) {
+        // Try to find by partial match
+        const cleanOriginal = continuation.originalFilingNumber.replace(/^[A-Z]+/, '');
+        originalRecord = recordsByFileNumber.get(cleanOriginal);
+      }
+      
+      if (originalRecord) {
+        // Update the original record with continuation info
+        originalRecord.continuationCount = (originalRecord.continuationCount || 0) + 1;
+        
+        // Update filing type if it's a continuation
+        if (continuation.amendmentType.toLowerCase().includes('continuation')) {
+          originalRecord.filingType = 'continuation';
+        }
+        
+        linkedCount++;
+        
+        // If continuation has a filing date, check if it's more recent
+        if (continuation.filingDate && continuation.filingDate > originalRecord.filingDate) {
+          // This indicates an active, recently maintained financing relationship
+          originalRecord.filingDate = continuation.filingDate; // Update to most recent activity
+        }
+      } else {
+        // Create a placeholder record for orphaned continuations
+        const placeholderRecord: UccRecord = {
+          debtorName: continuation.debtorName || 'Unknown (from continuation)',
+          securedParty: 'Unknown (from continuation)',
+          filingDate: continuation.filingDate || new Date(),
+          fileNumber: continuation.continuationFilingNumber,
+          originalFilingNumber: continuation.originalFilingNumber,
+          filingType: 'continuation',
+          continuationCount: 1,
+          jurisdiction: continuation.jurisdiction
+        };
+        records.push(placeholderRecord);
+      }
+    }
+    
+    return { enrichedRecords: records, linkedCount };
   }
 
   /**
@@ -604,13 +847,27 @@ class UccParserService {
     // Analyze growth trend from collateral descriptions
     const growthIndicator = this.analyzeGrowthTrend(sortedRecords);
     
+    // Check for recent continuation activity
+    const recentContinuation = records.some(r => 
+      r.filingType === 'continuation' && 
+      r.filingDate && 
+      Math.floor((now.getTime() - r.filingDate.getTime()) / (1000 * 60 * 60 * 24)) < 180
+    );
+    
+    // Count total continuations
+    const continuationCount = records.reduce((sum, r) => 
+      sum + (r.continuationCount || 0), 0
+    );
+    
     // Calculate MCA readiness score (0-100)
     const mcaReadinessScore = this.calculateMcaReadinessScore(
       activeFilings.length,
       terminatedFilings.length,
       daysSinceLastFiling,
       stackingIndicator,
-      refinancingPattern
+      refinancingPattern,
+      continuationCount,
+      recentContinuation
     );
     
     // Calculate risk score (0-100)
@@ -622,6 +879,15 @@ class UccParserService {
     );
     
     // Generate insights
+    if (continuationCount > 0) {
+      insights.push(`📋 ${continuationCount} continuation filing(s) found - ACTIVE financing relationship`);
+      if (recentContinuation) {
+        insights.push('🔥 Recent continuation activity - actively maintaining financing (prime MCA opportunity)');
+      } else {
+        insights.push('📝 Older continuations present - established financing history');
+      }
+    }
+    
     if (stackingIndicator) {
       insights.push('⚠️ Multiple fundings detected within 90 days - potential stacking behavior');
     }
@@ -634,9 +900,13 @@ class UccParserService {
       insights.push(`✅ ${terminatedFilings.length} successfully paid off financing(s)`);
     }
     
-    if (daysSinceLastFiling < 90) {
+    if (continuationCount > 2) {
+      insights.push('💰 Long-term financing relationship evident - multiple continuations');
+    }
+    
+    if (daysSinceLastFiling < 90 && !recentContinuation) {
       insights.push('📅 Recent UCC filing - may have existing MCA obligations');
-    } else if (daysSinceLastFiling > 180) {
+    } else if (daysSinceLastFiling > 180 && !recentContinuation) {
       insights.push('💚 No recent filings - good timing for new MCA offer');
     }
     
@@ -745,22 +1015,45 @@ class UccParserService {
     terminatedFilings: number,
     daysSinceLastFiling: number,
     hasStacking: boolean,
-    hasRefinancing: boolean
+    hasRefinancing: boolean,
+    continuationCount: number = 0,
+    recentContinuation: boolean = false
   ): number {
     let score = 50; // Base score
     
     // Positive factors
-    if (daysSinceLastFiling > 180) score += 20;
-    else if (daysSinceLastFiling > 90) score += 10;
+    if (daysSinceLastFiling > 180 && !recentContinuation) score += 20;
+    else if (daysSinceLastFiling > 90 && !recentContinuation) score += 10;
     else score -= 20;
     
     if (terminatedFilings > 0) score += 15 * Math.min(terminatedFilings, 2);
     if (hasRefinancing) score += 10; // Shows good debt management
     
+    // Continuation-based factors
+    if (continuationCount > 0) {
+      if (recentContinuation) {
+        // Recent continuation = active financing = may need additional capital
+        score += 15; // They're actively managing debt, good MCA candidate
+      } else {
+        // Has continuations but not recent = established business
+        score += 10;
+      }
+    }
+    
+    // Boost score for businesses with 1-2 continuations (shows stability)
+    if (continuationCount >= 1 && continuationCount <= 2) {
+      score += 10; // Stable financing history
+    }
+    
     // Negative factors
     if (activeFilings > 2) score -= 10 * (activeFilings - 2);
     if (hasStacking) score -= 25;
-    if (daysSinceLastFiling < 30) score -= 15;
+    if (daysSinceLastFiling < 30 && !recentContinuation) score -= 15;
+    
+    // Too many continuations might indicate distress
+    if (continuationCount > 3) {
+      score -= 5 * (continuationCount - 3);
+    }
     
     return Math.max(0, Math.min(100, score));
   }
@@ -954,9 +1247,32 @@ class UccParserService {
       signalsByLead.set(leadId, signals);
     }
     
+    // Generate enhanced message with continuation insights
+    let message = `Successfully processed ${parseResult.summary.totalRecords} total records`;
+    
+    if (parseResult.summary.continuationRecords > 0) {
+      message += `\n📋 Found ${parseResult.summary.continuationRecords} continuation amendments (VALUABLE!)`;
+      message += `\n✅ Linked ${parseResult.summary.linkedContinuations} continuations to original filings`;
+      
+      if (parseResult.summary.orphanedContinuations > 0) {
+        message += `\n⚠️ ${parseResult.summary.orphanedContinuations} orphaned continuations (no matching original)`;
+      }
+      
+      if (parseResult.summary.activeFinancingRelationships > 0) {
+        message += `\n🔥 ${parseResult.summary.activeFinancingRelationships} active financing relationships identified`;
+      }
+      
+      if (parseResult.summary.recentFinancingActivity > 0) {
+        message += `\n💰 ${parseResult.summary.recentFinancingActivity} businesses with recent financing activity (last 6 months)`;
+      }
+    }
+    
+    message += `\n📊 ${parseResult.summary.validRecords} regular UCC records processed`;
+    message += `\n🔗 ${parseResult.summary.matchedLeads} records matched to existing leads`;
+    
     return {
       success: true,
-      message: `Successfully processed ${parseResult.records.length} UCC records`,
+      message,
       summary: parseResult.summary,
       signals: signalsByLead
     };
