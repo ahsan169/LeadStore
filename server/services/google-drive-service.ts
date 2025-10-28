@@ -168,6 +168,40 @@ class GoogleDriveService {
   }
 
   /**
+   * List files in a Google Drive folder
+   */
+  async listFolderFiles(folderId: string): Promise<GoogleDriveFile[]> {
+    try {
+      const drive = await this.getGoogleDriveClient();
+      
+      const response = await drive.files.list({
+        q: `'${folderId}' in parents and trashed = false`,
+        fields: 'files(id,name,mimeType,size,fileExtension,webViewLink)',
+        pageSize: 100
+      });
+
+      if (!response.data.files) {
+        return [];
+      }
+
+      // Filter for supported file types
+      const supportedFiles = response.data.files.filter(file => {
+        return SUPPORTED_MIME_TYPES.includes(file.mimeType || '') ||
+               file.mimeType === 'application/vnd.google-apps.spreadsheet' ||
+               file.name?.toLowerCase().endsWith('.csv') ||
+               file.name?.toLowerCase().endsWith('.xlsx') ||
+               file.name?.toLowerCase().endsWith('.xls') ||
+               file.name?.toLowerCase().endsWith('.zip');
+      });
+
+      return supportedFiles as GoogleDriveFile[];
+    } catch (error) {
+      console.error('Error listing folder files:', error);
+      throw new Error('Failed to list files in the folder');
+    }
+  }
+
+  /**
    * Download file from Google Drive with progress tracking
    */
   async downloadFile(
@@ -179,6 +213,50 @@ class GoogleDriveService {
       
       // Get file metadata first
       const fileMetadata = await this.getFileMetadata(fileId);
+      
+      // Check if it's a folder
+      if (fileMetadata.mimeType === 'application/vnd.google-apps.folder') {
+        // List files in the folder
+        const filesInFolder = await this.listFolderFiles(fileId);
+        
+        if (filesInFolder.length === 0) {
+          throw new Error('No supported files found in the folder. Please upload CSV, Excel, or ZIP files.');
+        }
+        
+        // If there's only one file, use it automatically
+        if (filesInFolder.length === 1) {
+          console.log(`Found single file in folder: ${filesInFolder[0].name}, using it automatically`);
+          return await this.downloadFile(filesInFolder[0].id, onProgress);
+        }
+        
+        // If multiple files, try to find the most likely UCC data file
+        const uccFile = filesInFolder.find(f => 
+          f.name?.toLowerCase().includes('ucc') ||
+          f.name?.toLowerCase().includes('filing') ||
+          f.name?.toLowerCase().includes('lien')
+        );
+        
+        if (uccFile) {
+          console.log(`Found UCC-related file: ${uccFile.name}, using it automatically`);
+          return await this.downloadFile(uccFile.id, onProgress);
+        }
+        
+        // Otherwise, use the first CSV or Excel file
+        const dataFile = filesInFolder.find(f => 
+          f.name?.toLowerCase().endsWith('.csv') ||
+          f.name?.toLowerCase().endsWith('.xlsx') ||
+          f.name?.toLowerCase().endsWith('.xls')
+        );
+        
+        if (dataFile) {
+          console.log(`Found data file: ${dataFile.name}, using it automatically`);
+          return await this.downloadFile(dataFile.id, onProgress);
+        }
+        
+        // If still no clear choice, provide helpful error with file list
+        const fileList = filesInFolder.slice(0, 5).map(f => `• ${f.name}`).join('\n');
+        throw new Error(`Multiple files found in folder. Please share the specific file directly:\n${fileList}${filesInFolder.length > 5 ? `\n... and ${filesInFolder.length - 5} more files` : ''}`);
+      }
       
       // Check file size
       const fileSize = parseInt(fileMetadata.size || '0', 10);
