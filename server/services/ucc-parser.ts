@@ -151,6 +151,10 @@ class UccParserService {
     const insights: string[] = [];
     let filesProcessed = 0;
     
+    // Add limits to prevent memory/stack overflow
+    const MAX_RECORDS_PER_FILE = 50000;
+    const MAX_TOTAL_RECORDS = 100000;
+    
     // Process each file
     for (const file of files) {
       try {
@@ -171,18 +175,41 @@ class UccParserService {
         }
         
         if (parseResult.success) {
-          allRecords.push(...parseResult.records);
+          // Calculate remaining budget to enforce total limit
+          const remainingBudget = MAX_TOTAL_RECORDS - allRecords.length;
+          
+          // Limit records per file and respect total budget
+          let recordsToAdd = parseResult.records.slice(0, Math.min(MAX_RECORDS_PER_FILE, remainingBudget));
+          
+          if (parseResult.records.length > recordsToAdd.length) {
+            const reason = remainingBudget < MAX_RECORDS_PER_FILE 
+              ? `total limit (${MAX_TOTAL_RECORDS} records)`
+              : `per-file limit (${MAX_RECORDS_PER_FILE} records)`;
+            console.log(`File ${file.name} truncated to ${recordsToAdd.length} records due to ${reason} (original: ${parseResult.records.length})`);
+            insights.push(`⚠️ File ${file.name} truncated to ${recordsToAdd.length} records (${parseResult.records.length} total)`);
+          }
+          
+          allRecords.push(...recordsToAdd);
           filesProcessed++;
-          console.log(`Processed ${file.name}: ${parseResult.records.length} records`);
+          console.log(`Processed ${file.name}: ${recordsToAdd.length} records (total: ${allRecords.length})`);
+          
+          // Stop processing more files if we've reached the limit
+          if (allRecords.length >= MAX_TOTAL_RECORDS) {
+            console.log(`Reached maximum total record limit (${MAX_TOTAL_RECORDS}). Stopping file processing.`);
+            insights.push(`⚠️ Processing stopped after ${filesProcessed} file(s) - reached ${MAX_TOTAL_RECORDS} records limit`);
+            break;
+          }
         } else {
           console.error(`Failed to process ${file.name}: ${parseResult.errors.join(', ')}`);
         }
       } catch (error: any) {
         console.error(`Error processing ${file.name}: ${error.message}`);
+        insights.push(`❌ Error processing ${file.name}: ${error.message}`);
+        // Continue processing other files instead of failing completely
       }
     }
     
-    // Deduplicate and merge records
+    // Deduplicate and merge records (with batching to prevent stack overflow)
     const mergedRecords = this.deduplicateAndMerge(allRecords);
     const duplicatesRemoved = allRecords.length - mergedRecords.length;
     
@@ -207,8 +234,10 @@ class UccParserService {
     const earliest = new Date(Math.min(...dates.map(d => d.getTime())));
     const latest = new Date(Math.max(...dates.map(d => d.getTime())));
     
-    // Match to leads and create debtor profiles
-    const leadMatches = await this.matchToLeads(mergedRecords);
+    // Match to leads and create debtor profiles (with batching for large datasets)
+    console.log(`Matching ${mergedRecords.length} records to leads...`);
+    const leadMatches = await this.matchToLeadsBatched(mergedRecords);
+    console.log(`Creating debtor profiles...`);
     const debtorProfiles = this.createDebtorProfiles(mergedRecords, leadMatches);
     
     // Generate portfolio insights
@@ -317,9 +346,17 @@ class UccParserService {
         header: true,
         skipEmptyLines: true,
         complete: async (parseResult) => {
-          result.summary.totalRecords = parseResult.data.length;
+          // Limit to prevent stack overflow with very large files
+          const MAX_ROWS_TO_PROCESS = 50000;
+          const dataToProcess = (parseResult.data as any[]).slice(0, MAX_ROWS_TO_PROCESS);
+          result.summary.totalRecords = dataToProcess.length;
           
-          for (const row of parseResult.data as any[]) {
+          if ((parseResult.data as any[]).length > MAX_ROWS_TO_PROCESS) {
+            console.log(`CSV truncated to ${MAX_ROWS_TO_PROCESS} rows (original: ${(parseResult.data as any[]).length} rows)`);
+            result.errors.push(`File truncated to ${MAX_ROWS_TO_PROCESS} rows to prevent memory issues`);
+          }
+          
+          for (const row of dataToProcess) {
             const recordType = this.detectRecordType(row);
             
             if (recordType === 'regular') {
@@ -410,9 +447,17 @@ class UccParserService {
       const worksheet = workbook.Sheets[sheetName];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
       
-      result.summary.totalRecords = jsonData.length;
+      // Limit to prevent stack overflow with very large files
+      const MAX_ROWS_TO_PROCESS = 50000;
+      const dataToProcess = jsonData.slice(0, MAX_ROWS_TO_PROCESS);
+      result.summary.totalRecords = dataToProcess.length;
       
-      for (const row of jsonData) {
+      if (jsonData.length > MAX_ROWS_TO_PROCESS) {
+        console.log(`Excel file truncated to ${MAX_ROWS_TO_PROCESS} rows (original: ${jsonData.length} rows)`);
+        result.errors.push(`File truncated to ${MAX_ROWS_TO_PROCESS} rows to prevent memory issues`);
+      }
+      
+      for (const row of dataToProcess) {
         const recordType = this.detectRecordType(row as any);
         
         if (recordType === 'regular') {
@@ -726,20 +771,71 @@ class UccParserService {
   }
 
   /**
-   * Match UCC records to existing leads
+   * Match UCC records to existing leads (batched to prevent timeouts)
    */
-  async matchToLeads(records: UccRecord[]): Promise<Map<UccRecord, Lead | null>> {
+  async matchToLeadsBatched(records: UccRecord[]): Promise<Map<UccRecord, Lead | null>> {
     const matches = new Map<UccRecord, Lead | null>();
+    const BATCH_SIZE = 1000;
     
-    for (const record of records) {
-      // Try to find matching lead
-      const matchedLead = await this.findMatchingLead(record.debtorName);
-      matches.set(record, matchedLead);
+    // Fetch all leads once to avoid repeated database queries
+    const { leads: allLeads } = await storage.getFilteredLeads({ limit: 10000 });
+    console.log(`Loaded ${allLeads.length} leads for matching`);
+    
+    // Process records in batches
+    for (let i = 0; i < records.length; i += BATCH_SIZE) {
+      const batch = records.slice(i, i + BATCH_SIZE);
+      console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(records.length / BATCH_SIZE)}`);
+      
+      for (const record of batch) {
+        // Try to find matching lead from cached leads
+        const matchedLead = this.findMatchingLeadFromCache(record.debtorName, allLeads);
+        matches.set(record, matchedLead);
+      }
+      
+      // Allow event loop to process other tasks
+      await new Promise(resolve => setImmediate(resolve));
     }
     
     return matches;
   }
+  
+  /**
+   * Match UCC records to existing leads
+   */
+  async matchToLeads(records: UccRecord[]): Promise<Map<UccRecord, Lead | null>> {
+    return this.matchToLeadsBatched(records);
+  }
 
+  /**
+   * Find a lead matching the debtor name from cached leads
+   */
+  private findMatchingLeadFromCache(debtorName: string, leads: Lead[]): Lead | null {
+    // Clean and prepare debtor name for matching
+    const cleanDebtor = this.cleanBusinessName(debtorName);
+    const debtorParts = cleanDebtor.toLowerCase().split(/\s+/);
+    
+    for (const lead of leads) {
+      const cleanLeadName = this.cleanBusinessName(lead.businessName);
+      const leadNameLower = cleanLeadName.toLowerCase();
+      
+      // Check for exact match
+      if (leadNameLower === cleanDebtor.toLowerCase()) {
+        return lead;
+      }
+      
+      // Check for fuzzy match (at least 70% of words match)
+      const matchCount = debtorParts.filter(part => 
+        part.length > 2 && leadNameLower.includes(part)
+      ).length;
+      
+      if (matchCount >= Math.ceil(debtorParts.length * 0.7)) {
+        return lead;
+      }
+    }
+    
+    return null;
+  }
+  
   /**
    * Find a lead matching the debtor name
    */

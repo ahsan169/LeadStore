@@ -2165,7 +2165,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
         
         console.log(`Processing ${files.length} file(s) with enhanced UCC parser...`);
-        const processingResult = await uccParser.processMultipleFiles(files);
+        
+        // Add timeout to prevent hanging (2 minutes max)
+        const PROCESSING_TIMEOUT = 120000; // 2 minutes
+        let timeoutHandle: NodeJS.Timeout | null = null;
+        
+        let processingResult;
+        try {
+          const processingPromise = uccParser.processMultipleFiles(files);
+          
+          // Add catch handler to swallow post-timeout rejections
+          processingPromise.catch((error) => {
+            console.error('Background processing error (post-timeout):', error.message);
+          });
+          
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => reject(new Error('Processing timeout - operation took longer than 2 minutes')), PROCESSING_TIMEOUT);
+          });
+          
+          processingResult = await Promise.race([processingPromise, timeoutPromise]) as Awaited<ReturnType<typeof uccParser.processMultipleFiles>>;
+        } finally {
+          // Always clear timeout to prevent timer leak
+          if (timeoutHandle) {
+            clearTimeout(timeoutHandle);
+          }
+        }
         
         // Send progress update
         wss.clients.forEach(client => {
