@@ -140,6 +140,12 @@ export interface IStorage {
   updateFreshnessScores(): Promise<void>;
   getLeadsByFreshness(category: string): Promise<Lead[]>;
   
+  // Lead Intelligence Score operations
+  calculateAndUpdateIntelligenceScore(leadId: string): Promise<Lead | undefined>;
+  batchCalculateIntelligenceScores(leadIds: string[]): Promise<void>;
+  getLeadWithIntelligenceScore(leadId: string): Promise<Lead | undefined>;
+  refreshAllIntelligenceScores(): Promise<void>;
+  
   // Lead Aging operations
   createLeadAging(aging: InsertLeadAging): Promise<LeadAging>;
   getLeadAgingByBatchId(batchId: string): Promise<LeadAging[]>;
@@ -687,6 +693,48 @@ export class DbStorage implements IStorage {
     return db.select().from(leads)
       .where(and(daysCondition, eq(leads.sold, false)))
       .orderBy(desc(leads.uploadedAt));
+  }
+
+  // Lead Intelligence Score operations
+  async calculateAndUpdateIntelligenceScore(leadId: string): Promise<Lead | undefined> {
+    const { leadIntelligenceService } = await import('./services/lead-intelligence');
+    await leadIntelligenceService.updateLeadIntelligenceScore(leadId);
+    return this.getLead(leadId);
+  }
+
+  async batchCalculateIntelligenceScores(leadIds: string[]): Promise<void> {
+    const { leadIntelligenceService } = await import('./services/lead-intelligence');
+    const BATCH_SIZE = 10;
+    
+    for (let i = 0; i < leadIds.length; i += BATCH_SIZE) {
+      const batch = leadIds.slice(i, i + BATCH_SIZE);
+      await Promise.all(batch.map(id => leadIntelligenceService.updateLeadIntelligenceScore(id)));
+    }
+  }
+
+  async getLeadWithIntelligenceScore(leadId: string): Promise<Lead | undefined> {
+    const lead = await this.getLead(leadId);
+    
+    if (lead && (!lead.intelligenceCalculatedAt || 
+        Date.now() - new Date(lead.intelligenceCalculatedAt).getTime() > 24 * 60 * 60 * 1000)) {
+      // Recalculate if score is missing or older than 24 hours
+      return this.calculateAndUpdateIntelligenceScore(leadId);
+    }
+    
+    return lead;
+  }
+
+  async refreshAllIntelligenceScores(): Promise<void> {
+    // Get all leads that need intelligence scoring
+    const leadsToScore = await db.select()
+      .from(leads)
+      .where(or(
+        isNull(leads.intelligenceScore),
+        sql`${leads.intelligenceCalculatedAt} < NOW() - INTERVAL '7 days'`
+      ));
+    
+    const leadIds = leadsToScore.map(lead => lead.id);
+    await this.batchCalculateIntelligenceScores(leadIds);
   }
 
   // Lead Aging operations

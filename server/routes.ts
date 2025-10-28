@@ -1301,24 +1301,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const createdLeads = await storage.createLeads(leadsToInsert);
       
-      // Auto-score leads with ML
+      // Calculate unified intelligence scores for all uploaded leads
       try {
-        console.log(`Auto-scoring ${createdLeads.length} new leads with ML`);
+        console.log(`Calculating unified intelligence scores for ${createdLeads.length} new leads`);
         const leadIds = createdLeads.map(lead => lead.id);
+        
+        // Calculate intelligence scores in the background (non-blocking)
+        storage.batchCalculateIntelligenceScores(leadIds).then(() => {
+          console.log(`Intelligence scores calculated for ${leadIds.length} leads`);
+        }).catch(err => {
+          console.error('Error calculating intelligence scores:', err);
+        });
+        
+        // Also run ML scoring for backward compatibility
         await autoScoreLeads(batch.id);
         
-        // Check for high-value opportunities (conversion probability > 0.7 and expected deal > $50k)
+        // Check for high-value opportunities based on intelligence scores
         const highValueLeads = createdLeads.filter(lead => {
           const mlScore = lead.mlQualityScore || 0;
           return mlScore >= 85; // High ML score indicates high-value opportunity
         });
         
         if (highValueLeads.length > 0) {
-          console.log(`Found ${highValueLeads.length} high-value ML-scored leads`);
+          console.log(`Found ${highValueLeads.length} high-value leads`);
         }
-      } catch (mlError) {
-        console.error('Error ML scoring leads:', mlError);
-        // Don't fail the upload if ML scoring fails
+      } catch (scoringError) {
+        console.error('Error scoring leads:', scoringError);
+        // Don't fail the upload if scoring fails
       }
       
       // Trigger alert checking for new leads
@@ -2712,6 +2721,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  // Lead Intelligence Score routes
+  app.post("/api/leads/:id/calculate-intelligence", requireAuth, async (req, res) => {
+    try {
+      const leadId = req.params.id;
+      const lead = await storage.calculateAndUpdateIntelligenceScore(leadId);
+      
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      res.json({
+        intelligenceScore: lead.intelligenceScore,
+        subScores: {
+          quality: lead.qualitySubScore,
+          freshness: lead.freshnessSubScore,
+          risk: lead.riskSubScore,
+          opportunity: lead.opportunitySubScore,
+          confidence: lead.confidenceSubScore
+        },
+        metadata: lead.intelligenceMetadata
+      });
+    } catch (error) {
+      console.error('Error calculating intelligence score:', error);
+      res.status(500).json({ error: "Failed to calculate intelligence score" });
+    }
+  });
+
+  app.get("/api/leads/:id/intelligence", requireAuth, async (req, res) => {
+    try {
+      const leadId = req.params.id;
+      const lead = await storage.getLeadWithIntelligenceScore(leadId);
+      
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      res.json({
+        intelligenceScore: lead.intelligenceScore,
+        subScores: {
+          quality: lead.qualitySubScore,
+          freshness: lead.freshnessSubScore,
+          risk: lead.riskSubScore,
+          opportunity: lead.opportunitySubScore,
+          confidence: lead.confidenceSubScore
+        },
+        metadata: lead.intelligenceMetadata,
+        calculatedAt: lead.intelligenceCalculatedAt
+      });
+    } catch (error) {
+      console.error('Error fetching intelligence score:', error);
+      res.status(500).json({ error: "Failed to fetch intelligence score" });
+    }
+  });
+
+  app.post("/api/leads/batch-calculate-intelligence", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "Invalid leadIds array" });
+      }
+      
+      await storage.batchCalculateIntelligenceScores(leadIds);
+      
+      res.json({ 
+        success: true, 
+        message: `Intelligence scores calculated for ${leadIds.length} leads` 
+      });
+    } catch (error) {
+      console.error('Error batch calculating intelligence scores:', error);
+      res.status(500).json({ error: "Failed to batch calculate intelligence scores" });
+    }
+  });
+
+  app.post("/api/admin/refresh-all-intelligence-scores", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      await storage.refreshAllIntelligenceScores();
+      
+      res.json({ 
+        success: true, 
+        message: "All intelligence scores refresh initiated" 
+      });
+    } catch (error) {
+      console.error('Error refreshing all intelligence scores:', error);
+      res.status(500).json({ error: "Failed to refresh all intelligence scores" });
     }
   });
 

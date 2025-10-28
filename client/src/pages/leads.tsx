@@ -23,9 +23,8 @@ import {
   Database, FileText, Settings, Bookmark, BookmarkCheck, Share2, Sparkles,
   Brain, Target, TrendingDown, Info
 } from "lucide-react";
-import { QualityScoreBadge } from "@/components/QualityScoreBadge";
+import { LeadIntelligenceScore, IntelligenceScoreBadge } from "@/components/LeadIntelligenceScore";
 import { EnrichmentBadge } from "@/components/EnrichmentBadge";
-import { FreshnessBadge, UrgencyIndicator, FreshnessInfo } from "@/components/FreshnessBadge";
 import type { Lead, SavedSearch } from "@shared/schema";
 
 // Filter presets
@@ -933,9 +932,9 @@ export default function LeadsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {leads.map((lead: any) => (
                 <Card key={lead.id} className="hover-elevate relative overflow-hidden">
-                  {lead.badge && (
+                  {lead.intelligenceScore > 0 && (
                     <div className="absolute top-2 left-2 z-10">
-                      <FreshnessBadge badge={lead.badge} />
+                      <IntelligenceScoreBadge score={lead.intelligenceScore} />
                     </div>
                   )}
                   <CardHeader>
@@ -949,21 +948,16 @@ export default function LeadsPage() {
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-1">
-                        <QualityScoreBadge score={lead.qualityScore} />
-                        {lead.mlQualityScore && (
-                          <div className="flex items-center gap-1">
-                            <Brain className="w-3 h-3 text-purple-500" />
-                            <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
-                              ML: {lead.mlQualityScore}
-                            </span>
-                          </div>
+                        {/* Intelligence Score Display */}
+                        {(lead.intelligenceScore || lead.qualityScore) && (
+                          <IntelligenceScoreBadge 
+                            score={lead.intelligenceScore || lead.qualityScore} 
+                          />
                         )}
                       </div>
                     </div>
                     
-                    {lead.urgency && (
-                      <UrgencyIndicator urgency={lead.urgency} className="mt-2" />
-                    )}
+                    {/* Urgency is now part of the Intelligence Score */}
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">

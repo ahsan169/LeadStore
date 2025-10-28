@@ -99,6 +99,16 @@ export const leads = pgTable("leads", {
   expectedDealSize: decimal("expected_deal_size", { precision: 12, scale: 2 }),
   scoringFactors: jsonb("scoring_factors"), // Detailed breakdown of scoring factors
   
+  // Unified Lead Intelligence Score fields
+  intelligenceScore: integer("intelligence_score").default(0), // 0-100 overall unified score
+  qualitySubScore: integer("quality_sub_score").default(0), // 0-100 data quality and completeness
+  freshnessSubScore: integer("freshness_sub_score").default(0), // 0-100 how recent and relevant
+  riskSubScore: integer("risk_sub_score").default(0), // 0-100 (lower is better)
+  opportunitySubScore: integer("opportunity_sub_score").default(0), // 0-100 potential value
+  confidenceSubScore: integer("confidence_sub_score").default(0), // 0-100 verification confidence
+  intelligenceMetadata: jsonb("intelligence_metadata"), // Detailed breakdown and explanations
+  intelligenceCalculatedAt: timestamp("intelligence_calculated_at"),
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
