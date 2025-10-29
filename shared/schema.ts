@@ -195,6 +195,8 @@ export const purchases = pgTable("purchases", {
   totalReplacements: integer("total_replacements").notNull().default(0),
   replacementCredits: integer("replacement_credits").notNull().default(0),
   
+  // Timestamps
+  purchasedAt: timestamp("purchased_at").notNull().defaultNow(), // When the purchase was made
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -394,6 +396,51 @@ export const verificationResults = pgTable("verification_results", {
   selectedForImport: boolean("selected_for_import").notNull().default(true),
   
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Enhanced Verification - stores detailed real-time verification results
+export const enhancedVerification = pgTable("enhanced_verification", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  
+  // Hunter.io email verification results
+  emailVerification: jsonb("email_verification"), // Full Hunter.io response
+  emailScore: integer("email_score"), // 0-100 Hunter.io confidence score
+  emailStatus: text("email_status"), // 'deliverable', 'undeliverable', 'risky', 'unknown'
+  domainStatus: text("domain_status"), // Domain reputation status
+  mxRecords: boolean("mx_records"), // Has valid MX records
+  smtpCheck: boolean("smtp_check"), // SMTP server check passed
+  emailDisposable: boolean("email_disposable"), // Is disposable email
+  emailWebmail: boolean("email_webmail"), // Is webmail (gmail, yahoo, etc)
+  emailAcceptAll: boolean("email_accept_all"), // Domain accepts all emails
+  
+  // Numverify phone verification results  
+  phoneVerification: jsonb("phone_verification"), // Full Numverify response
+  phoneValid: boolean("phone_valid"), // Is valid phone number
+  phoneLineType: text("phone_line_type"), // 'mobile', 'landline', 'voip', 'toll_free'
+  phoneCarrier: text("phone_carrier"), // Carrier name
+  phoneLocation: text("phone_location"), // Location of phone
+  phoneCountryCode: text("phone_country_code"), // Country code
+  phoneLocationData: jsonb("phone_location_data"), // Detailed location data
+  phoneRiskScore: integer("phone_risk_score"), // 0-100 risk score (lower is better)
+  
+  // Combined confidence scoring
+  overallConfidenceScore: decimal("overall_confidence_score", { precision: 5, scale: 2 }), // 0-100
+  confidenceBreakdown: jsonb("confidence_breakdown"), // Detailed breakdown of score factors
+  verificationStatus: text("verification_status"), // 'verified', 'partial', 'unverified', 'failed'
+  
+  // Caching and timestamps
+  cachedUntil: timestamp("cached_until"), // When to refresh verification
+  verifiedAt: timestamp("verified_at").notNull().defaultNow(),
+  lastAttemptAt: timestamp("last_attempt_at"),
+  attemptCount: integer("attempt_count").notNull().default(1),
+  
+  // API metadata
+  hunterCreditsUsed: integer("hunter_credits_used").default(0),
+  numverifyCreditsUsed: integer("numverify_credits_used").default(0),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // CRM Integrations for lead export
@@ -775,6 +822,16 @@ export const insertVerificationResultSchema = createInsertSchema(verificationRes
 }).extend({
   status: z.enum(["verified", "warning", "failed"]),
   verificationScore: z.number().min(0).max(100),
+});
+
+export const insertEnhancedVerificationSchema = createInsertSchema(enhancedVerification).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  verifiedAt: true,
+}).extend({
+  verificationStatus: z.enum(["verified", "partial", "unverified", "failed"]).default("unverified"),
+  overallConfidenceScore: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
 });
 
 export const insertPricingStrategySchema = createInsertSchema(pricingStrategies).omit({
@@ -1217,6 +1274,9 @@ export type VerificationSession = typeof verificationSessions.$inferSelect;
 
 export type InsertVerificationResult = z.infer<typeof insertVerificationResultSchema>;
 export type VerificationResult = typeof verificationResults.$inferSelect;
+
+export type InsertEnhancedVerification = z.infer<typeof insertEnhancedVerificationSchema>;
+export type EnhancedVerification = typeof enhancedVerification.$inferSelect;
 
 export type InsertCrmIntegration = z.infer<typeof insertCrmIntegrationSchema>;
 export type CrmIntegration = typeof crmIntegrations.$inferSelect;

@@ -175,13 +175,13 @@ export class CommandCenterService {
 
     // Get revenue data
     const currentMonthRevenue = await db
-      .select({ total: sql`COALESCE(SUM(amount), 0)` })
+      .select({ total: sql`COALESCE(SUM(total_amount), 0)` })
       .from(purchases)
       .where(gte(purchases.purchasedAt, startOfMonth))
       .then(r => Number(r[0]?.total || 0));
 
     const lastMonthRevenue = await db
-      .select({ total: sql`COALESCE(SUM(amount), 0)` })
+      .select({ total: sql`COALESCE(SUM(total_amount), 0)` })
       .from(purchases)
       .where(and(
         gte(purchases.purchasedAt, startOfLastMonth),
@@ -275,11 +275,11 @@ export class CommandCenterService {
       activities.push({
         type: "success",
         title: "New Purchase",
-        description: `${purchase.leadCount} leads purchased for $${purchase.amount}`,
+        description: `${purchase.leadCount} leads purchased for $${purchase.totalAmount}`,
         timestamp: purchase.purchasedAt,
         metadata: {
           userId: purchase.userId,
-          amount: `$${purchase.amount}`
+          amount: `$${purchase.totalAmount}`
         }
       });
     });

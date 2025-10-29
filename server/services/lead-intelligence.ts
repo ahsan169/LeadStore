@@ -1,9 +1,10 @@
 import { db } from "../db";
-import { leads, uccFilings, leadEnrichment, verificationResults } from "@shared/schema";
-import type { Lead, UccFiling, LeadEnrichment, VerificationResult } from "@shared/schema";
+import { leads, uccFilings, leadEnrichment, enhancedVerification } from "@shared/schema";
+import type { Lead, UccFiling, LeadEnrichment, EnhancedVerification } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { MLScoringService } from "./ml-scoring";
-import { numverifyService } from "../numverify-service";
+import { enhancedVerificationService } from "./enhanced-verification";
+import type { EnhancedVerificationResult } from "./enhanced-verification";
 
 export interface IntelligenceSubScores {
   quality: number;         // 0-100: Data quality and completeness
@@ -72,7 +73,17 @@ export class LeadIntelligenceService {
   /**
    * Calculate unified intelligence score for a lead
    */
-  async calculateIntelligenceScore(lead: Lead): Promise<LeadIntelligenceResult> {
+  async calculateIntelligenceScore(lead: Lead, triggerVerification: boolean = false): Promise<LeadIntelligenceResult> {
+    // Trigger real-time verification if requested
+    let enhancedVerificationResult: EnhancedVerificationResult | null = null;
+    if (triggerVerification) {
+      try {
+        enhancedVerificationResult = await enhancedVerificationService.verifyLead(lead.id, false);
+      } catch (error) {
+        console.error('[LeadIntelligence] Enhanced verification failed:', error);
+      }
+    }
+    
     // Fetch related data in parallel for efficiency
     const [
       verificationResult,
@@ -80,13 +91,13 @@ export class LeadIntelligenceService {
       uccData,
       mlScore
     ] = await Promise.all([
-      this.getLatestVerificationResult(lead.id),
+      enhancedVerificationResult || this.getLatestEnhancedVerification(lead.id),
       this.getEnrichmentData(lead.id),
       this.getUccFilings(lead.businessName),
       this.mlScoringService.scoreLead(lead)
     ]);
 
-    // Calculate sub-scores
+    // Calculate sub-scores with enhanced verification data
     const subScores = await this.calculateSubScores(
       lead,
       verificationResult,
@@ -121,7 +132,7 @@ export class LeadIntelligenceService {
    */
   private async calculateSubScores(
     lead: Lead,
-    verification: VerificationResult | null,
+    verification: EnhancedVerificationResult | null,
     enrichment: LeadEnrichment | null,
     uccData: UccFiling[],
     mlScore: any
@@ -141,7 +152,7 @@ export class LeadIntelligenceService {
    */
   private calculateQualityScore(
     lead: Lead,
-    verification: VerificationResult | null,
+    verification: EnhancedVerificationResult | null,
     enrichment: LeadEnrichment | null
   ): number {
     let score = 0;
@@ -161,9 +172,10 @@ export class LeadIntelligenceService {
     const completenessScore = (completedFields / requiredFields.length) * 40;
     score += completenessScore;
 
-    // Verification quality (30 points)
+    // Enhanced Verification quality (30 points)
     if (verification) {
-      const verificationScore = (verification.verificationScore || 0) * 0.3;
+      // Use the overall confidence score from enhanced verification
+      const verificationScore = (verification.overallConfidenceScore || 0) * 0.3;
       score += verificationScore;
     }
 
@@ -238,20 +250,32 @@ export class LeadIntelligenceService {
    */
   private calculateRiskScore(
     lead: Lead,
-    verification: VerificationResult | null,
+    verification: EnhancedVerificationResult | null,
     uccData: UccFiling[],
     mlScore: any
   ): number {
     let riskPoints = 0; // Higher means more risk
     
-    // Verification risks
+    // Enhanced Verification risks
     if (verification) {
-      if (verification.status === 'failed') riskPoints += 40;
-      else if (verification.status === 'warning') riskPoints += 20;
+      if (verification.verificationStatus === 'failed') riskPoints += 40;
+      else if (verification.verificationStatus === 'unverified') riskPoints += 30;
+      else if (verification.verificationStatus === 'partial') riskPoints += 20;
       
-      // Add risk for each issue found
-      const issueCount = (verification.issues || []).length;
-      riskPoints += Math.min(20, issueCount * 5);
+      // Add risk based on confidence breakdown
+      if (verification.confidenceBreakdown) {
+        // Email risks
+        if (!verification.confidenceBreakdown.factors.emailDeliverable) riskPoints += 10;
+        if (!verification.confidenceBreakdown.factors.emailNotDisposable) riskPoints += 15;
+        
+        // Phone risks
+        if (!verification.confidenceBreakdown.factors.phoneValid) riskPoints += 10;
+        if (!verification.confidenceBreakdown.factors.phoneLowRisk) riskPoints += 10;
+        
+        // High-risk phone types
+        if (verification.phoneVerification?.lineType === 'voip') riskPoints += 15;
+        if (verification.phoneVerification?.lineType === 'toll_free') riskPoints += 10;
+      }
     } else {
       // No verification is a risk
       riskPoints += 25;
@@ -355,25 +379,28 @@ export class LeadIntelligenceService {
    */
   private calculateConfidenceScore(
     lead: Lead,
-    verification: VerificationResult | null,
+    verification: EnhancedVerificationResult | null,
     enrichment: LeadEnrichment | null
   ): number {
     let score = 0;
 
-    // Verification confidence (50 points)
+    // Enhanced Verification confidence (60 points)
     if (verification) {
-      // Use confidence score if available
-      if (verification.confidenceScore) {
-        score += verification.confidenceScore * 0.5;
-      } else {
-        // Fallback based on status
-        if (verification.status === 'verified') score += 45;
-        else if (verification.status === 'warning') score += 25;
-        else score += 10;
+      // Use the overall confidence score from enhanced verification
+      score += verification.overallConfidenceScore * 0.6;
+      
+      // Bonus points for specific verification factors (up to 10 points)
+      if (verification.confidenceBreakdown) {
+        const factors = verification.confidenceBreakdown.factors;
+        let bonusPoints = 0;
+        
+        if (factors.emailSmtpValid && factors.emailMxRecordsValid) bonusPoints += 2;
+        if (factors.phoneCarrierKnown && factors.phoneCorrectLocation) bonusPoints += 2;
+        if (factors.emailNotDisposable && factors.phoneLowRisk) bonusPoints += 3;
+        if (factors.emailDeliverable && factors.phoneValid) bonusPoints += 3;
+        
+        score += Math.min(10, bonusPoints);
       }
-
-      // Phone verification bonus
-      if (verification.phoneValid) score += 10;
     }
 
     // Enrichment confidence (30 points)
@@ -886,15 +913,43 @@ export class LeadIntelligenceService {
   /**
    * Helper functions to fetch related data
    */
-  private async getLatestVerificationResult(leadId: string): Promise<VerificationResult | null> {
-    const [result] = await db
-      .select()
-      .from(verificationResults)
-      .where(eq(verificationResults.leadId, leadId))
-      .orderBy(desc(verificationResults.createdAt))
-      .limit(1);
-    
-    return result || null;
+  /**
+   * Get the latest enhanced verification for a lead
+   */
+  private async getLatestEnhancedVerification(leadId: string): Promise<EnhancedVerificationResult | null> {
+    try {
+      // First try to get from enhanced verification service (which includes caching)
+      const status = await enhancedVerificationService.getVerificationStatus(leadId);
+      
+      if (status.status === 'never_verified') {
+        return null;
+      }
+      
+      // Get the full verification data from database
+      const [result] = await db
+        .select()
+        .from(enhancedVerification)
+        .where(eq(enhancedVerification.leadId, leadId))
+        .orderBy(desc(enhancedVerification.verifiedAt))
+        .limit(1);
+      
+      if (!result) return null;
+      
+      // Format as EnhancedVerificationResult
+      return {
+        leadId: result.leadId,
+        verificationStatus: result.verificationStatus as any,
+        overallConfidenceScore: parseFloat(result.overallConfidenceScore || '0'),
+        confidenceBreakdown: result.confidenceBreakdown as any,
+        emailVerification: result.emailVerification as any,
+        phoneVerification: result.phoneVerification as any,
+        cachedUntil: result.cachedUntil || new Date(),
+        recommendations: []
+      };
+    } catch (error) {
+      console.error('[LeadIntelligence] Failed to get enhanced verification:', error);
+      return null;
+    }
   }
 
   private async getEnrichmentData(leadId: string): Promise<LeadEnrichment | null> {

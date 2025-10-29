@@ -2815,6 +2815,233 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced Verification API Endpoints
+  // Rate limiting middleware for verification endpoints
+  const verificationRateLimiter = new Map<string, { count: number; resetTime: number }>();
+  const VERIFICATION_RATE_LIMIT = 10; // 10 verifications per minute per user
+  const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+
+  const checkVerificationRateLimit = (req: any, res: any, next: any) => {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+    const now = Date.now();
+    const userLimit = verificationRateLimiter.get(userId);
+
+    if (!userLimit || userLimit.resetTime < now) {
+      // Reset or create rate limit
+      verificationRateLimiter.set(userId, {
+        count: 1,
+        resetTime: now + RATE_LIMIT_WINDOW
+      });
+      return next();
+    }
+
+    if (userLimit.count >= VERIFICATION_RATE_LIMIT) {
+      const retryAfter = Math.ceil((userLimit.resetTime - now) / 1000);
+      res.set('Retry-After', String(retryAfter));
+      return res.status(429).json({ 
+        error: "Rate limit exceeded", 
+        retryAfter: retryAfter,
+        message: `You can verify ${VERIFICATION_RATE_LIMIT} leads per minute. Please wait ${retryAfter} seconds.`
+      });
+    }
+
+    userLimit.count++;
+    next();
+  };
+
+  // POST /api/leads/:id/verify - Trigger real-time verification for a lead
+  app.post("/api/leads/:id/verify", requireAuth, checkVerificationRateLimit, async (req, res) => {
+    try {
+      const leadId = req.params.id;
+      const { forceRefresh = false } = req.body;
+
+      // Import the enhanced verification service
+      const { enhancedVerificationService } = await import("./services/enhanced-verification");
+
+      // Check if user has access to this lead
+      const lead = await storage.getLead(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      // Check authorization (admin or lead owner)
+      if (req.user.role !== 'admin' && lead.soldTo !== req.user.id) {
+        return res.status(403).json({ error: "You don't have access to verify this lead" });
+      }
+
+      // Perform verification
+      const verificationResult = await enhancedVerificationService.verifyLead(leadId, forceRefresh);
+
+      // Update lead intelligence with real-time verification
+      const { leadIntelligenceService } = await import("./services/lead-intelligence");
+      const intelligenceService = new leadIntelligenceService.LeadIntelligenceService();
+      const updatedIntelligence = await intelligenceService.calculateIntelligenceScore(lead, true);
+
+      // Send real-time update via WebSocket if available
+      if (wss) {
+        wss.clients.forEach((client: WebSocket) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: 'verification_complete',
+              leadId,
+              verificationResult,
+              intelligenceScore: updatedIntelligence.intelligenceScore
+            }));
+          }
+        });
+      }
+
+      res.json({
+        success: true,
+        leadId,
+        verification: verificationResult,
+        intelligenceScore: updatedIntelligence.intelligenceScore,
+        cached: !forceRefresh && verificationResult.cachedUntil > new Date()
+      });
+    } catch (error) {
+      console.error('Error verifying lead:', error);
+      res.status(500).json({ error: "Failed to verify lead" });
+    }
+  });
+
+  // GET /api/leads/:id/verification-status - Get verification history and status
+  app.get("/api/leads/:id/verification-status", requireAuth, async (req, res) => {
+    try {
+      const leadId = req.params.id;
+
+      // Check if user has access to this lead
+      const lead = await storage.getLead(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      // Check authorization (admin or lead owner)
+      if (req.user.role !== 'admin' && lead.soldTo !== req.user.id) {
+        return res.status(403).json({ error: "You don't have access to this lead's verification status" });
+      }
+
+      // Get verification status
+      const { enhancedVerificationService } = await import("./services/enhanced-verification");
+      const status = await enhancedVerificationService.getVerificationStatus(leadId);
+
+      // Get verification history from database
+      const verificationHistory = await db
+        .select()
+        .from(enhancedVerification)
+        .where(eq(enhancedVerification.leadId, leadId))
+        .orderBy(desc(enhancedVerification.verifiedAt))
+        .limit(10); // Last 10 verifications
+
+      res.json({
+        currentStatus: status,
+        history: verificationHistory.map(v => ({
+          verifiedAt: v.verifiedAt,
+          status: v.verificationStatus,
+          confidenceScore: parseFloat(v.overallConfidenceScore || '0'),
+          emailStatus: v.emailStatus,
+          phoneLineType: v.phoneLineType,
+          creditsUsed: (v.hunterCreditsUsed || 0) + (v.numverifyCreditsUsed || 0)
+        })),
+        canVerifyNow: status.nextVerification ? new Date() >= status.nextVerification : true
+      });
+    } catch (error) {
+      console.error('Error fetching verification status:', error);
+      res.status(500).json({ error: "Failed to fetch verification status" });
+    }
+  });
+
+  // POST /api/leads/batch-verify - Batch verify multiple leads
+  app.post("/api/leads/batch-verify", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leadIds, forceRefresh = false } = req.body;
+
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "Invalid leadIds array" });
+      }
+
+      if (leadIds.length > 50) {
+        return res.status(400).json({ error: "Maximum 50 leads can be verified at once" });
+      }
+
+      // Import the enhanced verification service
+      const { enhancedVerificationService } = await import("./services/enhanced-verification");
+
+      // Start batch verification (async process)
+      const verificationPromise = enhancedVerificationService.batchVerifyLeads(leadIds, forceRefresh);
+
+      // Return immediately with job status
+      res.json({
+        success: true,
+        message: `Batch verification started for ${leadIds.length} leads`,
+        leadCount: leadIds.length,
+        estimatedTimeSeconds: leadIds.length * 2 // Rough estimate
+      });
+
+      // Process verification in background and send WebSocket updates
+      verificationPromise.then(results => {
+        if (wss) {
+          wss.clients.forEach((client: WebSocket) => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'batch_verification_complete',
+                totalLeads: leadIds.length,
+                successCount: Array.from(results.values()).filter(r => r.verificationStatus !== 'failed').length,
+                results: Array.from(results.entries()).map(([id, result]) => ({
+                  leadId: id,
+                  status: result.verificationStatus,
+                  confidenceScore: result.overallConfidenceScore
+                }))
+              }));
+            }
+          });
+        }
+      }).catch(error => {
+        console.error('Batch verification failed:', error);
+      });
+    } catch (error) {
+      console.error('Error initiating batch verification:', error);
+      res.status(500).json({ error: "Failed to initiate batch verification" });
+    }
+  });
+
+  // GET /api/verification/stats - Get verification statistics for admin
+  app.get("/api/verification/stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = await db
+        .select({
+          totalVerifications: sql<number>`count(*)`,
+          avgConfidenceScore: sql<number>`avg(${enhancedVerification.overallConfidenceScore})`,
+          verifiedCount: sql<number>`count(*) filter (where ${enhancedVerification.verificationStatus} = 'verified')`,
+          partialCount: sql<number>`count(*) filter (where ${enhancedVerification.verificationStatus} = 'partial')`,
+          unverifiedCount: sql<number>`count(*) filter (where ${enhancedVerification.verificationStatus} = 'unverified')`,
+          failedCount: sql<number>`count(*) filter (where ${enhancedVerification.verificationStatus} = 'failed')`,
+          totalHunterCredits: sql<number>`sum(${enhancedVerification.hunterCreditsUsed})`,
+          totalNumverifyCredits: sql<number>`sum(${enhancedVerification.numverifyCreditsUsed})`
+        })
+        .from(enhancedVerification);
+
+      res.json({
+        verifications: stats[0],
+        creditUsage: {
+          hunterTotal: stats[0].totalHunterCredits || 0,
+          numverifyTotal: stats[0].totalNumverifyCredits || 0
+        },
+        breakdown: {
+          verified: stats[0].verifiedCount || 0,
+          partial: stats[0].partialCount || 0,
+          unverified: stats[0].unverifiedCount || 0,
+          failed: stats[0].failedCount || 0
+        },
+        averageConfidence: Math.round(stats[0].avgConfidenceScore || 0)
+      });
+    } catch (error) {
+      console.error('Error fetching verification stats:', error);
+      res.status(500).json({ error: "Failed to fetch verification statistics" });
+    }
+  });
+
   // Comprehensive lead search endpoint with 20+ filter criteria
   app.get("/api/leads", requireAuth, async (req, res) => {
     try {
@@ -6954,32 +7181,9 @@ Time: ${preferredTime || 'Any time'}`);
     }
   }
 
-  const httpServer = createServer(app);
-  
-  // Set up WebSocket server for real-time verification progress
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
-  
-  wss.on('connection', (ws: WebSocket) => {
-    console.log('WebSocket client connected for verification progress');
-    
-    ws.on('close', () => {
-      console.log('WebSocket client disconnected');
-    });
-    
-    ws.on('error', (error) => {
-      console.error('WebSocket error:', error);
-    });
-  });
-  
-  // Make WebSocket server accessible to routes
-  app.set('wss', wss);
-  
-  return httpServer;
-}
-
-// Helper function to calculate quality score
-function calculateQualityScore(lead: any): number {
-  let score = 0;
+  // Helper function to calculate quality score
+  function calculateQualityScore(lead: any): number {
+    let score = 0;
 
   // Data completeness: +20 points for all required fields filled
   if (lead.businessName && lead.ownerName && lead.email && lead.phone) {
@@ -7021,16 +7225,16 @@ function calculateQualityScore(lead: any): number {
 }
 
 
-// Helper function to create lead hash for deduplication
-function createLeadHash(email: string, phone: string): string {
-  const normalizedEmail = email.toLowerCase().trim();
-  const normalizedPhone = phone.replace(/\D/g, '');
-  return crypto.createHash('md5').update(normalizedEmail + normalizedPhone).digest('hex');
-}
+  // Helper function to create lead hash for deduplication
+  function createLeadHash(email: string, phone: string): string {
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedPhone = phone.replace(/\D/g, '');
+    return crypto.createHash('md5').update(normalizedEmail + normalizedPhone).digest('hex');
+  }
 
-// Helper function to generate CSV from leads
-function generateLeadsCsv(leads: any[], user?: any): string {
-  const headers = [
+  // Helper function to generate CSV from leads
+  function generateLeadsCsv(leads: any[], user?: any): string {
+    const headers = [
     "Business Name",
     "Owner Name",
     "Email",
@@ -7072,7 +7276,7 @@ function generateLeadsCsv(leads: any[], user?: any): string {
     csvLines.push(`"Generated for ${user.email} on ${date}"`);
   }
 
-  return csvLines.join("\n");
+    return csvLines.join("\n");
   }
 
   // Helper function to assign tier based on quality score
@@ -7188,7 +7392,7 @@ function generateLeadsCsv(leads: any[], user?: any): string {
     
     return leads;
   }
-  
+
   // Return the server instance for WebSocket setup
   return server;
 }
