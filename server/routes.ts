@@ -2205,8 +2205,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log(`Processing ${files.length} file(s) with enhanced UCC parser...`);
         
-        // Add timeout to prevent hanging (2 minutes max)
-        const PROCESSING_TIMEOUT = 120000; // 2 minutes
+        // Dynamic timeout based on file size - estimate 100ms per 1000 records
+        // Minimum 5 minutes, maximum 30 minutes
+        const estimatedRecords = files.length * 10000; // Estimate 10k records per file
+        const PROCESSING_TIMEOUT = Math.min(
+          Math.max(300000, estimatedRecords * 0.1), // Min 5 minutes
+          1800000 // Max 30 minutes
+        );
+        console.log(`Setting processing timeout to ${PROCESSING_TIMEOUT / 1000} seconds for estimated ${estimatedRecords} records`);
+        
         let timeoutHandle: NodeJS.Timeout | null = null;
         
         let processingResult;
@@ -2219,7 +2226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           
           const timeoutPromise = new Promise<never>((_, reject) => {
-            timeoutHandle = setTimeout(() => reject(new Error('Processing timeout - operation took longer than 2 minutes')), PROCESSING_TIMEOUT);
+            timeoutHandle = setTimeout(() => reject(new Error(`Processing timeout - operation took longer than ${PROCESSING_TIMEOUT / 60000} minutes`)), PROCESSING_TIMEOUT);
           });
           
           processingResult = await Promise.race([processingPromise, timeoutPromise]) as Awaited<ReturnType<typeof uccParser.processMultipleFiles>>;
