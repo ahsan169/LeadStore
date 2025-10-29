@@ -2267,6 +2267,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .filter(p => p.riskScore > 70)
           .slice(0, 10);
         
+        // Save UCC filings to database
+        console.log(`Saving ${processingResult.mergedRecords.length} UCC filings to database...`);
+        const uccFilingsToSave = processingResult.mergedRecords.map(record => ({
+          leadId: null, // Will be updated later when matched to leads
+          debtorName: record.debtorName,
+          securedParty: record.securedParty,
+          filingDate: record.filingDate,
+          fileNumber: record.fileNumber,
+          collateralDescription: record.collateralDescription || null,
+          loanAmount: record.loanAmount || null,
+          filingType: record.filingType || 'original',
+          jurisdiction: record.jurisdiction || null
+        }));
+        
+        let savedFilings: any[] = [];
+        try {
+          savedFilings = await storage.createUccFilings(uccFilingsToSave);
+          console.log(`Successfully saved ${savedFilings.length} UCC filings to database`);
+        } catch (error) {
+          console.error('Error saving UCC filings:', error);
+          // Continue processing even if filing save fails
+        }
+        
+        // Create a batch for UCC-sourced leads
+        const uccBatch = await storage.createLeadBatch({
+          source: 'UCC Import',
+          fileName: files.map(f => f.name).join(', '),
+          totalLeads: processingResult.summary.uniqueDebtors,
+          uploadedBy: req.user!.id,
+          status: 'processing',
+          averageQualityScore: '0'
+        });
+        
         // Matched leads with enriched data
         const enrichedLeads = debtorProfilesArray
           .filter(p => p.businessMatch)
@@ -2297,6 +2330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           try {
             // Prepare lead data from UCC profile
             const newLeadData: InsertLead = {
+              batchId: uccBatch.id, // Use the UCC batch ID
               businessName: profile.debtorName,
               ownerName: '',
               email: '',
@@ -2359,6 +2393,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const totalLeads = enrichedLeads.length + newLeadsCreated.length;
         
+        // Update batch status
+        await storage.updateLeadBatch(uccBatch.id, {
+          status: 'completed',
+          totalLeads: newLeadsCreated.length,
+          averageQualityScore: newLeadsCreated.length > 0 
+            ? String(Math.round(newLeadsCreated.reduce((sum: number, l: any) => sum + (l.uccData?.mcaReadinessScore || 0), 0) / newLeadsCreated.length))
+            : '0'
+        });
+        
         // Send comprehensive response
         const response = {
           success: true,
@@ -2372,10 +2415,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             totalDebtLoad: `$${(processingResult.summary.totalDebtLoad / 100).toLocaleString()}`,
             averageLoanAmount: `$${(processingResult.summary.averageLoanAmount / 100).toLocaleString()}`,
             dateRange: processingResult.summary.dateRange,
+            uccFilingsSaved: savedFilings.length,
             matchedLeads: enrichedLeads.length,
             newLeadsCreated: newLeadsCreated.length,
             totalLeads: totalLeads,
-            unmatchedBusinesses: processingResult.summary.uniqueDebtors - enrichedLeads.length - newLeadsCreated.length
+            unmatchedBusinesses: processingResult.summary.uniqueDebtors - enrichedLeads.length - newLeadsCreated.length,
+            batchId: uccBatch.id
           },
           insights: processingResult.insights,
           topOpportunities: topOpportunities.map(p => ({
@@ -2392,7 +2437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             activeFilings: p.activeFilings
           })),
           enrichedLeads: [...enrichedLeads, ...newLeadsCreated].slice(0, 50), // Return first 50 leads (both enriched and new)
-          message: `Successfully processed ${processingResult.summary.filesProcessed} file(s) containing ${processingResult.summary.totalRecords} UCC records. Found ${processingResult.summary.uniqueDebtors} unique businesses. Matched ${enrichedLeads.length} to existing leads and created ${newLeadsCreated.length} new leads. Total Leads: ${totalLeads}`
+          message: `Successfully processed ${processingResult.summary.filesProcessed} file(s) containing ${processingResult.summary.totalRecords} UCC records. Saved ${savedFilings.length} UCC filings to database. Found ${processingResult.summary.uniqueDebtors} unique businesses. Matched ${enrichedLeads.length} to existing leads and created ${newLeadsCreated.length} new leads. Total Leads: ${totalLeads}`
         };
         
         res.json(response);
