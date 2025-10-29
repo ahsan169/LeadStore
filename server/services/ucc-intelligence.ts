@@ -7,7 +7,7 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import fs from "fs/promises";
 import { uccParser } from "./ucc-parser";
-import { leadIntelligenceService } from "./lead-intelligence";
+import { eventBus, ServiceEventType } from "./event-bus";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "default",
@@ -264,6 +264,29 @@ export class UccIntelligenceService {
       // Save analysis to database if leadId provided
       if (leadId) {
         await this.saveAnalysis(leadId, analysis);
+        
+        // Emit event for score recalculation instead of direct call
+        console.log(`[UccIntelligence] Emitting UCC data updated event for lead ${leadId}`);
+        eventBus.emitEvent(ServiceEventType.UCC_DATA_UPDATED, {
+          leadId,
+          filingCount: parsedData.length,
+          hasIntelligence: true,
+          timestamp: new Date(),
+          metadata: {
+            stateDetected: stateCode,
+            businessHealthScore: analysis.businessIntelligence?.businessHealthScore,
+            riskLevel: analysis.businessIntelligence?.riskLevel
+          }
+        });
+        
+        // Also emit specific analysis complete event
+        eventBus.emitEvent(ServiceEventType.UCC_ANALYSIS_COMPLETE, {
+          leadId,
+          intelligenceScore: analysis.businessIntelligence?.mcaApprovalLikelihood,
+          businessHealthScore: analysis.businessIntelligence?.businessHealthScore,
+          riskLevel: analysis.businessIntelligence?.riskLevel,
+          timestamp: new Date()
+        });
       }
       
       return analysis;

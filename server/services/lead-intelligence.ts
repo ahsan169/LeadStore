@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { leads, uccFilings, leadEnrichment, enhancedVerification } from "@shared/schema";
-import type { Lead, UccFiling, LeadEnrichment, EnhancedVerification } from "@shared/schema";
+import { leads, uccFilings, leadEnrichment, enhancedVerification, uccIntelligence } from "@shared/schema";
+import type { Lead, UccFiling, LeadEnrichment, EnhancedVerification, UccIntelligence } from "@shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { MLScoringService } from "./ml-scoring";
 import { enhancedVerificationService } from "./enhanced-verification";
@@ -9,6 +9,42 @@ import { predictiveScoringEngine } from "./predictive-scoring";
 import type { PredictiveInsight } from "./predictive-scoring";
 import { marketInsightsService } from "./market-insights";
 import type { MarketInsightResult } from "./market-insights";
+import { uccDataHelper } from "./ucc-data-helper";
+import { eventBus, ServiceEventType } from "./event-bus";
+
+// Define UccIntelligenceAnalysis here instead of importing from ucc-intelligence
+export interface UccIntelligenceAnalysis {
+  leadId?: string;
+  filingData: any[];
+  stateDetected?: string;
+  businessIntelligence: {
+    debtStackingScore: number;
+    refinancingProbability: number;
+    businessGrowthIndicator: 'growing' | 'stable' | 'declining';
+    riskLevel: 'low' | 'moderate' | 'high' | 'critical';
+    estimatedTotalDebt: number;
+    debtToRevenueRatio?: number;
+    mcaApprovalLikelihood: number;
+    businessHealthScore: number;
+  };
+  insights: {
+    financingType: string;
+    industrySpecific: string[];
+    patterns: string[];
+    anomalies: string[];
+    recommendations: string[];
+    warningFlags: string[];
+  };
+  relationships: {
+    entities: any[];
+    ownership: any[];
+    lenderNetwork: any[];
+  };
+  confidence: {
+    analysisConfidence: number;
+    dataQuality: number;
+  };
+}
 
 export interface IntelligenceSubScores {
   quality: number;         // 0-100: Data quality and completeness
@@ -44,9 +80,29 @@ export interface IntelligenceMetadata {
     risk: string;
     opportunity: string;
     confidence: string;
+    uccImpact?: string;
   };
   recommendations: string[];
   dataWarnings: string[];
+  uccInfluence?: {
+    percentageImpact: number;
+    multiplier: number;
+    factors: {
+      debtVelocity: boolean;
+      loanStacking: boolean;
+      refinancingOpportunity: boolean;
+      strongLenderRelationships: boolean;
+      recentFilings: boolean;
+    };
+    scoreAdjustments: {
+      quality: number;
+      risk: number;
+      opportunity: number;
+      confidence: number;
+      freshness: number;
+    };
+    explanation: string;
+  };
 }
 
 export interface LeadIntelligenceResult {
@@ -61,14 +117,15 @@ export interface LeadIntelligenceResult {
  */
 export class LeadIntelligenceService {
   private mlScoringService: MLScoringService;
-  private readonly VERSION = "1.0.0";
+  private readonly VERSION = "2.0.0"; // Updated to reflect UCC intelligence integration
   
   // Weights for each sub-score in the overall intelligence score
+  // These can be dynamically adjusted based on UCC signal strength
   private readonly WEIGHTS = {
     quality: 0.20,      // 20% - Data quality and completeness
     freshness: 0.15,    // 15% - Lead recency and relevance
-    risk: 0.10,         // 10% - Risk assessment
-    opportunity: 0.20,  // 20% - Business opportunity potential
+    risk: 0.10,         // 10% - Risk assessment (adjusted by UCC)
+    opportunity: 0.20,  // 20% - Business opportunity potential (adjusted by UCC)
     confidence: 0.10,   // 10% - Verification confidence
     predictive: 0.15,   // 15% - Forward-looking predictive score
     marketTiming: 0.10  // 10% - Market timing and conditions
@@ -76,10 +133,221 @@ export class LeadIntelligenceService {
 
   constructor() {
     this.mlScoringService = new MLScoringService();
+    this.initializeEventListeners();
   }
 
   /**
-   * Calculate unified intelligence score for a lead
+   * Initialize event listeners for service communication
+   */
+  private initializeEventListeners(): void {
+    console.log('[LeadIntelligence] Initializing event listeners...');
+    
+    // Listen for UCC data updated events
+    eventBus.onEvent(ServiceEventType.UCC_DATA_UPDATED, async (event) => {
+      console.log(`[LeadIntelligence] Received UCC data updated event for lead ${event.leadId}`);
+      await this.recalculateScoreOnUccUpdate(event.leadId);
+    });
+    
+    // Listen for UCC analysis complete events
+    eventBus.onEvent(ServiceEventType.UCC_ANALYSIS_COMPLETE, async (event) => {
+      console.log(`[LeadIntelligence] Received UCC analysis complete event for lead ${event.leadId}`);
+      await this.recalculateScoreOnUccUpdate(event.leadId);
+    });
+    
+    // Listen for general score recalculation requests
+    eventBus.onEvent(ServiceEventType.LEAD_SCORE_RECALCULATION_REQUEST, async (event) => {
+      console.log(`[LeadIntelligence] Received score recalculation request for lead ${event.leadId}`);
+      await this.recalculateScoreOnUccUpdate(event.leadId);
+    });
+    
+    console.log('[LeadIntelligence] Event listeners initialized');
+  }
+
+  /**
+   * Calculate comprehensive UCC influence score and multiplier
+   * Returns a multiplier between 0.5 and 1.5 that affects overall scoring
+   */
+  private async calculateUccInfluence(
+    lead: Lead,
+    uccData: UccFiling[],
+    uccIntelligence: UccIntelligenceAnalysis | null
+  ): Promise<{
+    multiplier: number;
+    scoreAdjustments: {
+      quality: number;
+      risk: number;
+      opportunity: number;
+      confidence: number;
+      freshness: number;
+    };
+    factors: {
+      debtVelocity: boolean;
+      loanStacking: boolean;
+      refinancingOpportunity: boolean;
+      strongLenderRelationships: boolean;
+      recentFilings: boolean;
+    };
+    explanation: string;
+  }> {
+    let multiplier = 1.0; // Neutral starting point
+    const scoreAdjustments = {
+      quality: 0,
+      risk: 0,
+      opportunity: 0,
+      confidence: 0,
+      freshness: 0
+    };
+    const factors = {
+      debtVelocity: false,
+      loanStacking: false,
+      refinancingOpportunity: false,
+      strongLenderRelationships: false,
+      recentFilings: false
+    };
+    const explanations: string[] = [];
+
+    if (!uccData || uccData.length === 0) {
+      // No UCC data means less risk but also less information
+      scoreAdjustments.confidence -= 5;
+      scoreAdjustments.risk += 10; // Lower risk when no debt found
+      return {
+        multiplier,
+        scoreAdjustments,
+        factors,
+        explanation: "No UCC filings found - minimal debt history"
+      };
+    }
+
+    // Analyze UCC filing patterns
+    const now = Date.now();
+    const sixMonthsAgo = now - (180 * 24 * 60 * 60 * 1000);
+    const threeMonthsAgo = now - (90 * 24 * 60 * 60 * 1000);
+    const oneYearAgo = now - (365 * 24 * 60 * 60 * 1000);
+
+    // Recent filings analysis
+    const recentFilings = uccData.filter(ucc => 
+      new Date(ucc.filingDate).getTime() > sixMonthsAgo
+    );
+    const veryRecentFilings = uccData.filter(ucc => 
+      new Date(ucc.filingDate).getTime() > threeMonthsAgo
+    );
+
+    // Debt velocity analysis
+    if (veryRecentFilings.length >= 3) {
+      factors.debtVelocity = true;
+      multiplier *= 0.75; // High debt velocity reduces score by 25%
+      scoreAdjustments.risk -= 30;
+      scoreAdjustments.opportunity -= 20;
+      explanations.push("High debt velocity detected (3+ filings in 90 days)");
+    } else if (recentFilings.length >= 2) {
+      multiplier *= 0.9; // Moderate debt velocity
+      scoreAdjustments.risk -= 15;
+      scoreAdjustments.opportunity -= 10;
+      explanations.push("Moderate debt activity (2+ filings in 180 days)");
+    }
+
+    // Loan stacking pattern detection
+    const uniqueLenders = new Set(uccData.map(ucc => ucc.securedParty));
+    const stackingThreshold = 3;
+    
+    if (uniqueLenders.size >= stackingThreshold && recentFilings.length >= stackingThreshold) {
+      factors.loanStacking = true;
+      multiplier *= 0.6; // Loan stacking reduces score by 40%
+      scoreAdjustments.risk -= 45;
+      scoreAdjustments.opportunity -= 25;
+      scoreAdjustments.confidence -= 10;
+      explanations.push(`Loan stacking pattern detected (${uniqueLenders.size} different lenders)`);
+    }
+
+    // Strong lender relationships
+    if (uniqueLenders.size === 1 && uccData.length > 2) {
+      factors.strongLenderRelationships = true;
+      multiplier *= 1.15; // Single lender relationship increases score
+      scoreAdjustments.confidence += 15;
+      scoreAdjustments.opportunity += 10;
+      explanations.push("Strong single lender relationship identified");
+    } else if (uniqueLenders.size === 2 && uccData.length > 3) {
+      multiplier *= 1.05;
+      scoreAdjustments.confidence += 8;
+      explanations.push("Stable lending relationships with limited partners");
+    }
+
+    // Refinancing opportunity detection
+    const oldFilings = uccData.filter(ucc => 
+      new Date(ucc.filingDate).getTime() < oneYearAgo
+    );
+    
+    if (oldFilings.length > 0 && recentFilings.length === 0) {
+      factors.refinancingOpportunity = true;
+      multiplier *= 1.25; // Refinancing opportunity boosts score by 25%
+      scoreAdjustments.opportunity += 25;
+      scoreAdjustments.confidence += 10;
+      explanations.push("Refinancing opportunity detected (mature debt, no recent filings)");
+    }
+
+    // Recent filing freshness bonus
+    if (recentFilings.length > 0) {
+      factors.recentFilings = true;
+      scoreAdjustments.freshness += 15;
+      scoreAdjustments.quality += 10;
+      explanations.push("Recent UCC data provides current financial insights");
+    }
+
+    // UCC Intelligence analysis integration
+    if (uccIntelligence) {
+      // Adjust based on AI analysis
+      if (uccIntelligence.businessIntelligence) {
+        const bi = uccIntelligence.businessIntelligence;
+        
+        // Debt stacking score adjustment
+        if (bi.debtStackingScore > 70) {
+          multiplier *= 0.8;
+          scoreAdjustments.risk -= 20;
+        }
+        
+        // Refinancing probability adjustment
+        if (bi.refinancingProbability > 0.7) {
+          multiplier *= 1.15;
+          scoreAdjustments.opportunity += 15;
+        }
+        
+        // Business health adjustment
+        if (bi.businessHealthScore < 40) {
+          multiplier *= 0.85;
+          scoreAdjustments.risk -= 15;
+        } else if (bi.businessHealthScore > 70) {
+          multiplier *= 1.1;
+          scoreAdjustments.opportunity += 10;
+        }
+        
+        // Risk level adjustment
+        if (bi.riskLevel === 'critical') {
+          multiplier *= 0.6;
+          scoreAdjustments.risk -= 40;
+        } else if (bi.riskLevel === 'high') {
+          multiplier *= 0.8;
+          scoreAdjustments.risk -= 20;
+        }
+      }
+
+      // Data quality bonus for having intelligence analysis
+      scoreAdjustments.quality += 20;
+      scoreAdjustments.confidence += 15;
+    }
+
+    // Cap the multiplier between 0.5 and 1.5
+    multiplier = Math.max(0.5, Math.min(1.5, multiplier));
+
+    return {
+      multiplier,
+      scoreAdjustments,
+      factors,
+      explanation: explanations.join("; ") || "UCC data analyzed with neutral impact"
+    };
+  }
+
+  /**
+   * Calculate unified intelligence score for a lead with deep UCC integration
    */
   async calculateIntelligenceScore(lead: Lead, triggerVerification: boolean = false): Promise<LeadIntelligenceResult> {
     // Trigger real-time verification if requested
@@ -97,16 +365,21 @@ export class LeadIntelligenceService {
       verificationResult,
       enrichmentData,
       uccData,
+      uccIntelligenceData,
       mlScore
     ] = await Promise.all([
       enhancedVerificationResult || this.getLatestEnhancedVerification(lead.id),
       this.getEnrichmentData(lead.id),
       this.getUccFilings(lead.businessName),
+      this.getUccIntelligenceAnalysis(lead.id),
       this.mlScoringService.scoreLead(lead)
     ]);
 
-    // Calculate sub-scores with enhanced verification data
-    const subScores = await this.calculateSubScores(
+    // Calculate UCC influence first
+    const uccInfluence = await this.calculateUccInfluence(lead, uccData, uccIntelligenceData);
+
+    // Calculate sub-scores with UCC adjustments
+    const rawSubScores = await this.calculateSubScores(
       lead,
       verificationResult,
       enrichmentData,
@@ -114,23 +387,57 @@ export class LeadIntelligenceService {
       mlScore
     );
 
-    // Calculate overall intelligence score
-    const intelligenceScore = this.calculateWeightedScore(subScores);
+    // Apply UCC adjustments to sub-scores
+    const adjustedSubScores: IntelligenceSubScores = {
+      quality: Math.max(0, Math.min(100, rawSubScores.quality + uccInfluence.scoreAdjustments.quality)),
+      freshness: Math.max(0, Math.min(100, rawSubScores.freshness + uccInfluence.scoreAdjustments.freshness)),
+      risk: Math.max(0, Math.min(100, rawSubScores.risk + uccInfluence.scoreAdjustments.risk)),
+      opportunity: Math.max(0, Math.min(100, rawSubScores.opportunity + uccInfluence.scoreAdjustments.opportunity)),
+      confidence: Math.max(0, Math.min(100, rawSubScores.confidence + uccInfluence.scoreAdjustments.confidence)),
+      predictive: rawSubScores.predictive,
+      marketTiming: rawSubScores.marketTiming
+    };
 
-    // Generate metadata with explanations
+    // Calculate overall intelligence score with UCC multiplier
+    const baseIntelligenceScore = this.calculateWeightedScore(adjustedSubScores);
+    const uccAdjustedScore = Math.round(baseIntelligenceScore * uccInfluence.multiplier);
+    const finalIntelligenceScore = Math.max(0, Math.min(100, uccAdjustedScore));
+
+    // Calculate UCC influence percentage
+    const uccPercentageImpact = Math.abs(
+      ((finalIntelligenceScore - baseIntelligenceScore) / baseIntelligenceScore) * 100
+    );
+
+    // Generate metadata with UCC explanations
     const metadata = this.generateMetadata(
-      subScores,
-      intelligenceScore,
+      adjustedSubScores,
+      finalIntelligenceScore,
       lead,
       verificationResult,
       enrichmentData,
       uccData,
-      mlScore
+      mlScore,
+      {
+        ...uccInfluence,
+        percentageImpact: uccPercentageImpact
+      }
     );
+
+    // Store the updated scores in the database if UCC had significant impact
+    if (uccPercentageImpact > 5) {
+      await this.updateLeadIntelligenceScores(lead.id, {
+        intelligenceScore: finalIntelligenceScore,
+        subScores: adjustedSubScores,
+        uccInfluence: {
+          ...uccInfluence,
+          percentageImpact: uccPercentageImpact
+        }
+      });
+    }
 
     return {
-      intelligenceScore,
-      subScores,
+      intelligenceScore: finalIntelligenceScore,
+      subScores: adjustedSubScores,
       metadata
     };
   }
@@ -592,7 +899,8 @@ export class LeadIntelligenceService {
     verification: VerificationResult | null,
     enrichment: LeadEnrichment | null,
     uccData: UccFiling[],
-    mlScore: any
+    mlScore: any,
+    uccInfluence?: any
   ): IntelligenceMetadata {
     const breakdowns: IntelligenceBreakdown[] = [
       {
@@ -632,11 +940,11 @@ export class LeadIntelligenceService {
       }
     ];
 
-    const explanations = this.generateExplanations(subScores, lead, verification);
-    const recommendations = this.generateRecommendations(subScores, lead);
+    const explanations = this.generateExplanations(subScores, lead, verification, uccInfluence);
+    const recommendations = this.generateRecommendations(subScores, lead, uccInfluence);
     const dataWarnings = this.generateWarnings(lead, verification, subScores);
 
-    return {
+    const metadata: IntelligenceMetadata = {
       calculatedAt: new Date(),
       version: this.VERSION,
       breakdowns,
@@ -644,6 +952,18 @@ export class LeadIntelligenceService {
       recommendations,
       dataWarnings
     };
+
+    // Add UCC influence data if available
+    if (uccInfluence) {
+      metadata.uccInfluence = uccInfluence;
+      
+      // Add UCC-specific explanation
+      if (uccInfluence.percentageImpact > 5) {
+        metadata.explanations.uccImpact = this.generateUccImpactExplanation(uccInfluence);
+      }
+    }
+
+    return metadata;
   }
 
   /**
@@ -883,10 +1203,45 @@ export class LeadIntelligenceService {
   /**
    * Generate human-readable explanations
    */
+  /**
+   * Generate UCC impact explanation
+   */
+  private generateUccImpactExplanation(uccInfluence: any): string {
+    const explanations: string[] = [];
+    const percentageImpact = uccInfluence.percentageImpact?.toFixed(1) || '0';
+    
+    explanations.push(`UCC data influenced the score by ${percentageImpact}%.`);
+    
+    if (uccInfluence.factors?.debtVelocity) {
+      explanations.push("High debt velocity detected - multiple recent filings indicate active borrowing.");
+    }
+    
+    if (uccInfluence.factors?.loanStacking) {
+      explanations.push("Loan stacking pattern identified - multiple lenders in short timeframe increases risk.");
+    }
+    
+    if (uccInfluence.factors?.refinancingOpportunity) {
+      explanations.push("Refinancing opportunity available - existing debt could be consolidated.");
+    }
+    
+    if (uccInfluence.factors?.strongLenderRelationships) {
+      explanations.push("Strong lender relationship found - single, stable financing partner.");
+    }
+    
+    if (uccInfluence.multiplier < 0.8) {
+      explanations.push("⚠️ UCC analysis significantly reduced the score due to high-risk patterns.");
+    } else if (uccInfluence.multiplier > 1.2) {
+      explanations.push("✅ UCC analysis boosted the score due to positive financing indicators.");
+    }
+    
+    return explanations.join(" ");
+  }
+
   private generateExplanations(
     subScores: IntelligenceSubScores,
     lead: Lead,
-    verification: VerificationResult | null
+    verification: VerificationResult | null,
+    uccInfluence?: any
   ): IntelligenceMetadata['explanations'] {
     const getScoreLevel = (score: number) => {
       if (score >= 80) return 'Excellent';
@@ -958,7 +1313,8 @@ export class LeadIntelligenceService {
    */
   private generateRecommendations(
     subScores: IntelligenceSubScores,
-    lead: Lead
+    lead: Lead,
+    uccInfluence?: any
   ): string[] {
     const recommendations = [];
 
@@ -1165,6 +1521,147 @@ export class LeadIntelligenceService {
         intelligenceCalculatedAt: new Date()
       })
       .where(eq(leads.id, leadId));
+  }
+
+  /**
+   * Get UCC intelligence analysis for a lead
+   */
+  private async getUccIntelligenceAnalysis(leadId: string): Promise<UccIntelligenceAnalysis | null> {
+    try {
+      // Use uccDataHelper instead of direct database access
+      const data = await uccDataHelper.getUccIntelligenceAnalysis(leadId);
+      
+      if (!data) return null;
+      
+      // Convert database record to UccIntelligenceAnalysis format
+      return {
+        leadId,
+        filingData: data.filingData as any[] || [],
+        businessIntelligence: {
+          debtStackingScore: data.debtStackingScore || 0,
+          refinancingProbability: data.refinancingProbability || 0,
+          businessGrowthIndicator: data.businessGrowthIndicator as any || 'stable',
+          riskLevel: data.riskLevel as any || 'moderate',
+          estimatedTotalDebt: data.estimatedTotalDebt || 0,
+          debtToRevenueRatio: data.debtToRevenueRatio,
+          mcaApprovalLikelihood: data.mcaApprovalLikelihood || 0,
+          businessHealthScore: data.businessHealthScore || 50
+        },
+        insights: {
+          financingType: data.financingType || 'unknown',
+          industrySpecific: data.industrySpecific as string[] || [],
+          patterns: data.patterns as string[] || [],
+          anomalies: data.anomalies as string[] || [],
+          recommendations: data.recommendations as string[] || [],
+          warningFlags: data.warningFlags as string[] || []
+        },
+        relationships: {
+          entities: data.relatedEntities as any[] || [],
+          ownership: [],
+          lenderNetwork: data.lenderNetwork as any[] || []
+        },
+        confidence: {
+          analysisConfidence: data.analysisConfidence || 0,
+          dataQuality: data.dataQuality || 0
+        }
+      };
+    } catch (error) {
+      console.error('[LeadIntelligence] Error fetching UCC intelligence:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update lead intelligence scores in database
+   */
+  private async updateLeadIntelligenceScores(
+    leadId: string,
+    scoreData: {
+      intelligenceScore: number;
+      subScores: IntelligenceSubScores;
+      uccInfluence?: any;
+    }
+  ): Promise<void> {
+    try {
+      // Update the lead record with new intelligence scores
+      await db
+        .update(leads)
+        .set({
+          intelligenceScore: scoreData.intelligenceScore,
+          qualitySubScore: scoreData.subScores.quality,
+          freshnessSubScore: scoreData.subScores.freshness,
+          riskSubScore: scoreData.subScores.risk,
+          opportunitySubScore: scoreData.subScores.opportunity,
+          confidenceSubScore: scoreData.subScores.confidence,
+          intelligenceMetadata: {
+            calculatedAt: new Date(),
+            version: this.VERSION,
+            uccInfluence: scoreData.uccInfluence,
+            subScores: scoreData.subScores
+          },
+          intelligenceCalculatedAt: new Date()
+        })
+        .where(eq(leads.id, leadId));
+
+      console.log(`[LeadIntelligence] Updated scores for lead ${leadId} with UCC influence`);
+    } catch (error) {
+      console.error('[LeadIntelligence] Error updating lead scores:', error);
+    }
+  }
+
+  /**
+   * Trigger real-time score recalculation when UCC data changes
+   */
+  async recalculateScoreOnUccUpdate(leadId: string): Promise<void> {
+    try {
+      console.log(`[LeadIntelligence] UCC data changed for lead ${leadId}, recalculating scores...`);
+      
+      // Fetch the lead
+      const leadData = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      if (leadData.length === 0) {
+        console.error(`[LeadIntelligence] Lead ${leadId} not found`);
+        return;
+      }
+
+      const lead = leadData[0];
+      
+      // Recalculate intelligence score with latest UCC data
+      const result = await this.calculateIntelligenceScore(lead, false);
+      
+      // Check if UCC caused significant change (>20%)
+      const previousScore = lead.intelligenceScore || 50;
+      const percentageChange = Math.abs(
+        ((result.intelligenceScore - previousScore) / previousScore) * 100
+      );
+
+      if (percentageChange > 20) {
+        console.log(
+          `[LeadIntelligence] Significant score change detected for lead ${leadId}: ` +
+          `${previousScore} → ${result.intelligenceScore} (${percentageChange.toFixed(1)}% change)`
+        );
+        
+        // Log this significant change (in production, this would trigger notifications)
+        await this.logUccScoreChange(leadId, previousScore, result.intelligenceScore, percentageChange);
+      }
+    } catch (error) {
+      console.error('[LeadIntelligence] Error recalculating score on UCC update:', error);
+    }
+  }
+
+  /**
+   * Log significant UCC-triggered score changes for audit trail
+   */
+  private async logUccScoreChange(
+    leadId: string,
+    previousScore: number,
+    newScore: number,
+    percentageChange: number
+  ): Promise<void> {
+    console.log(
+      `[LeadIntelligence] Audit Log: Lead ${leadId} score changed from ${previousScore} to ${newScore} ` +
+      `(${percentageChange.toFixed(1)}%) due to UCC data update`
+    );
+    // In production, this would insert into an audit log table
   }
 }
 
