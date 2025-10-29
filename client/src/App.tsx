@@ -36,7 +36,8 @@ import ApiDocsPage from "@/pages/api-docs";
 import SmartSearchPage from "@/pages/smart-search";
 import MLScoringPage from "@/pages/ml-scoring";
 import CommandCenterPage from "@/pages/command-center";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket } from "lucide-react";
+import UccIntelligencePage from "@/pages/ucc-intelligence";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket, FileSearch } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -108,6 +109,7 @@ function AppSidebar() {
     { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Smart Search", url: "/smart-search", icon: Search },
+    { title: "UCC Intelligence", url: "/ucc-intelligence", icon: Shield },
     { title: "Browse Leads", url: "/purchase", icon: Tags },
     { title: "Pricing", url: "/pricing", icon: DollarSign },
     { title: "My Purchases", url: "/purchases", icon: Package },
@@ -123,6 +125,7 @@ function AppSidebar() {
     { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Smart Search", url: "/smart-search", icon: Search },
+    { title: "UCC Intelligence", url: "/ucc-intelligence", icon: Shield },
     { title: "Upload Leads", url: "/admin/upload", icon: Upload },
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
     { title: "Quality Guarantees", url: "/admin/manage-guarantees", icon: ShieldCheck },
@@ -265,6 +268,7 @@ function Router() {
               <Route path="/crm-integrations" component={IntegrationsPage} />
               <Route path="/smart-search" component={SmartSearchPage} />
               <Route path="/ml-scoring" component={MLScoringPage} />
+              <Route path="/ucc-intelligence" component={UccIntelligencePage} />
               <Route path="/developer" component={DeveloperPage} />
               <Route path="/api-docs" component={ApiDocsPage} />
               <Route path="/purchase/:tier" component={PurchaseTierPage} />

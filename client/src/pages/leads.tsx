@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { LeadIntelligenceScore, IntelligenceScoreBadge } from "@/components/LeadIntelligenceScore";
 import { EnrichmentBadge } from "@/components/EnrichmentBadge";
+import { UccLeadDetails } from "@/components/UccLeadDetails";
 import type { Lead, SavedSearch } from "@shared/schema";
 
 // Filter presets
@@ -120,6 +121,8 @@ export default function LeadsPage() {
   const [scoringModalOpen, setScoringModalOpen] = useState(false);
   const [selectedLeadForScoring, setSelectedLeadForScoring] = useState<Lead | null>(null);
   const [scoringDetails, setScoringDetails] = useState<any>(null);
+  const [uccModalOpen, setUccModalOpen] = useState(false);
+  const [selectedLeadForUcc, setSelectedLeadForUcc] = useState<Lead | null>(null);
 
   // Fetch leads with filters
   const { data: leadsData, isLoading: leadsLoading, refetch: refetchLeads } = useQuery({
@@ -1069,15 +1072,29 @@ export default function LeadsPage() {
                     </div>
                   </CardContent>
                   <CardFooter className="pt-0">
-                    <Button
-                      className="w-full"
-                      size="sm"
-                      disabled={lead.sold}
-                      data-testid={`button-view-lead-${lead.id}`}
-                      onClick={() => trackLeadView(lead.id)}
-                    >
-                      {lead.sold ? "Sold" : "View Details"}
-                    </Button>
+                    <div className="flex gap-2 w-full">
+                      <Button
+                        className="flex-1"
+                        size="sm"
+                        disabled={lead.sold}
+                        data-testid={`button-view-lead-${lead.id}`}
+                        onClick={() => trackLeadView(lead.id)}
+                      >
+                        {lead.sold ? "Sold" : "View Details"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedLeadForUcc(lead);
+                          setUccModalOpen(true);
+                        }}
+                        data-testid={`button-ucc-${lead.id}`}
+                      >
+                        <Shield className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </CardFooter>
                 </Card>
               ))}
@@ -1355,6 +1372,41 @@ export default function LeadsPage() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setScoringModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* UCC Intelligence Modal */}
+      <Dialog open={uccModalOpen} onOpenChange={setUccModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary" />
+              UCC Intelligence Analysis
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedLeadForUcc && (
+            <UccLeadDetails 
+              lead={selectedLeadForUcc}
+              onClose={() => setUccModalOpen(false)}
+              onMonitorLead={(leadId) => {
+                toast({
+                  title: "Monitoring enabled",
+                  description: "You'll receive alerts for this lead's UCC activity."
+                });
+              }}
+              onViewRelated={(leadId) => {
+                // Navigate to UCC Intelligence page with this lead selected
+                window.location.href = `/ucc-intelligence?leadId=${leadId}`;
+              }}
+            />
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUccModalOpen(false)}>
               Close
             </Button>
           </DialogFooter>

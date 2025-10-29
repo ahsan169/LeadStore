@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { leads, uccFilings, uccMonitoringAlerts } from "@shared/schema";
+import { leads, uccFilings } from "@shared/schema";
 import type { Lead, UccFiling } from "@shared/schema";
 import { eq, and, gte, desc, sql } from "drizzle-orm";
 import { enhancedUccIntelligenceService } from "./ucc-intelligence-enhanced";
