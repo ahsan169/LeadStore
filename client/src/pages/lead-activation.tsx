@@ -349,7 +349,9 @@ export default function LeadActivation() {
                   data-testid={`button-quick-action-${action.id}`}
                 >
                   <div className="flex items-center gap-2 w-full">
-                    <Icon className="w-5 h-5" style={{ color: action.color }} />
+                    <Icon 
+                      className="w-5 h-5 text-primary"
+                    />
                     <span className="font-semibold">{action.name}</span>
                   </div>
                   <p className="text-xs text-muted-foreground text-left">

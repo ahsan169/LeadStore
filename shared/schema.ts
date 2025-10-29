@@ -1388,6 +1388,78 @@ export const marketBenchmarks = pgTable("market_benchmarks", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Insight Reports table for caching generated insights and reports
+export const insightReports = pgTable("insight_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Report identification
+  reportType: text("report_type").notNull(), // 'daily_insights', 'portfolio_analysis', 'market_timing', 'anomaly_detection', 'daily_brief'
+  cacheKey: text("cache_key"), // Optional cache key for quick lookups
+  
+  // Report content
+  executiveSummary: text("executive_summary"),
+  keyInsights: jsonb("key_insights"), // Array of key insights
+  metrics: jsonb("metrics"), // Key metrics and statistics
+  recommendations: jsonb("recommendations"), // Array of recommendations
+  
+  // Report metadata
+  period: text("period"), // 'daily', 'weekly', 'monthly', 'quarterly', 'custom'
+  dateRange: jsonb("date_range"), // {start: date, end: date}
+  filters: jsonb("filters"), // Applied filters when generating report
+  
+  // Report data
+  data: jsonb("data"), // Full report data
+  charts: jsonb("charts"), // Chart configurations and data
+  tables: jsonb("tables"), // Tabular data
+  
+  // Status and tracking
+  reportStatus: text("report_status").notNull().default("draft"), // 'draft', 'generating', 'final', 'expired'
+  generatedBy: text("generated_by").notNull(), // 'system', 'user', 'api', or user ID
+  generatedFor: varchar("generated_for").references(() => users.id), // Optional user ID if generated for specific user
+  
+  // Performance and caching
+  generationTimeMs: integer("generation_time_ms"), // Time taken to generate
+  accessCount: integer("access_count").notNull().default(0), // Number of times accessed
+  lastAccessedAt: timestamp("last_accessed_at"),
+  
+  // Timestamps
+  generatedAt: timestamp("generated_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(), // When this report expires and should be regenerated
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Insert schema for Insight Reports
+export const insertInsightReportSchema = createInsertSchema(insightReports).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  generatedAt: true,
+  lastAccessedAt: true,
+  accessCount: true,
+}).extend({
+  reportType: z.enum(['daily_insights', 'portfolio_analysis', 'market_timing', 'anomaly_detection', 'daily_brief']),
+  cacheKey: z.string().optional(),
+  executiveSummary: z.string().optional(),
+  keyInsights: z.any().optional(),
+  metrics: z.any().optional(),
+  recommendations: z.any().optional(),
+  period: z.enum(['daily', 'weekly', 'monthly', 'quarterly', 'custom']).optional(),
+  dateRange: z.object({
+    start: z.string(),
+    end: z.string()
+  }).optional(),
+  filters: z.any().optional(),
+  data: z.any().optional(),
+  charts: z.any().optional(),
+  tables: z.any().optional(),
+  reportStatus: z.enum(['draft', 'generating', 'final', 'expired']).default('draft'),
+  generatedBy: z.string(),
+  generatedFor: z.string().optional(),
+  generationTimeMs: z.number().optional(),
+  expiresAt: z.date().or(z.string())
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -1498,6 +1570,9 @@ export type MarketInsight = typeof marketInsights.$inferSelect;
 export type LeadPrediction = typeof leadPredictions.$inferSelect;
 export type InsightAlert = typeof insightAlerts.$inferSelect;
 export type MarketBenchmark = typeof marketBenchmarks.$inferSelect;
+
+export type InsertInsightReport = z.infer<typeof insertInsightReportSchema>;
+export type InsightReport = typeof insightReports.$inferSelect;
 
 export type InsertSmartSearch = z.infer<typeof insertSmartSearchSchema>;
 export type SmartSearch = typeof smartSearches.$inferSelect;

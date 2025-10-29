@@ -589,4 +589,86 @@
     animation: slide-in-right 0.4s ease-out;
   }
 
+  /* Dynamic styles using CSS custom properties to replace inline styles */
+  
+  /* Dynamic color for icons and elements */
+  [data-color] {
+    color: var(--dynamic-color);
+  }
+  
+  /* Dynamic width for progress bars using data attributes */
+  [data-width] {
+    width: attr(data-width);
+  }
+  
+  /* Dynamic transform for progress indicators */
+  [data-progress] {
+    transform: translateX(calc(-1 * (100% - var(--progress-value))));
+  }
+  
+  /* Dynamic positioning for tooltips and overlays */
+  [data-position] {
+    top: var(--dynamic-top);
+    left: var(--dynamic-left);
+    width: var(--dynamic-width);
+    height: var(--dynamic-height);
+  }
+  
+  /* Dynamic background colors with opacity for badges */
+  [data-bg-color] {
+    background-color: var(--dynamic-bg-color);
+    color: var(--dynamic-text-color);
+  }
+  
+  /* Chart legend color indicator */
+  .chart-legend-color {
+    background-color: var(--legend-color);
+  }
+
+  /* Progress bar segments with dynamic widths */
+  .progress-segment {
+    width: var(--segment-width);
+  }
+  
+  /* Tour spotlight positioning */
+  .tour-spotlight-positioned {
+    position: absolute;
+    top: var(--spotlight-top);
+    left: var(--spotlight-left);
+    width: var(--spotlight-width);
+    height: var(--spotlight-height);
+  }
+  
+  /* Confidence score badge colors */
+  .confidence-high {
+    background-color: rgba(34, 197, 94, 0.1);
+    color: rgb(34, 197, 94);
+  }
+  
+  .confidence-medium {
+    background-color: rgba(250, 204, 21, 0.1);
+    color: rgb(202, 138, 4);
+  }
+  
+  .confidence-low {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: rgb(239, 68, 68);
+  }
+  
+  /* Risk score badge colors */
+  .risk-low {
+    background-color: rgba(34, 197, 94, 0.1);
+    color: rgb(34, 197, 94);
+  }
+  
+  .risk-medium {
+    background-color: rgba(250, 204, 21, 0.1);
+    color: rgb(202, 138, 4);
+  }
+  
+  .risk-high {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: rgb(239, 68, 68);
+  }
+
 }

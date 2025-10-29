@@ -40,6 +40,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { cn } from "@/lib/utils";
 
 interface VerificationSession {
   id: string;
@@ -480,23 +481,7 @@ export default function VerifyLeadsPage() {
               <span>Verification Progress</span>
               <span>{selectedRows.size} of {session.totalLeads} selected</span>
             </div>
-            <div className="flex h-4 overflow-hidden rounded-full bg-muted">
-              <div 
-                className="bg-green-600 transition-all"
-                style={{ width: `${verifiedPercentage}%` }}
-                data-testid="progress-verified"
-              />
-              <div 
-                className="bg-yellow-600 transition-all"
-                style={{ width: `${warningPercentage}%` }}
-                data-testid="progress-warning"
-              />
-              <div 
-                className="bg-red-600 transition-all"
-                style={{ width: `${failedPercentage}%` }}
-                data-testid="progress-failed"
-              />
-            </div>
+            <Progress value={session.verifiedCount / session.totalLeads * 100} className="h-4" />
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>✅ Verified ({session.verifiedCount})</span>
               <span>⚠️ Warnings ({session.warningCount})</span>
@@ -635,19 +620,14 @@ export default function VerifyLeadsPage() {
                           <div className="flex flex-col gap-1">
                             <Badge 
                               variant="outline" 
-                              className="gap-1 text-xs"
-                              style={{
-                                backgroundColor: result.leadData.aiInsights.confidenceScore >= 80 
-                                  ? 'rgba(34, 197, 94, 0.1)'  
+                              className={cn(
+                                "gap-1 text-xs",
+                                result.leadData.aiInsights.confidenceScore >= 80 
+                                  ? 'confidence-high'
                                   : result.leadData.aiInsights.confidenceScore >= 60 
-                                  ? 'rgba(250, 204, 21, 0.1)' 
-                                  : 'rgba(239, 68, 68, 0.1)',
-                                color: result.leadData.aiInsights.confidenceScore >= 80 
-                                  ? 'rgb(34, 197, 94)' 
-                                  : result.leadData.aiInsights.confidenceScore >= 60 
-                                  ? 'rgb(202, 138, 4)' 
-                                  : 'rgb(239, 68, 68)'
-                              }}
+                                  ? 'confidence-medium'
+                                  : 'confidence-low'
+                              )}
                             >
                               <Sparkles className="w-3 h-3" />
                               {result.leadData.aiInsights.confidenceScore}%
@@ -655,19 +635,14 @@ export default function VerifyLeadsPage() {
                             {result.leadData.aiInsights.riskAssessment?.score && (
                               <Badge 
                                 variant="outline" 
-                                className="gap-1 text-xs"
-                                style={{
-                                  backgroundColor: result.leadData.aiInsights.riskAssessment.score <= 30 
-                                    ? 'rgba(34, 197, 94, 0.1)'  
+                                className={cn(
+                                  "gap-1 text-xs",
+                                  result.leadData.aiInsights.riskAssessment.score <= 30 
+                                    ? 'risk-low'
                                     : result.leadData.aiInsights.riskAssessment.score <= 60 
-                                    ? 'rgba(250, 204, 21, 0.1)' 
-                                    : 'rgba(239, 68, 68, 0.1)',
-                                  color: result.leadData.aiInsights.riskAssessment.score <= 30 
-                                    ? 'rgb(34, 197, 94)' 
-                                    : result.leadData.aiInsights.riskAssessment.score <= 60 
-                                    ? 'rgb(202, 138, 4)' 
-                                    : 'rgb(239, 68, 68)'
-                                }}
+                                    ? 'risk-medium'
+                                    : 'risk-high'
+                                )}
                               >
                                 <Shield className="w-3 h-3" />
                                 Risk: {result.leadData.aiInsights.riskAssessment.score}

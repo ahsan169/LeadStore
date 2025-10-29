@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { X, ChevronLeft, ChevronRight, Gift } from 'lucide-react';
 import { useLocalStorage } from '@/hooks/use-engagement';
 import { useToast } from '@/hooks/use-toast';
@@ -196,18 +197,7 @@ export function ProductTour({ autoStart = false }: { autoStart?: boolean }) {
               className="fixed inset-0 z-40 pointer-events-none"
             >
               <div className="absolute inset-0 bg-black/60" />
-              {targetElement && (
-                <div
-                  className="tour-spotlight"
-                  style={{
-                    position: 'absolute',
-                    top: targetElement.getBoundingClientRect().top - 10,
-                    left: targetElement.getBoundingClientRect().left - 10,
-                    width: targetElement.getBoundingClientRect().width + 20,
-                    height: targetElement.getBoundingClientRect().height + 20,
-                  }}
-                />
-              )}
+              {/* Spotlight disabled due to CSP restrictions */}
             </motion.div>
 
             {/* Tour tooltip */}
@@ -241,11 +231,8 @@ export function ProductTour({ autoStart = false }: { autoStart?: boolean }) {
                   </p>
 
                   {/* Progress bar */}
-                  <div className="h-1 bg-muted rounded-full mb-4 overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-300"
-                      style={{ width: `${((currentStep + 1) / tourSteps.length) * 100}%` }}
-                    />
+                  <div className="mb-4">
+                    <Progress value={((currentStep + 1) / tourSteps.length) * 100} className="h-1" />
                   </div>
 
                   {/* Navigation */}
