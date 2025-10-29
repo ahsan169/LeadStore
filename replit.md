@@ -1,8 +1,8 @@
-# Lakefront Leadworks
+# Lakefront Leadworks - Intelligent Lead Intelligence Platform
 
 ## Overview
 
-A professional B2B marketplace platform for buying and selling Merchant Cash Advance (MCA) leads. The platform features multi-tier pricing packages (Gold, Platinum, Diamond, Elite), AI-powered lead quality scoring, secure Stripe payment processing, and automated CSV delivery with expiring download URLs. Administrators can upload lead batches, view AI-generated insights, and track sales analytics. Buyers can purchase leads based on quality tiers, access purchase history, and download leads securely.
+A sophisticated AI-powered lead enrichment and verification system for Merchant Cash Advance (MCA) leads. The platform has been transformed from a simple marketplace into an intelligent system that provides real-time verification, predictive insights, and comprehensive lead intelligence scoring. Features simplified 2-tier pricing (Starter $997, Pro $2,997), unified intelligence scoring with 5 sub-scores, real-time API verification using Hunter.io and Numverify, predictive market analysis, and a centralized command center for monitoring all activities.
 
 ## User Preferences
 
@@ -111,6 +111,51 @@ Preferred communication style: Simple, everyday language.
 **Development Server**: Vite dev server with HMR, Express backend in middleware mode for integrated development experience
 
 ## Recent Changes
+
+### October 29, 2025 - Enhanced Lead Intelligence System
+
+Successfully transformed the platform into an intelligent lead enrichment and verification system:
+
+**Core Enhancements:**
+
+1. **Unified Lead Intelligence Score** - Consolidated 7 disparate scoring systems into single score with 5 transparent sub-scores:
+   - Quality (25%): Data completeness and enrichment
+   - Freshness (20%): Lead recency and relevance  
+   - Risk (15%): Risk assessment and red flags
+   - Opportunity (25%): Business potential and conversion likelihood
+   - Confidence (15%): Verification accuracy level
+
+2. **Lead Activation Hub** - Merged CRM integration, campaigns, and enrichment into unified workflow center
+
+3. **Enhanced Verification Service** - Real-time lead verification with:
+   - Hunter.io email verification (deliverability, domain quality, MX records)
+   - Numverify phone validation (line type, carrier, location)
+   - Composite confidence scoring with detailed breakdowns
+   - 72-hour smart caching to minimize API costs
+
+4. **Predictive Insights Engine** - Market intelligence with performance optimization:
+   - Market trend analysis with 1-hour caching
+   - Lead predictions with 6-hour caching  
+   - Daily insights generation with 24-hour caching
+   - Portfolio optimization recommendations
+   - Anomaly detection and market timing signals
+
+5. **Simplified Pricing** - Reduced from 4 tiers to 2 clear options:
+   - Starter: $997 (essential features)
+   - Pro: $2,997 (full platform access)
+
+**Technical Improvements:**
+- Fixed CSP inline style violations causing blank page renders
+- Optimized database queries with comprehensive indexing strategy
+- Implemented read-first caching patterns preventing cascading recomputation
+- Added singleton service instances for consistent cache behavior
+- Created background job patterns for heavy analytics operations
+
+**Bug Fixes:**
+- Resolved server startup errors from missing database exports
+- Fixed command center SQL syntax errors
+- Eliminated performance regressions in predictive scoring
+- Corrected purchases table schema missing timestamp fields
 
 ### October 27, 2025 - Enterprise Features Release
 
