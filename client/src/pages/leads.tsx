@@ -177,8 +177,11 @@ export default function LeadsPage() {
   const [selectedLeadForUcc, setSelectedLeadForUcc] = useState<Lead | null>(null);
 
   // Fetch leads with filters
+  // Create a stable serialized version of filters for the query key to prevent unnecessary refetches
+  const serializedFilters = JSON.stringify(filters);
+  
   const { data: leadsData, isLoading: leadsLoading, isError, error, refetch: refetchLeads } = useQuery({
-    queryKey: ["/api/leads", filters, page, pageSize, sortBy, sortOrder],
+    queryKey: ["/api/leads", serializedFilters, page, pageSize, sortBy, sortOrder],
     queryFn: async () => {
       try {
         const params = new URLSearchParams();
@@ -416,7 +419,7 @@ export default function LeadsPage() {
             <Separator />
 
             {/* Saved Searches */}
-            {savedSearches && savedSearches.length > 0 && (
+            {Array.isArray(savedSearches) && savedSearches.length > 0 && (
               <>
                 <div>
                   <Label className="text-xs uppercase text-muted-foreground mb-2 block">
@@ -1101,7 +1104,7 @@ export default function LeadsPage() {
                             Urgent
                           </Badge>
                         )}
-                        {lead.isEnriched && <EnrichmentBadge />}
+                        {lead.isEnriched && <EnrichmentBadge isEnriched={lead.isEnriched} />}
                       </div>
                       
                       <Separator className="my-2" />
