@@ -131,6 +131,22 @@ export const uccFilings = pgTable("ucc_filings", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// UCC monitoring alerts for tracking significant events
+export const uccMonitoringAlerts = pgTable("ucc_monitoring_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  alertType: text("alert_type").notNull(), // 'new_filing', 'multiple_filings', 'stacking_detected', etc.
+  severity: text("severity").notNull(), // 'info', 'warning', 'critical'
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  metadata: jsonb("metadata"), // Additional alert data
+  actionRequired: text("action_required").notNull(),
+  acknowledged: boolean("acknowledged").notNull().default(false),
+  acknowledgedBy: varchar("acknowledged_by").references(() => users.id),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Lead aging tracking for freshness analytics
 export const leadAging = pgTable("lead_aging", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -743,6 +759,16 @@ export const insertUccFilingSchema = createInsertSchema(uccFilings).omit({
   filingDate: z.string().datetime(),
   loanAmount: z.number().optional(),
   filingType: z.enum(["original", "amendment", "termination"]).optional(),
+});
+
+export const insertUccMonitoringAlertsSchema = createInsertSchema(uccMonitoringAlerts).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  alertType: z.string(),
+  severity: z.enum(["info", "warning", "critical"]),
+  acknowledged: z.boolean().default(false),
+  acknowledgedAt: z.string().datetime().optional(),
 });
 
 export const insertLeadAgingSchema = createInsertSchema(leadAging).omit({
@@ -1604,6 +1630,9 @@ export type Lead = typeof leads.$inferSelect;
 
 export type InsertUccFiling = z.infer<typeof insertUccFilingSchema>;
 export type UccFiling = typeof uccFilings.$inferSelect;
+
+export type InsertUccMonitoringAlerts = z.infer<typeof insertUccMonitoringAlertsSchema>;
+export type UccMonitoringAlerts = typeof uccMonitoringAlerts.$inferSelect;
 
 export type InsertLeadAging = z.infer<typeof insertLeadAgingSchema>;
 export type LeadAging = typeof leadAging.$inferSelect;

@@ -39,6 +39,9 @@ import { perplexityResearch } from "./services/perplexity-research";
 import { revenueDiscovery } from "./services/revenue-discovery";
 import { uccParser } from "./services/ucc-parser";
 import { uccIntelligenceService } from "./services/ucc-intelligence";
+import { uccIntelligenceIntegration } from "./services/ucc-intelligence-integration";
+import { uccLeadMatchingService } from "./services/ucc-lead-matching";
+import { uccMonitoringService } from "./services/ucc-monitoring";
 import { googleDriveService } from "./services/google-drive-service";
 import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema, insertApiKeySchema, insertWebhookSchema } from "@shared/schema";
 import { campaignService } from "./services/campaign-tools";
@@ -7786,6 +7789,138 @@ Time: ${preferredTime || 'Any time'}`);
       console.error("Error auto-scoring leads:", error);
     }
   }
+
+  // Enhanced UCC Intelligence Endpoints
+  
+  // Initialize UCC Intelligence System
+  app.post("/api/ucc/intelligence/initialize", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      await uccIntelligenceIntegration.initialize();
+      res.json({ success: true, message: "UCC Intelligence System initialized" });
+    } catch (error: any) {
+      console.error("Error initializing UCC Intelligence:", error);
+      res.status(500).json({ error: "Failed to initialize UCC Intelligence System", details: error.message });
+    }
+  });
+  
+  // Analyze lead with enhanced UCC intelligence
+  app.post("/api/ucc/intelligence/analyze/:leadId", requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      const { refreshFilings, enableMonitoring, findRelatedLeads } = req.body;
+      
+      // Verify lead ownership or admin
+      const lead = await storage.getLead(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      const result = await uccIntelligenceIntegration.analyzeLead(leadId, {
+        refreshFilings,
+        enableMonitoring,
+        findRelatedLeads
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error analyzing lead with UCC Intelligence:", error);
+      res.status(500).json({ error: "Failed to analyze lead", details: error.message });
+    }
+  });
+  
+  // Process UCC filing with full intelligence
+  app.post("/api/ucc/intelligence/upload", requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const { leadId, enableMonitoring, findRelatedLeads, updateIntelligenceScore } = req.body;
+      
+      const result = await uccIntelligenceIntegration.processUccFiling(
+        req.file.buffer,
+        req.file.originalname,
+        leadId,
+        {
+          enableMonitoring: enableMonitoring !== 'false',
+          findRelatedLeads: findRelatedLeads !== 'false',
+          updateIntelligenceScore: updateIntelligenceScore !== 'false'
+        }
+      );
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error processing UCC filing:", error);
+      res.status(500).json({ error: "Failed to process UCC filing", details: error.message });
+    }
+  });
+  
+  // Get monitoring status
+  app.get("/api/ucc/monitoring/status", requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.query;
+      const status = await uccIntelligenceIntegration.getMonitoringStatus(leadId as string);
+      res.json(status);
+    } catch (error: any) {
+      console.error("Error getting monitoring status:", error);
+      res.status(500).json({ error: "Failed to get monitoring status", details: error.message });
+    }
+  });
+  
+  // Generate executive report for lead
+  app.get("/api/ucc/intelligence/report/:leadId", requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      const report = await uccIntelligenceIntegration.generateExecutiveReport(leadId);
+      res.json({ leadId, report });
+    } catch (error: any) {
+      console.error("Error generating executive report:", error);
+      res.status(500).json({ error: "Failed to generate report", details: error.message });
+    }
+  });
+  
+  // Find related leads based on UCC patterns
+  app.get("/api/ucc/intelligence/related/:leadId", requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      const { maxDepth, minConfidence, includeIndirect } = req.query;
+      
+      const relatedLeads = await uccLeadMatchingService.findRelatedLeads(leadId, {
+        maxDepth: parseInt(maxDepth as string) || 2,
+        minConfidence: parseInt(minConfidence as string) || 30,
+        includeIndirect: includeIndirect === 'true',
+        searchUccData: true
+      });
+      
+      res.json(relatedLeads);
+    } catch (error: any) {
+      console.error("Error finding related leads:", error);
+      res.status(500).json({ error: "Failed to find related leads", details: error.message });
+    }
+  });
+  
+  // Enable/Disable monitoring for a lead
+  app.post("/api/ucc/monitoring/configure/:leadId", requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      const { config } = req.body;
+      
+      if (config && config.enabled) {
+        await uccMonitoringService.enableMonitoring(leadId, config.options);
+      } else {
+        await uccMonitoringService.disableMonitoring(leadId);
+      }
+      
+      res.json({ 
+        success: true, 
+        leadId,
+        monitoringEnabled: config?.enabled || false
+      });
+    } catch (error: any) {
+      console.error("Error configuring monitoring:", error);
+      res.status(500).json({ error: "Failed to configure monitoring", details: error.message });
+    }
+  });
 
   // Helper function to calculate quality score
   function calculateQualityScore(lead: any): number {
