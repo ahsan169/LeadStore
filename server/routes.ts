@@ -7186,8 +7186,8 @@ function generateLeadsCsv(leads: any[], user?: any): string {
       leads.push(lead);
     }
     
-      return leads;
-    }
+    return leads;
+  }
   
   // Return the server instance for WebSocket setup
   return server;
