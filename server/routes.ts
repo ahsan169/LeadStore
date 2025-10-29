@@ -1656,20 +1656,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
           });
           
-          wss.clients.forEach((client) => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(progressMessage);
-            }
-          });
+          const wss = app.get('wss') as WebSocketServer;
+          if (wss && wss.clients) {
+            wss.clients.forEach((client) => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(progressMessage);
+              }
+            });
+          }
         }
       );
       
       // Add WebSocket clients that are connected
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          aiVerificationEngine.addWebSocketClient(client);
-        }
-      });
+      if (wss && wss.clients) {
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            aiVerificationEngine.addWebSocketClient(client);
+          }
+        });
+      }
       
       console.log(`Starting AI verification for ${normalizedLeads.length} leads with ${strictnessLevel} strictness`);
       
@@ -1794,20 +1799,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           batchSaveStatus[batchIndex].saved = true;
           
           // Send progress update with actual saved counts
-          wss.clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({
-                type: 'batch-save-complete',
-                data: {
-                  batchIndex: batchIndex + 1,
-                  totalBatches,
-                  leadsSaved: batchSaveStatus[batchIndex].leadsSaved,
-                  totalSaved: batchStats.totalImported,
-                  totalProcessed: (batchIndex + 1) * batchResults.length
-                }
-              }));
-            }
-          });
+          const wss = app.get('wss') as WebSocketServer;
+          if (wss && wss.clients) {
+            wss.clients.forEach(client => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'batch-save-complete',
+                  data: {
+                    batchIndex: batchIndex + 1,
+                    totalBatches,
+                    leadsSaved: batchSaveStatus[batchIndex].leadsSaved,
+                    totalSaved: batchStats.totalImported,
+                    totalProcessed: (batchIndex + 1) * batchResults.length
+                  }
+                }));
+              }
+            });
+          }
           
         } catch (saveError: any) {
           // Record the error for this batch
@@ -1817,19 +1825,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.error(`[AI Verification] Batch ${batchIndex + 1} status: verificationResults=${verificationResultsSaved}, leads=${leadsSaved.length}, batchUpdate=${batchUpdated}`);
           
           // Send error notification via WebSocket
-          wss.clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({
-                type: 'batch-save-error',
-                data: {
-                  batchIndex: batchIndex + 1,
-                  totalBatches,
-                  error: saveError.message,
-                  partialSave: verificationResultsSaved || leadsSaved.length > 0
-                }
-              }));
-            }
-          });
+          const wss = app.get('wss') as WebSocketServer;
+          if (wss && wss.clients) {
+            wss.clients.forEach(client => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'batch-save-error',
+                  data: {
+                    batchIndex: batchIndex + 1,
+                    totalBatches,
+                    error: saveError.message,
+                    partialSave: verificationResultsSaved || leadsSaved.length > 0
+                  }
+                }));
+              }
+            });
+          }
           
           // Re-throw the error to abort further processing
           // The AI engine will catch this and stop processing remaining batches
@@ -2122,14 +2133,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create a WebSocket connection for progress updates
       const progressCallback = (progress: any) => {
         // Send progress via WebSocket if connected
-        wss.clients.forEach(client => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'google-drive-progress',
-              data: progress
-            }));
+        // Note: WebSocket server is optional and may not be initialized
+        try {
+          const wss = app.get('wss') as WebSocketServer;
+          if (wss && wss.clients) {
+            wss.clients.forEach(client => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'google-drive-progress',
+                  data: progress
+                }));
+              }
+            });
           }
-        });
+        } catch (e) {
+          // WebSocket not available, continue without progress updates
+          console.log('Progress update:', progress);
+        }
       };
 
       // Check if it's a folder and download all files
@@ -2211,18 +2231,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Send progress update
-        wss.clients.forEach(client => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'ucc-processing-complete',
-              data: {
-                filesProcessed: processingResult.summary.filesProcessed,
-                totalRecords: processingResult.summary.totalRecords,
-                uniqueBusinesses: processingResult.summary.uniqueDebtors
-              }
-            }));
-          }
-        });
+        const wss = app.get('wss') as WebSocketServer;
+        if (wss && wss.clients) {
+          wss.clients.forEach(client => {
+            if (client.readyState === WebSocket.OPEN) {
+              client.send(JSON.stringify({
+                type: 'ucc-processing-complete',
+                data: {
+                  filesProcessed: processingResult.summary.filesProcessed,
+                  totalRecords: processingResult.summary.totalRecords,
+                  uniqueBusinesses: processingResult.summary.uniqueDebtors
+                }
+              }));
+            }
+          });
+        }
         
         // Create response with comprehensive results
         const debtorProfilesArray = Array.from(processingResult.debtorProfiles.values());
@@ -2887,7 +2910,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updatedIntelligence = await intelligenceService.calculateIntelligenceScore(lead, true);
 
       // Send real-time update via WebSocket if available
-      if (wss) {
+      const wss = app.get('wss') as WebSocketServer;
+      if (wss && wss.clients) {
         wss.clients.forEach((client: WebSocket) => {
           if (client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({
@@ -2988,7 +3012,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process verification in background and send WebSocket updates
       verificationPromise.then(results => {
-        if (wss) {
+        const wss = app.get('wss') as WebSocketServer;
+        if (wss && wss.clients) {
           wss.clients.forEach((client: WebSocket) => {
             if (client.readyState === WebSocket.OPEN) {
               client.send(JSON.stringify({
