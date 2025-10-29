@@ -2356,6 +2356,54 @@ export class DbStorage implements IStorage {
     };
   }
   
+  // Command Center helper methods
+  async getApiUsageCount(date: Date): Promise<number> {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(apiUsage)
+      .where(and(
+        gte(apiUsage.timestamp, startOfDay),
+        lte(apiUsage.timestamp, endOfDay)
+      ));
+    return result[0]?.count || 0;
+  }
+
+  async getActiveWebhooksCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(webhooks)
+      .where(eq(webhooks.isActive, true));
+    return result[0]?.count || 0;
+  }
+
+  async getTotalLeadsCount(): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(leads);
+    return result[0]?.count || 0;
+  }
+
+  async getLeadsCountSince(date: Date): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(leads)
+      .where(gte(leads.uploadedAt, date));
+    return result[0]?.count || 0;
+  }
+
+  async getLeadsCountByStatus(status: string): Promise<number> {
+    // Check lead performance table for status
+    const result = await db.select({ count: sql<number>`count(*)` })
+      .from(leadPerformance)
+      .where(eq(leadPerformance.status, status));
+    return result[0]?.count || 0;
+  }
+
+  async getAllWebhooks(): Promise<Webhook[]> {
+    return db.select().from(webhooks);
+  }
+  
   // UCC Filing operations
   async createUccFiling(filing: InsertUccFiling): Promise<UccFiling> {
     const result = await db.insert(uccFilings).values(filing).returning();

@@ -35,6 +35,7 @@ import DeveloperPage from "@/pages/developer";
 import ApiDocsPage from "@/pages/api-docs";
 import SmartSearchPage from "@/pages/smart-search";
 import MLScoringPage from "@/pages/ml-scoring";
+import CommandCenterPage from "@/pages/command-center";
 import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -103,7 +104,7 @@ function AppSidebar() {
 
   const buyerMenuItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home },
-    { title: "Analytics", url: "/analytics", icon: TrendingUp },
+    { title: "Command Center", url: "/command-center", icon: BarChart },
     { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Smart Search", url: "/smart-search", icon: Search },
@@ -113,13 +114,12 @@ function AppSidebar() {
     { title: "Quality Guarantee", url: "/guarantee-reports", icon: ShieldCheck },
     { title: "Alerts", url: "/alerts", icon: Bell },
     { title: "ML Scoring", url: "/ml-scoring", icon: TrendingUp },
-    { title: "Developer Portal", url: "/developer", icon: Key },
     { title: "API Docs", url: "/api-docs", icon: Book },
   ];
 
   const adminMenuItems = [
     { title: "Dashboard", url: "/admin/dashboard", icon: BarChart },
-    { title: "Analytics", url: "/analytics", icon: TrendingUp },
+    { title: "Command Center", url: "/command-center", icon: BarChart },
     { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Smart Search", url: "/smart-search", icon: Search },
@@ -250,6 +250,7 @@ function Router() {
               {/* Buyer routes */}
               <Route path="/" component={DashboardPage} />
               <Route path="/dashboard" component={DashboardPage} />
+              <Route path="/command-center" component={CommandCenterPage} />
               <Route path="/analytics" component={AnalyticsPage} />
               <Route path="/lead-activation" component={LeadActivationPage} />
               <Route path="/leads" component={LeadsPage} />

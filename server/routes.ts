@@ -42,6 +42,7 @@ import { googleDriveService } from "./services/google-drive-service";
 import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema, insertApiKeySchema, insertWebhookSchema } from "@shared/schema";
 import { campaignService } from "./services/campaign-tools";
 import { apiAuthMiddleware, rateLimitMiddleware, usageTrackingMiddleware, apiResponse, apiError, parsePagination, paginatedResponse, apiKeyManager, webhookDispatcher, cleanup as cleanupEnterpriseApi } from "./services/enterprise-api";
+import { commandCenterService } from "./services/command-center";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -892,6 +893,10 @@ const upload = multer({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const server = createServer(app);
+  
+  // Initialize Command Center WebSocket server
+  commandCenterService.initializeWebSocketServer(server);
   
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
@@ -6711,8 +6716,87 @@ Time: ${preferredTime || 'Any time'}`);
   });
 
   // ==========================================
-  // ML Scoring Endpoints
+  // Command Center Endpoints
   // ==========================================
+  
+  // Get unified dashboard data
+  app.get("/api/command-center/dashboard", requireAuth, async (req, res) => {
+    try {
+      const dashboardData = await commandCenterService.getDashboardData(req.user!.id);
+      res.json(dashboardData);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard data" });
+    }
+  });
+
+  // Get activity log
+  app.get("/api/command-center/activity", requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      const activities = await commandCenterService.getRecentActivities(limit);
+      res.json(activities);
+    } catch (error) {
+      console.error("Error fetching activities:", error);
+      res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
+  // Export analytics data
+  app.post("/api/command-center/export-analytics", requireAuth, async (req, res) => {
+    try {
+      const { format = "csv" } = req.body;
+      const exportData = await commandCenterService.exportAnalytics(req.user!.id, format);
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting analytics:", error);
+      res.status(500).json({ error: "Failed to export analytics" });
+    }
+  });
+
+  // Test webhook endpoint (for Command Center)
+  app.post("/api/v1/webhooks/test", requireAuth, async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+      }
+      
+      // Send test webhook
+      const testPayload = {
+        event: "test.webhook",
+        timestamp: new Date().toISOString(),
+        data: {
+          message: "This is a test webhook from Command Center",
+          success: true
+        }
+      };
+      
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Webhook-Event": "test.webhook"
+        },
+        body: JSON.stringify(testPayload),
+        signal: AbortSignal.timeout(5000)
+      });
+      
+      res.json({ 
+        success: response.ok, 
+        statusCode: response.status,
+        message: response.ok ? "Test webhook sent successfully" : "Failed to send test webhook"
+      });
+    } catch (error) {
+      console.error("Error testing webhook:", error);
+      res.status(500).json({ error: "Failed to test webhook" });
+    }
+  });
+
+  // ==========================================
+  // ML Scoring Endpoints
+  // ========================================== 
 
   const { mlScoringService } = await import("./services/ml-scoring");
 
@@ -7104,4 +7188,7 @@ function generateLeadsCsv(leads: any[], user?: any): string {
     
       return leads;
     }
-
+  
+  // Return the server instance for WebSocket setup
+  return server;
+}
