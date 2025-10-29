@@ -38,6 +38,7 @@ import { bulkOperationsService } from "./services/bulk-operations";
 import { perplexityResearch } from "./services/perplexity-research";
 import { revenueDiscovery } from "./services/revenue-discovery";
 import { uccParser } from "./services/ucc-parser";
+import { uccIntelligenceService } from "./services/ucc-intelligence";
 import { googleDriveService } from "./services/google-drive-service";
 import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemplateSchema, insertCampaignSchema, insertApiKeySchema, insertWebhookSchema } from "@shared/schema";
 import { campaignService } from "./services/campaign-tools";
@@ -6358,6 +6359,386 @@ Time: ${preferredTime || 'Any time'}`);
       res.status(500).json({ error: 'Failed to get bulk order statistics' });
     }
   });
+
+  // ==================== UCC INTELLIGENCE API ENDPOINTS ====================
+  
+  // Initialize UCC state formats on startup
+  (async () => {
+    try {
+      await uccIntelligenceService.initializeStateFormats();
+      console.log('[UccIntelligence] State formats initialized');
+    } catch (error) {
+      console.error('[UccIntelligence] Error initializing state formats:', error);
+    }
+  })();
+  
+  // POST /api/ucc/parse - Parse UCC filing with AI-powered state detection
+  app.post('/api/ucc/parse', requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      const { leadId } = req.body;
+      const file = req.file;
+      
+      if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      // Parse the UCC filing with AI intelligence
+      const analysis = await uccIntelligenceService.parseUccFiling(
+        file.buffer,
+        file.originalname,
+        leadId
+      );
+      
+      res.json({
+        success: true,
+        stateDetected: analysis.stateDetected,
+        filingsCount: analysis.filingData.length,
+        businessIntelligence: analysis.businessIntelligence,
+        insights: analysis.insights,
+        confidence: analysis.confidence,
+        message: `Successfully parsed ${analysis.filingData.length} UCC filings${
+          analysis.stateDetected ? ` from ${analysis.stateDetected}` : ''
+        }`
+      });
+    } catch (error) {
+      console.error('[API] Error parsing UCC filing:', error);
+      res.status(500).json({ 
+        error: 'Failed to parse UCC filing',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // POST /api/ucc/analyze/:leadId - Analyze UCC filings for a specific lead
+  app.post('/api/ucc/analyze/:leadId', requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      const { filings } = req.body;
+      
+      if (!leadId) {
+        return res.status(400).json({ error: 'Lead ID is required' });
+      }
+      
+      // Check if lead exists and user has access
+      const lead = await storage.getLead(leadId);
+      
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      if (lead.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Use existing filings or analyze new ones
+      let analysis;
+      if (filings && Array.isArray(filings)) {
+        analysis = await uccIntelligenceService.analyzeFilings(filings, leadId);
+        await uccIntelligenceService['saveAnalysis'](leadId, analysis);
+      } else {
+        // Get existing analysis
+        const insights = await uccIntelligenceService.getInsights(leadId);
+        if (!insights.hasAnalysis) {
+          return res.status(404).json({ 
+            error: 'No UCC analysis available',
+            message: 'Please parse UCC filings first using /api/ucc/parse'
+          });
+        }
+        analysis = insights;
+      }
+      
+      // Update lead score with UCC factors
+      await uccIntelligenceService.updateLeadScore(leadId);
+      
+      res.json({
+        success: true,
+        leadId,
+        analysis,
+        message: 'UCC analysis completed successfully'
+      });
+    } catch (error) {
+      console.error('[API] Error analyzing UCC filings:', error);
+      res.status(500).json({ 
+        error: 'Failed to analyze UCC filings',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // GET /api/ucc/relationships/:leadId - Get relationship graph for a lead
+  app.get('/api/ucc/relationships/:leadId', requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      
+      // Check lead access
+      const lead = await storage.getLead(leadId);
+      
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      if (lead.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Get relationship graph
+      const graph = await uccIntelligenceService.getRelationshipGraph(leadId);
+      
+      res.json({
+        success: true,
+        leadId,
+        graph,
+        statistics: {
+          totalNodes: graph.nodes.length,
+          totalEdges: graph.edges.length,
+          totalClusters: graph.clusters.length,
+          directConnections: graph.edges.filter(e => e.source === leadId).length,
+          averageStrength: graph.edges.length > 0 
+            ? graph.edges.reduce((sum, e) => sum + e.strength, 0) / graph.edges.length 
+            : 0,
+        },
+        message: `Found ${graph.nodes.length - 1} related leads through UCC connections`
+      });
+    } catch (error) {
+      console.error('[API] Error getting UCC relationships:', error);
+      res.status(500).json({ 
+        error: 'Failed to get UCC relationships',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // GET /api/ucc/insights/:leadId - Get AI-generated insights
+  app.get('/api/ucc/insights/:leadId', requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      
+      // Check lead access
+      const lead = await storage.getLead(leadId);
+      
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      if (lead.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Get AI insights
+      const insights = await uccIntelligenceService.getInsights(leadId);
+      
+      if (!insights.hasAnalysis) {
+        return res.status(404).json({ 
+          error: 'No UCC insights available',
+          message: 'Please analyze UCC filings first'
+        });
+      }
+      
+      // Generate actionable recommendations
+      const recommendations = {
+        immediate: [] as string[],
+        cautionary: [] as string[],
+        opportunities: [] as string[],
+      };
+      
+      // Build recommendations based on insights
+      if (insights.businessIntelligence.debtStackingScore > 70) {
+        recommendations.cautionary.push('High debt stacking detected - proceed with extreme caution');
+        recommendations.immediate.push('Require additional collateral or personal guarantee');
+      } else if (insights.businessIntelligence.debtStackingScore > 40) {
+        recommendations.cautionary.push('Moderate debt stacking - enhanced due diligence recommended');
+      }
+      
+      if (insights.businessIntelligence.refinancingProbability > 0.7) {
+        recommendations.opportunities.push('High refinancing probability - offer competitive rates to capture');
+      }
+      
+      if (insights.businessIntelligence.businessGrowthIndicator === 'growing') {
+        recommendations.opportunities.push('Business showing growth - potential for larger advance amounts');
+      } else if (insights.businessIntelligence.businessGrowthIndicator === 'declining') {
+        recommendations.cautionary.push('Business showing decline - consider shorter terms');
+      }
+      
+      if (insights.businessIntelligence.mcaApprovalLikelihood > 0.7) {
+        recommendations.immediate.push('Strong MCA candidate - fast-track approval process');
+      } else if (insights.businessIntelligence.mcaApprovalLikelihood < 0.3) {
+        recommendations.cautionary.push('Low approval likelihood - consider alternative products');
+      }
+      
+      res.json({
+        success: true,
+        leadId,
+        insights: {
+          ...insights,
+          recommendations,
+          summary: {
+            overallRisk: insights.businessIntelligence.riskLevel,
+            approvalRecommendation: 
+              insights.businessIntelligence.mcaApprovalLikelihood > 0.6 ? 'Approve with conditions' :
+              insights.businessIntelligence.mcaApprovalLikelihood > 0.3 ? 'Review carefully' :
+              'Consider declining',
+            keyFactors: [
+              `Debt stacking: ${insights.businessIntelligence.debtStackingScore}/100`,
+              `Business health: ${insights.businessIntelligence.businessHealthScore}/100`,
+              `MCA approval likelihood: ${(insights.businessIntelligence.mcaApprovalLikelihood * 100).toFixed(0)}%`,
+            ],
+          },
+        },
+        message: 'UCC insights generated successfully'
+      });
+    } catch (error) {
+      console.error('[API] Error getting UCC insights:', error);
+      res.status(500).json({ 
+        error: 'Failed to get UCC insights',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // POST /api/ucc/match-leads - Find related leads through UCC connections
+  app.post('/api/ucc/match-leads', requireAuth, async (req, res) => {
+    try {
+      const { leadId, searchRadius = 2, minConfidence = 50 } = req.body;
+      
+      if (!leadId) {
+        return res.status(400).json({ error: 'Lead ID is required' });
+      }
+      
+      // Check lead access
+      const lead = await storage.getLead(leadId);
+      
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      
+      if (lead.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      // Find matched leads
+      const matches = await uccIntelligenceService.matchLeads(leadId);
+      
+      // Filter by confidence threshold
+      const filteredMatches = matches.filter(m => 
+        parseFloat(m.confidenceScore || '0') >= minConfidence
+      );
+      
+      // Group matches by relationship type
+      const groupedMatches = filteredMatches.reduce((acc, match) => {
+        const type = match.relationshipType;
+        if (!acc[type]) acc[type] = [];
+        acc[type].push({
+          leadId: match.leadIdB,
+          confidence: parseFloat(match.confidenceScore || '0'),
+          criteria: match.matchingCriteria,
+          strength: parseFloat(match.relationshipStrength || '0'),
+        });
+        return acc;
+      }, {} as Record<string, any[]>);
+      
+      res.json({
+        success: true,
+        leadId,
+        totalMatches: filteredMatches.length,
+        matchesByType: groupedMatches,
+        statistics: {
+          highConfidenceMatches: filteredMatches.filter(m => 
+            parseFloat(m.confidenceScore || '0') >= 80
+          ).length,
+          mediumConfidenceMatches: filteredMatches.filter(m => {
+            const conf = parseFloat(m.confidenceScore || '0');
+            return conf >= 60 && conf < 80;
+          }).length,
+          lowConfidenceMatches: filteredMatches.filter(m => {
+            const conf = parseFloat(m.confidenceScore || '0');
+            return conf >= minConfidence && conf < 60;
+          }).length,
+        },
+        message: `Found ${filteredMatches.length} related leads through UCC analysis`
+      });
+    } catch (error) {
+      console.error('[API] Error matching leads:', error);
+      res.status(500).json({ 
+        error: 'Failed to match leads',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // GET /api/ucc/state-formats - Get supported state formats
+  app.get('/api/ucc/state-formats', requireAuth, async (req, res) => {
+    try {
+      const formats = await storage.getUccStateFormats();
+      
+      res.json({
+        success: true,
+        totalStates: formats.length,
+        formats: formats.map(f => ({
+          stateCode: f.stateCode,
+          stateName: f.stateName,
+          version: f.formatVersion,
+          characteristics: f.characteristics,
+          hasSpecialHandling: !!(f.collateralCodes && Object.keys(f.collateralCodes).length > 0),
+        })),
+        message: `Supporting ${formats.length} US state formats`
+      });
+    } catch (error) {
+      console.error('[API] Error getting state formats:', error);
+      res.status(500).json({ 
+        error: 'Failed to get state formats',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // POST /api/admin/ucc/bulk-analyze - Bulk analyze UCC filings (admin only)
+  app.post('/api/admin/ucc/bulk-analyze', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leadIds, forceReanalyze = false } = req.body;
+      
+      if (!leadIds || !Array.isArray(leadIds)) {
+        return res.status(400).json({ error: 'Lead IDs array is required' });
+      }
+      
+      const results = {
+        successful: 0,
+        failed: 0,
+        skipped: 0,
+        errors: [] as string[],
+      };
+      
+      for (const leadId of leadIds) {
+        try {
+          const insights = await uccIntelligenceService.getInsights(leadId);
+          
+          if (!forceReanalyze && insights.hasAnalysis) {
+            results.skipped++;
+            continue;
+          }
+          
+          await uccIntelligenceService.updateLeadScore(leadId);
+          results.successful++;
+        } catch (error) {
+          results.failed++;
+          results.errors.push(`Lead ${leadId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+      
+      res.json({
+        success: true,
+        results,
+        message: `Analyzed ${results.successful} leads, skipped ${results.skipped}, failed ${results.failed}`
+      });
+    } catch (error) {
+      console.error('[API] Error in bulk UCC analysis:', error);
+      res.status(500).json({ 
+        error: 'Failed to perform bulk analysis',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
+  // ==================== END UCC INTELLIGENCE API ENDPOINTS ====================
 
   // Campaign Template endpoints
   app.get("/api/templates", requireAuth, async (req, res) => {

@@ -504,6 +504,7 @@ export interface IStorage {
     recentFilings: number;
     filingsByType: Record<string, number>;
   }>;
+  getUccStateFormats(): Promise<UccStateFormat[]>;
   
   // Lead Activation History operations
   createLeadActivationHistory(data: any): Promise<any>;
@@ -2477,6 +2478,10 @@ export class DbStorage implements IStorage {
       recentFilings,
       filingsByType
     };
+  }
+  
+  async getUccStateFormats(): Promise<UccStateFormat[]> {
+    return db.select().from(uccStateFormats).orderBy(uccStateFormats.stateCode);
   }
   
   // Lead Activation History operations

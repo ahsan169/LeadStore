@@ -1460,6 +1460,135 @@ export const insertInsightReportSchema = createInsertSchema(insightReports).omit
   expiresAt: z.date().or(z.string())
 });
 
+// UCC State Formats table for storing state-specific parsing templates
+export const uccStateFormats = pgTable("ucc_state_formats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stateCode: text("state_code").notNull().unique(), // 'NY', 'CA', 'TX', etc.
+  stateName: text("state_name").notNull(),
+  
+  // Format configuration
+  formatVersion: text("format_version").notNull().default("1.0.0"),
+  columnMappings: jsonb("column_mappings").notNull(), // Map of standard fields to state-specific column names
+  dateFormat: text("date_format"), // Date format pattern used by this state
+  
+  // State-specific rules and patterns
+  filingNumberPattern: text("filing_number_pattern"), // Regex pattern for filing numbers
+  hasAdditionalFields: jsonb("additional_fields"), // State-specific fields not in standard format
+  collateralCodes: jsonb("collateral_codes"), // State-specific collateral classification codes
+  
+  // Filing type variations
+  filingTypes: jsonb("filing_types"), // State-specific filing type nomenclature
+  continuationRules: jsonb("continuation_rules"), // How continuations are handled
+  
+  // Special characteristics
+  characteristics: jsonb("characteristics"), // Array of special characteristics for this state
+  parsingHints: jsonb("parsing_hints"), // AI hints for parsing this state's format
+  
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// UCC Intelligence table for AI analysis results
+export const uccIntelligence = pgTable("ucc_intelligence", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  filingId: varchar("filing_id").references(() => uccFilings.id),
+  
+  // AI Analysis Results
+  aiAnalysis: jsonb("ai_analysis").notNull(), // Full AI analysis with all insights
+  
+  // Business Intelligence Metrics
+  debtStackingScore: integer("debt_stacking_score"), // 0-100: Higher = more stacking
+  refinancingProbability: decimal("refinancing_probability", { precision: 5, scale: 4 }), // 0-1
+  businessGrowthIndicator: text("business_growth_indicator"), // 'growing', 'stable', 'declining'
+  riskLevel: text("risk_level"), // 'low', 'moderate', 'high', 'critical'
+  
+  // Inferred Business Intelligence
+  estimatedTotalDebt: decimal("estimated_total_debt", { precision: 12, scale: 2 }),
+  debtToRevenueRatio: decimal("debt_to_revenue_ratio", { precision: 5, scale: 2 }),
+  mcaApprovalLikelihood: decimal("mca_approval_likelihood", { precision: 5, scale: 4 }), // 0-1
+  businessHealthScore: integer("business_health_score"), // 0-100
+  
+  // Industry-Specific Insights
+  financingType: text("financing_type"), // 'equipment', 'working_capital', 'real_estate', 'mixed'
+  industryInsights: jsonb("industry_insights"), // Industry-specific patterns and insights
+  
+  // Relationship Intelligence
+  entityRelationships: jsonb("entity_relationships"), // Discovered business relationships
+  ownershipStructure: jsonb("ownership_structure"), // Inferred ownership patterns
+  lenderNetwork: jsonb("lender_network"), // Network of secured parties
+  
+  // Pattern Recognition
+  filingPatterns: jsonb("filing_patterns"), // Identified patterns in filing history
+  anomalies: jsonb("anomalies"), // Unusual patterns or red flags
+  
+  // Confidence Scores
+  analysisConfidence: decimal("analysis_confidence", { precision: 5, scale: 2 }), // 0-100
+  dataQualityScore: decimal("data_quality_score", { precision: 5, scale: 2 }), // 0-100
+  
+  // Recommendations
+  recommendations: jsonb("recommendations"), // AI-generated recommendations
+  warningFlags: jsonb("warning_flags"), // Risk warnings and red flags
+  
+  analyzedAt: timestamp("analyzed_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// UCC Relationships table for lead-to-lead connections
+export const uccRelationships = pgTable("ucc_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Relationship endpoints
+  leadIdA: varchar("lead_id_a").references(() => leads.id).notNull(),
+  leadIdB: varchar("lead_id_b").references(() => leads.id).notNull(),
+  
+  // Relationship details
+  relationshipType: text("relationship_type").notNull(), // 'same_filing', 'shared_lender', 'parent_subsidiary', 'cross_collateral', 'guarantor'
+  relationshipStrength: decimal("relationship_strength", { precision: 5, scale: 2 }), // 0-100
+  
+  // Evidence and matching
+  matchingCriteria: jsonb("matching_criteria"), // What criteria matched (filing numbers, addresses, etc.)
+  confidenceScore: decimal("confidence_score", { precision: 5, scale: 2 }), // 0-100
+  
+  // Filing details that connect them
+  commonFilings: jsonb("common_filings"), // Array of filing IDs/numbers that connect them
+  commonLenders: jsonb("common_lenders"), // Shared secured parties
+  
+  // Business relationship details
+  businessRelationship: text("business_relationship"), // 'competitor', 'supplier', 'customer', 'affiliate', 'parent', 'subsidiary'
+  riskPropagation: decimal("risk_propagation", { precision: 5, scale: 2 }), // 0-100: How much risk transfers
+  
+  // Graph metadata
+  graphDistance: integer("graph_distance"), // Degrees of separation in the network
+  clusterGroup: text("cluster_group"), // Identifier for business clusters
+  
+  // Discovery metadata
+  discoveredBy: text("discovered_by"), // 'filing_match', 'name_match', 'address_match', 'ai_inference'
+  discoveredAt: timestamp("discovered_at").notNull().defaultNow(),
+  lastVerifiedAt: timestamp("last_verified_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Insert schemas for UCC Intelligence tables
+export const insertUccStateFormatSchema = createInsertSchema(uccStateFormats).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUccIntelligenceSchema = createInsertSchema(uccIntelligence).omit({
+  id: true,
+  createdAt: true,
+  analyzedAt: true,
+});
+
+export const insertUccRelationshipSchema = createInsertSchema(uccRelationships).omit({
+  id: true,
+  createdAt: true,
+  discoveredAt: true,
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -1585,3 +1714,12 @@ export type PopularSearch = typeof popularSearches.$inferSelect;
 
 export type InsertSearchSuggestion = z.infer<typeof insertSearchSuggestionSchema>;
 export type SearchSuggestion = typeof searchSuggestions.$inferSelect;
+
+export type InsertUccStateFormat = z.infer<typeof insertUccStateFormatSchema>;
+export type UccStateFormat = typeof uccStateFormats.$inferSelect;
+
+export type InsertUccIntelligence = z.infer<typeof insertUccIntelligenceSchema>;
+export type UccIntelligence = typeof uccIntelligence.$inferSelect;
+
+export type InsertUccRelationship = z.infer<typeof insertUccRelationshipSchema>;
+export type UccRelationship = typeof uccRelationships.$inferSelect;
