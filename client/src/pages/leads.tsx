@@ -25,8 +25,60 @@ import {
 } from "lucide-react";
 import { LeadIntelligenceScore, IntelligenceScoreBadge } from "@/components/LeadIntelligenceScore";
 import { EnrichmentBadge } from "@/components/EnrichmentBadge";
+import { FreshnessBadge } from "@/components/FreshnessBadge";
 import { UccLeadDetails } from "@/components/UccLeadDetails";
 import type { Lead, SavedSearch } from "@shared/schema";
+
+// FreshnessInfo component defined inline
+const FreshnessInfo = ({ uploadedAt, viewCount, lastViewedAt, freshnessScore }: {
+  uploadedAt?: string;
+  viewCount?: number;
+  lastViewedAt?: string;
+  freshnessScore?: number;
+}) => {
+  if (!uploadedAt && !freshnessScore) return null;
+  
+  const getTimeSince = (date: string) => {
+    const now = new Date();
+    const past = new Date(date);
+    const diffInMs = now.getTime() - past.getTime();
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    
+    if (diffInDays === 0) return "Today";
+    if (diffInDays === 1) return "Yesterday";
+    if (diffInDays < 7) return `${diffInDays} days ago`;
+    if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
+    return `${Math.floor(diffInDays / 30)} months ago`;
+  };
+
+  const getFreshnessCategory = (score?: number) => {
+    if (!score) return null;
+    if (score >= 90) return { text: "HOT", color: "green" as const, pulse: true, icon: "sparkles" };
+    if (score >= 70) return { text: "FRESH", color: "green" as const, pulse: false, icon: "leaf" };
+    if (score >= 40) return { text: "AGING", color: "yellow" as const, pulse: false, icon: "clock" };
+    return { text: "STALE", color: "red" as const, pulse: false, icon: "alert-triangle" };
+  };
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      {uploadedAt && (
+        <span className="flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          {getTimeSince(uploadedAt)}
+        </span>
+      )}
+      {viewCount !== undefined && (
+        <span className="flex items-center gap-1">
+          <User className="w-3 h-3" />
+          {viewCount} views
+        </span>
+      )}
+      {freshnessScore !== undefined && (
+        <FreshnessBadge badge={getFreshnessCategory(freshnessScore)} className="ml-1" />
+      )}
+    </div>
+  );
+};
 
 // Filter presets
 const FILTER_PRESETS = [
@@ -125,35 +177,52 @@ export default function LeadsPage() {
   const [selectedLeadForUcc, setSelectedLeadForUcc] = useState<Lead | null>(null);
 
   // Fetch leads with filters
-  const { data: leadsData, isLoading: leadsLoading, refetch: refetchLeads } = useQuery({
+  const { data: leadsData, isLoading: leadsLoading, isError, error, refetch: refetchLeads } = useQuery({
     queryKey: ["/api/leads", filters, page, pageSize, sortBy, sortOrder],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      
-      // Add all filters to params
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== "") {
-          if (Array.isArray(value)) {
-            params.append(key, value.join(","));
-          } else {
-            params.append(key, String(value));
+      try {
+        const params = new URLSearchParams();
+        
+        // Add all filters to params
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") {
+            if (Array.isArray(value)) {
+              params.append(key, value.join(","));
+            } else {
+              params.append(key, String(value));
+            }
           }
+        });
+        
+        // Add pagination and sorting
+        params.append("limit", String(pageSize));
+        params.append("offset", String(page * pageSize));
+        params.append("sortBy", sortBy);
+        params.append("sortOrder", sortOrder);
+        
+        if (selectedSearch) {
+          params.append("searchId", selectedSearch);
         }
-      });
-      
-      // Add pagination and sorting
-      params.append("limit", String(pageSize));
-      params.append("offset", String(page * pageSize));
-      params.append("sortBy", sortBy);
-      params.append("sortOrder", sortOrder);
-      
-      if (selectedSearch) {
-        params.append("searchId", selectedSearch);
+        
+        const url = `/api/leads?${params.toString()}`;
+        console.log("Fetching leads from:", url);
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.error("Failed to fetch leads. Response status:", response.status);
+          throw new Error(`Failed to fetch leads: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log("Leads API response:", data);
+        console.log("Leads count:", data?.leads?.length || 0);
+        console.log("Total leads:", data?.total || 0);
+        
+        return data;
+      } catch (err) {
+        console.error("Error fetching leads:", err);
+        throw err;
       }
-      
-      const response = await fetch(`/api/leads?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch leads");
-      return response.json();
     },
   });
 
@@ -291,9 +360,17 @@ export default function LeadsPage() {
     setPage(0);
   };
 
+  // Debug data structure
+  console.log("Component render - leadsData:", leadsData);
+  console.log("Component render - isLoading:", leadsLoading);
+  console.log("Component render - isError:", isError);
+  
   const leads = leadsData?.leads || [];
   const totalLeads = leadsData?.total || 0;
   const totalPages = Math.ceil(totalLeads / pageSize);
+  
+  console.log("Component render - leads array:", leads);
+  console.log("Component render - totalLeads:", totalLeads);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -901,7 +978,24 @@ export default function LeadsPage() {
 
         {/* Leads Grid */}
         <ScrollArea className="flex-1 p-4">
-          {leadsLoading ? (
+          {isError ? (
+            <div className="flex flex-col items-center justify-center h-64 text-center">
+              <XCircle className="w-12 h-12 text-destructive mb-4" />
+              <h3 className="text-lg font-medium">Failed to load leads</h3>
+              <p className="text-muted-foreground mt-2">
+                {error instanceof Error ? error.message : "An error occurred while fetching leads"}
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => refetchLeads()}
+                className="mt-4"
+                data-testid="button-retry-fetch"
+              >
+                <TrendingUp className="w-4 h-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          ) : leadsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
                 <Card key={i}>
@@ -932,9 +1026,9 @@ export default function LeadsPage() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="leads-list">
               {leads.map((lead: any) => (
-                <Card key={lead.id} className="hover-elevate relative overflow-hidden">
+                <Card key={lead.id} className="hover-elevate relative overflow-hidden" data-testid="lead-card">
                   {lead.intelligenceScore > 0 && (
                     <div className="absolute top-2 left-2 z-10">
                       <IntelligenceScoreBadge score={lead.intelligenceScore} />
@@ -1090,7 +1184,7 @@ export default function LeadsPage() {
                           setSelectedLeadForUcc(lead);
                           setUccModalOpen(true);
                         }}
-                        data-testid={`button-ucc-${lead.id}`}
+                        data-testid="button-ucc-intelligence"
                       >
                         <Shield className="w-4 h-4" />
                       </Button>
