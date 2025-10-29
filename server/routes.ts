@@ -43,6 +43,9 @@ import { insertLeadAlertSchema, insertQualityGuaranteeSchema, insertCampaignTemp
 import { campaignService } from "./services/campaign-tools";
 import { apiAuthMiddleware, rateLimitMiddleware, usageTrackingMiddleware, apiResponse, apiError, parsePagination, paginatedResponse, apiKeyManager, webhookDispatcher, cleanup as cleanupEnterpriseApi } from "./services/enterprise-api";
 import { commandCenterService } from "./services/command-center";
+import { marketInsightsService } from "./services/market-insights";
+import { predictiveScoringEngine } from "./services/predictive-scoring";
+import { insightsDashboardService } from "./services/insights-dashboard";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -4461,6 +4464,228 @@ Format your response as JSON with the following structure:
     }
   });
   
+  // ============ PREDICTIVE INSIGHTS API ENDPOINTS ============
+  
+  // GET /api/insights/market-trends - Get current market analysis
+  app.get("/api/insights/market-trends", requireAuth, async (req, res) => {
+    try {
+      const { industry, region, timeframe, forceRefresh } = req.query;
+      
+      const marketInsights = await marketInsightsService.getMarketInsights({
+        industry: industry as string | undefined,
+        region: region as string | undefined,
+        timeframe: (timeframe as 'daily' | 'weekly' | 'monthly' | 'quarterly') || 'weekly',
+        forceRefresh: forceRefresh === 'true'
+      });
+      
+      res.json({
+        success: true,
+        data: marketInsights,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Market trends error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to fetch market trends",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/insights/predictions/:leadId - Get predictions for specific lead
+  app.get("/api/insights/predictions/:leadId", requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.params;
+      const { forceRefresh } = req.query;
+      
+      const lead = await storage.getLeadById(leadId);
+      if (!lead) {
+        return res.status(404).json({ 
+          success: false,
+          error: "Lead not found" 
+        });
+      }
+      
+      const prediction = await predictiveScoringEngine.generatePredictions(lead, forceRefresh === 'true');
+      
+      res.json({
+        success: true,
+        data: {
+          leadId,
+          prediction,
+          generatedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error("Lead prediction error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to generate predictions",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/insights/portfolio-analysis - Analyze entire lead portfolio
+  app.get("/api/insights/portfolio-analysis", requireAuth, async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      
+      const portfolioAnalysis = await insightsDashboardService.analyzePortfolio(userId);
+      
+      res.json({
+        success: true,
+        data: portfolioAnalysis,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Portfolio analysis error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to analyze portfolio",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/insights/daily-brief - Get daily market brief
+  app.get("/api/insights/daily-brief", requireAuth, async (req, res) => {
+    try {
+      const { forceRefresh } = req.query;
+      const dailyBrief = await insightsDashboardService.getDailyBrief();
+      
+      res.json({
+        success: true,
+        data: dailyBrief,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Daily brief error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to generate daily brief",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/insights/opportunities - Get top opportunities based on predictions
+  app.get("/api/insights/opportunities", requireAuth, async (req, res) => {
+    try {
+      const { limit = 10, forceRefresh } = req.query;
+      
+      const opportunities = await insightsDashboardService.getTopOpportunities(
+        parseInt(limit as string, 10),
+        forceRefresh === 'true'
+      );
+      
+      res.json({
+        success: true,
+        data: {
+          opportunities,
+          count: opportunities.length,
+          generatedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error("Opportunities error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to fetch opportunities",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/insights/anomalies - Detect market anomalies
+  app.get("/api/insights/anomalies", requireAuth, async (req, res) => {
+    try {
+      const anomalies = await insightsDashboardService.detectAnomalies();
+      
+      res.json({
+        success: true,
+        data: {
+          anomalies,
+          count: anomalies.length,
+          detectedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error("Anomaly detection error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to detect anomalies",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/insights/market-timing - Get market timing recommendations
+  app.get("/api/insights/market-timing", requireAuth, async (req, res) => {
+    try {
+      const { forceRefresh } = req.query;
+      const marketTiming = await insightsDashboardService.getMarketTiming(forceRefresh === 'true');
+      
+      res.json({
+        success: true,
+        data: marketTiming,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Market timing error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to get market timing",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // POST /api/insights/predictions/batch - Generate predictions for multiple leads
+  app.post("/api/insights/predictions/batch", requireAuth, async (req, res) => {
+    try {
+      const { leadIds, forceRefresh = false } = req.body;
+      
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ 
+          success: false,
+          error: "Invalid lead IDs" 
+        });
+      }
+      
+      if (leadIds.length > 50) {
+        return res.status(400).json({ 
+          success: false,
+          error: "Maximum 50 leads per batch" 
+        });
+      }
+      
+      const predictions = await predictiveScoringEngine.batchGeneratePredictions(leadIds);
+      
+      res.json({
+        success: true,
+        data: {
+          predictions: Array.from(predictions.entries()).map(([leadId, prediction]) => ({
+            leadId,
+            prediction
+          })),
+          count: predictions.size,
+          generatedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error("Batch prediction error:", error);
+      res.status(500).json({ 
+        success: false,
+        error: "Failed to generate batch predictions",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // ============ END PREDICTIVE INSIGHTS API ENDPOINTS ============
+
   // Helper function to calculate lead velocity
   async function calculateLeadVelocity(): Promise<number> {
     try {

@@ -1217,6 +1217,177 @@ export const insertLeadScoringModelSchema = createInsertSchema(leadScoringModels
   performanceMetrics: z.record(z.any()).optional(),
 });
 
+// Market Insights table for storing analysis results
+export const marketInsights = pgTable("market_insights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  insightType: text("insight_type").notNull(), // 'industry_trend', 'seasonal', 'geographic', 'competition', 'market_saturation'
+  
+  // Analysis data
+  industry: text("industry"),
+  region: text("region"),
+  timeframe: text("timeframe"), // 'daily', 'weekly', 'monthly', 'quarterly'
+  
+  // Trend metrics
+  trendDirection: text("trend_direction"), // 'up', 'down', 'stable'
+  trendStrength: decimal("trend_strength", { precision: 5, scale: 2 }), // 0-100
+  demandIndex: decimal("demand_index", { precision: 5, scale: 2 }), // 0-100
+  supplyIndex: decimal("supply_index", { precision: 5, scale: 2 }), // 0-100
+  competitionDensity: decimal("competition_density", { precision: 5, scale: 2 }), // 0-100
+  saturationLevel: decimal("saturation_level", { precision: 5, scale: 2 }), // 0-100
+  
+  // Predictions
+  forecastedDemand: jsonb("forecasted_demand"), // Next 30/60/90 days
+  seasonalFactors: jsonb("seasonal_factors"), // Monthly seasonal multipliers
+  optimalTimeWindows: jsonb("optimal_time_windows"), // Best times to engage
+  
+  // Geographic analysis
+  geographicHotspots: jsonb("geographic_hotspots"), // Top performing regions
+  regionalOpportunities: jsonb("regional_opportunities"), // Emerging markets
+  
+  // Historical context
+  historicalData: jsonb("historical_data"), // Past trends for comparison
+  benchmarks: jsonb("benchmarks"), // Industry benchmarks
+  
+  // Metadata
+  confidence: decimal("confidence", { precision: 5, scale: 2 }), // 0-100
+  dataPoints: integer("data_points"), // Number of data points analyzed
+  analysisMetadata: jsonb("analysis_metadata"), // Detailed analysis info
+  
+  calculatedAt: timestamp("calculated_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Lead Predictions table for individual lead predictions
+export const leadPredictions = pgTable("lead_predictions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  
+  // Time predictions
+  timeToClosePrediction: integer("time_to_close_prediction"), // Days
+  timeToCloseConfidence: decimal("time_to_close_confidence", { precision: 5, scale: 2 }), // 0-100
+  optimalContactTime: jsonb("optimal_contact_time"), // Best days/times to contact
+  
+  // Deal predictions
+  dealSizePrediction: decimal("deal_size_prediction", { precision: 12, scale: 2 }),
+  dealSizeRange: jsonb("deal_size_range"), // {min, max, median}
+  dealSizeConfidence: decimal("deal_size_confidence", { precision: 5, scale: 2 }), // 0-100
+  
+  // Success predictions
+  successProbability: decimal("success_probability", { precision: 5, scale: 4 }), // 0-1
+  fundingLikelihood: decimal("funding_likelihood", { precision: 5, scale: 4 }), // 0-1
+  defaultRisk: decimal("default_risk", { precision: 5, scale: 4 }), // 0-1
+  
+  // ROI predictions
+  expectedROI: decimal("expected_roi", { precision: 10, scale: 2 }), // Percentage
+  riskAdjustedROI: decimal("risk_adjusted_roi", { precision: 10, scale: 2 }), // Percentage
+  paybackPeriod: integer("payback_period"), // Days
+  
+  // Lifecycle predictions
+  lifecycleStage: text("lifecycle_stage"), // 'awareness', 'consideration', 'decision', 'purchase', 'retention'
+  stageTransitionProbability: jsonb("stage_transition_probability"), // Probability to move to next stage
+  churnRisk: decimal("churn_risk", { precision: 5, scale: 4 }), // 0-1
+  
+  // Next best actions
+  nextBestActions: jsonb("next_best_actions"), // Array of recommended actions with priorities
+  recommendedChannels: jsonb("recommended_channels"), // Best communication channels
+  recommendedOffers: jsonb("recommended_offers"), // Personalized offer recommendations
+  
+  // Market context
+  marketPosition: jsonb("market_position"), // How this lead compares to market
+  competitiveAnalysis: jsonb("competitive_analysis"), // Competitor presence/activity
+  marketTiming: text("market_timing"), // 'early', 'optimal', 'late', 'missed'
+  
+  // Prediction metadata
+  modelVersion: text("model_version"),
+  confidence: decimal("overall_confidence", { precision: 5, scale: 2 }), // 0-100
+  factorsAnalyzed: jsonb("factors_analyzed"), // What went into the prediction
+  
+  calculatedAt: timestamp("calculated_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Insight Alerts table for automated alerts
+export const insightAlerts = pgTable("insight_alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  alertType: text("alert_type").notNull(), // 'market_opportunity', 'risk_warning', 'trend_change', 'anomaly', 'threshold'
+  severity: text("severity").notNull(), // 'info', 'warning', 'critical'
+  
+  // Alert details
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  details: jsonb("details"), // Detailed alert information
+  
+  // Context
+  industry: text("industry"),
+  region: text("region"),
+  affectedLeads: jsonb("affected_leads"), // Array of lead IDs
+  affectedCount: integer("affected_count"),
+  
+  // Thresholds and triggers
+  triggerCondition: jsonb("trigger_condition"), // What triggered this alert
+  thresholdValue: decimal("threshold_value", { precision: 10, scale: 2 }),
+  actualValue: decimal("actual_value", { precision: 10, scale: 2 }),
+  
+  // Recommendations
+  recommendations: jsonb("recommendations"), // What to do about this alert
+  actionRequired: boolean("action_required").notNull().default(false),
+  
+  // Status
+  status: text("status").notNull().default("active"), // 'active', 'acknowledged', 'resolved', 'expired'
+  acknowledgedBy: varchar("acknowledged_by").references(() => users.id),
+  acknowledgedAt: timestamp("acknowledged_at"),
+  resolvedAt: timestamp("resolved_at"),
+  
+  // Expiry
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Market Benchmarks table for comparison data
+export const marketBenchmarks = pgTable("market_benchmarks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  benchmarkType: text("benchmark_type").notNull(), // 'industry', 'regional', 'seasonal', 'size'
+  category: text("category").notNull(), // Specific category (e.g., 'restaurant', 'CA', 'Q1', 'small_business')
+  
+  // Benchmark metrics
+  avgConversionRate: decimal("avg_conversion_rate", { precision: 5, scale: 4 }), // 0-1
+  avgDealSize: decimal("avg_deal_size", { precision: 12, scale: 2 }),
+  avgTimeToClose: integer("avg_time_to_close"), // Days
+  avgCreditScore: integer("avg_credit_score"),
+  avgAnnualRevenue: decimal("avg_annual_revenue", { precision: 12, scale: 2 }),
+  
+  // Performance quartiles
+  topQuartileConversion: decimal("top_quartile_conversion", { precision: 5, scale: 4 }),
+  topQuartileDealSize: decimal("top_quartile_deal_size", { precision: 12, scale: 2 }),
+  bottomQuartileConversion: decimal("bottom_quartile_conversion", { precision: 5, scale: 4 }),
+  bottomQuartileDealSize: decimal("bottom_quartile_deal_size", { precision: 12, scale: 2 }),
+  
+  // Risk metrics
+  avgDefaultRate: decimal("avg_default_rate", { precision: 5, scale: 4 }), // 0-1
+  avgPaybackPeriod: integer("avg_payback_period"), // Days
+  riskProfile: jsonb("risk_profile"), // Detailed risk breakdown
+  
+  // Market conditions
+  marketMaturity: text("market_maturity"), // 'emerging', 'growing', 'mature', 'declining'
+  competitionLevel: text("competition_level"), // 'low', 'moderate', 'high', 'saturated'
+  growthRate: decimal("growth_rate", { precision: 5, scale: 2 }), // YoY percentage
+  
+  // Historical trends
+  historicalTrends: jsonb("historical_trends"), // Past 12 months of data
+  seasonalPatterns: jsonb("seasonal_patterns"), // Monthly patterns
+  
+  // Sample size and confidence
+  sampleSize: integer("sample_size"),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }), // 0-100
+  lastUpdated: timestamp("last_updated").notNull(),
+  
+  validFrom: timestamp("valid_from").notNull(),
+  validUntil: timestamp("valid_until").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -1322,6 +1493,11 @@ export type ApiUsage = typeof apiUsage.$inferSelect;
 
 export type InsertLeadScoringModel = z.infer<typeof insertLeadScoringModelSchema>;
 export type LeadScoringModel = typeof leadScoringModels.$inferSelect;
+
+export type MarketInsight = typeof marketInsights.$inferSelect;
+export type LeadPrediction = typeof leadPredictions.$inferSelect;
+export type InsightAlert = typeof insightAlerts.$inferSelect;
+export type MarketBenchmark = typeof marketBenchmarks.$inferSelect;
 
 export type InsertSmartSearch = z.infer<typeof insertSmartSearchSchema>;
 export type SmartSearch = typeof smartSearches.$inferSelect;

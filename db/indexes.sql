@@ -45,3 +45,51 @@ CREATE INDEX IF NOT EXISTS idx_allocations_lead_hash ON allocations(lead_hash);
 CREATE INDEX IF NOT EXISTS idx_lead_batches_status ON lead_batches(status);
 CREATE INDEX IF NOT EXISTS idx_lead_performance_status ON lead_performance(status);
 CREATE INDEX IF NOT EXISTS idx_lead_performance_purchase_id ON lead_performance(purchase_id);
+
+-- ============ PERFORMANCE OPTIMIZATION INDEXES FOR CACHING ============
+-- Added for predictive insights engine optimization
+
+-- Indexes for leadPredictions table (caching)
+CREATE INDEX IF NOT EXISTS idx_lead_predictions_lead_id ON lead_predictions(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_predictions_expires_at ON lead_predictions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_lead_predictions_created_at ON lead_predictions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_predictions_score ON lead_predictions(conversion_probability DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_predictions_combined ON lead_predictions(lead_id, expires_at);
+
+-- Indexes for marketInsights table (caching)
+CREATE INDEX IF NOT EXISTS idx_market_insights_cache_key ON market_insights(cache_key);
+CREATE INDEX IF NOT EXISTS idx_market_insights_expires_at ON market_insights(expires_at);
+CREATE INDEX IF NOT EXISTS idx_market_insights_created_at ON market_insights(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_market_insights_combined ON market_insights(cache_key, expires_at);
+
+-- Indexes for insightReports table (caching)
+CREATE INDEX IF NOT EXISTS idx_insight_reports_type ON insight_reports(report_type);
+CREATE INDEX IF NOT EXISTS idx_insight_reports_period ON insight_reports(period);
+CREATE INDEX IF NOT EXISTS idx_insight_reports_expires_at ON insight_reports(expires_at);
+CREATE INDEX IF NOT EXISTS idx_insight_reports_generated_at ON insight_reports(generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_insight_reports_status ON insight_reports(report_status);
+CREATE INDEX IF NOT EXISTS idx_insight_reports_combined ON insight_reports(report_type, expires_at, report_status);
+
+-- Indexes for leadIntelligence table
+CREATE INDEX IF NOT EXISTS idx_lead_intelligence_lead_id ON lead_intelligence(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_intelligence_score ON lead_intelligence(intelligence_score DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_intelligence_calculated_at ON lead_intelligence(calculated_at DESC);
+
+-- Indexes for verification table (caching)
+CREATE INDEX IF NOT EXISTS idx_verification_lead_id ON lead_verifications(lead_id);
+CREATE INDEX IF NOT EXISTS idx_verification_verified_at ON lead_verifications(verified_at DESC);
+CREATE INDEX IF NOT EXISTS idx_verification_status ON lead_verifications(verification_status);
+
+-- Indexes for userPurchases table
+CREATE INDEX IF NOT EXISTS idx_user_purchases_user_id ON user_purchases(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_purchases_lead_id ON user_purchases(lead_id);
+CREATE INDEX IF NOT EXISTS idx_user_purchases_purchased_at ON user_purchases(purchased_at DESC);
+
+-- Indexes for leadViews table
+CREATE INDEX IF NOT EXISTS idx_lead_views_lead_id ON lead_views(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_views_user_id ON lead_views(user_id);
+CREATE INDEX IF NOT EXISTS idx_lead_views_viewed_at ON lead_views(viewed_at DESC);
+
+-- Indexes for dailyInsights table
+CREATE INDEX IF NOT EXISTS idx_daily_insights_date ON daily_insights(insight_date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_insights_type ON daily_insights(insight_type);

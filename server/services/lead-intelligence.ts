@@ -5,6 +5,10 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { MLScoringService } from "./ml-scoring";
 import { enhancedVerificationService } from "./enhanced-verification";
 import type { EnhancedVerificationResult } from "./enhanced-verification";
+import { predictiveScoringEngine } from "./predictive-scoring";
+import type { PredictiveInsight } from "./predictive-scoring";
+import { marketInsightsService } from "./market-insights";
+import type { MarketInsightResult } from "./market-insights";
 
 export interface IntelligenceSubScores {
   quality: number;         // 0-100: Data quality and completeness
@@ -12,6 +16,8 @@ export interface IntelligenceSubScores {
   risk: number;           // 0-100: Lower is better (inverted for display)
   opportunity: number;    // 0-100: Potential value and conversion likelihood
   confidence: number;     // 0-100: Verification and data confidence level
+  predictive: number;      // 0-100: Forward-looking predictive score
+  marketTiming: number;    // 0-100: Market timing and conditions score
 }
 
 export interface IntelligenceBreakdown {
@@ -59,11 +65,13 @@ export class LeadIntelligenceService {
   
   // Weights for each sub-score in the overall intelligence score
   private readonly WEIGHTS = {
-    quality: 0.25,      // 25% - Data quality and completeness
-    freshness: 0.20,    // 20% - Lead recency and relevance
-    risk: 0.15,         // 15% - Risk assessment
-    opportunity: 0.25,  // 25% - Business opportunity potential
-    confidence: 0.15    // 15% - Verification confidence
+    quality: 0.20,      // 20% - Data quality and completeness
+    freshness: 0.15,    // 15% - Lead recency and relevance
+    risk: 0.10,         // 10% - Risk assessment
+    opportunity: 0.20,  // 20% - Business opportunity potential
+    confidence: 0.10,   // 10% - Verification confidence
+    predictive: 0.15,   // 15% - Forward-looking predictive score
+    marketTiming: 0.10  // 10% - Market timing and conditions
   };
 
   constructor() {
@@ -137,12 +145,20 @@ export class LeadIntelligenceService {
     uccData: UccFiling[],
     mlScore: any
   ): Promise<IntelligenceSubScores> {
+    // Get predictive insights and market data
+    const [predictiveInsight, marketData] = await Promise.all([
+      this.getPredictiveInsight(lead),
+      this.getMarketData(lead)
+    ]);
+
     return {
       quality: this.calculateQualityScore(lead, verification, enrichment),
       freshness: this.calculateFreshnessScore(lead, enrichment),
       risk: this.calculateRiskScore(lead, verification, uccData, mlScore),
       opportunity: this.calculateOpportunityScore(lead, enrichment, uccData, mlScore),
-      confidence: this.calculateConfidenceScore(lead, verification, enrichment)
+      confidence: this.calculateConfidenceScore(lead, verification, enrichment),
+      predictive: this.calculatePredictiveScore(lead, predictiveInsight, mlScore),
+      marketTiming: this.calculateMarketTimingScore(lead, marketData, predictiveInsight)
     };
   }
 
@@ -432,6 +448,121 @@ export class LeadIntelligenceService {
   }
 
   /**
+   * Calculate Predictive Sub-Score (0-100)
+   * Measures forward-looking potential based on predictive analytics
+   */
+  private calculatePredictiveScore(
+    lead: Lead,
+    predictiveInsight: PredictiveInsight | null,
+    mlScore: any
+  ): number {
+    if (!predictiveInsight) {
+      // Fallback to ML score if predictive insights not available
+      return mlScore?.mlQualityScore || 50;
+    }
+
+    let score = 0;
+
+    // Overall predictive score (40 points)
+    score += predictiveInsight.overallScore * 0.4;
+
+    // Success probability (20 points)
+    score += predictiveInsight.successProbability.probability * 20;
+
+    // ROI potential (20 points)
+    const roiScore = Math.min(100, Math.max(0, predictiveInsight.roi.riskAdjustedROI));
+    score += (roiScore / 100) * 20;
+
+    // Time to close score (10 points) - faster is better
+    const timeScore = Math.max(0, 100 - (predictiveInsight.timeToClose.days * 2));
+    score += (timeScore / 100) * 10;
+
+    // Competitive position (10 points)
+    const positionScore = predictiveInsight.competitivePosition === 'strong' ? 10 :
+                          predictiveInsight.competitivePosition === 'moderate' ? 6 : 3;
+    score += positionScore;
+
+    return Math.min(100, Math.round(score));
+  }
+
+  /**
+   * Calculate Market Timing Sub-Score (0-100)
+   * Measures how well-timed this lead is based on market conditions
+   */
+  private calculateMarketTimingScore(
+    lead: Lead,
+    marketData: MarketInsightResult | null,
+    predictiveInsight: PredictiveInsight | null
+  ): number {
+    let score = 50; // Start with neutral score
+
+    // Market timing from predictive insights (40 points)
+    if (predictiveInsight) {
+      if (predictiveInsight.marketTiming === 'optimal') score += 40;
+      else if (predictiveInsight.marketTiming === 'early') score += 30;
+      else if (predictiveInsight.marketTiming === 'late') score -= 10;
+      else if (predictiveInsight.marketTiming === 'missed') score -= 30;
+    }
+
+    // Market conditions (30 points)
+    if (marketData) {
+      if (marketData.overallMarketCondition === 'excellent') score += 30;
+      else if (marketData.overallMarketCondition === 'good') score += 20;
+      else if (marketData.overallMarketCondition === 'neutral') score += 10;
+      else if (marketData.overallMarketCondition === 'challenging') score -= 10;
+      else if (marketData.overallMarketCondition === 'poor') score -= 20;
+
+      // Industry-specific timing (20 points)
+      const industryTrend = marketData.industryTrends.find(
+        t => t.industry === lead.industry
+      );
+      if (industryTrend) {
+        if (industryTrend.trendDirection === 'up') score += 20;
+        else if (industryTrend.trendDirection === 'stable') score += 10;
+        else if (industryTrend.trendDirection === 'down') score -= 10;
+      }
+
+      // Regional timing (10 points)
+      const regionHotspot = marketData.geographicHotspots.find(
+        h => h.region === lead.stateCode
+      );
+      if (regionHotspot && regionHotspot.opportunityScore > 70) {
+        score += 10;
+      }
+    }
+
+    return Math.min(100, Math.max(0, Math.round(score)));
+  }
+
+  /**
+   * Get predictive insights for a lead
+   */
+  private async getPredictiveInsight(lead: Lead): Promise<PredictiveInsight | null> {
+    try {
+      return await predictiveScoringEngine.generatePredictions(lead);
+    } catch (error) {
+      console.error('[LeadIntelligence] Failed to get predictive insights:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get market data relevant to the lead
+   */
+  private async getMarketData(lead: Lead): Promise<MarketInsightResult | null> {
+    try {
+      return await marketInsightsService.getMarketInsights({
+        industry: lead.industry || undefined,
+        region: lead.stateCode || undefined,
+        timeframe: 'weekly'
+      });
+    } catch (error) {
+      console.error('[LeadIntelligence] Failed to get market insights:', error);
+      return null;
+    }
+  }
+
+  /**
    * Calculate weighted overall score
    */
   private calculateWeightedScore(subScores: IntelligenceSubScores): number {
@@ -444,7 +575,9 @@ export class LeadIntelligenceService {
       (subScores.freshness * this.WEIGHTS.freshness) +
       (invertedRisk * this.WEIGHTS.risk) +
       (subScores.opportunity * this.WEIGHTS.opportunity) +
-      (subScores.confidence * this.WEIGHTS.confidence);
+      (subScores.confidence * this.WEIGHTS.confidence) +
+      (subScores.predictive * this.WEIGHTS.predictive) +
+      (subScores.marketTiming * this.WEIGHTS.marketTiming);
     
     return Math.round(weightedSum);
   }
