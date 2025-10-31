@@ -44,6 +44,9 @@ export class EnhancedVerificationService {
   private readonly CACHE_DURATION_HOURS = 72; // Cache verification for 3 days
   private readonly MIN_CONFIDENCE_THRESHOLD = 60; // Minimum confidence for "verified" status
   private readonly PARTIAL_CONFIDENCE_THRESHOLD = 30; // Minimum for "partial" status
+  private readonly MAX_RETRIES = 3;
+  private readonly RETRY_DELAY_MS = 1000;
+  private readonly RATE_LIMIT_DELAY_MS = 100; // 100ms between API calls
   
   /**
    * Perform comprehensive real-time verification of a lead
@@ -169,29 +172,68 @@ export class EnhancedVerificationService {
   }
   
   /**
-   * Verify email using Hunter.io API
+   * Retry logic with exponential backoff
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    operationName: string
+  ): Promise<T | null> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        // Add rate limiting delay between attempts
+        if (attempt > 1) {
+          const delay = this.RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        console.warn(`[EnhancedVerification] ${operationName} attempt ${attempt}/${this.MAX_RETRIES} failed:`, error.message);
+        
+        // Don't retry on certain errors
+        if (error.message?.includes('Invalid API key') || 
+            error.message?.includes('Rate limit exceeded')) {
+          break;
+        }
+      }
+    }
+    
+    console.error(`[EnhancedVerification] ${operationName} failed after ${this.MAX_RETRIES} attempts:`, lastError);
+    return null;
+  }
+
+  /**
+   * Verify email using Hunter.io API with retry logic
    */
   private async verifyEmail(email: string): Promise<HunterEmailVerification | null> {
-    try {
-      const result = await hunterService.verifyEmail(email);
-      return result;
-    } catch (error) {
-      console.error(`[EnhancedVerification] Email verification failed for ${email}:`, error);
+    if (!email || !email.includes('@')) {
       return null;
     }
+    
+    return this.retryWithBackoff(
+      () => hunterService.verifyEmail(email),
+      `Email verification for ${email}`
+    );
   }
   
   /**
-   * Verify phone using Numverify API
+   * Verify phone using Numverify API with retry logic
    */
   private async verifyPhone(phone: string, countryCode: string = 'US'): Promise<PhoneValidationResult | null> {
-    try {
-      const result = await numverifyService.validatePhone(phone, countryCode);
-      return result;
-    } catch (error) {
-      console.error(`[EnhancedVerification] Phone verification failed for ${phone}:`, error);
+    if (!phone || phone.length < 10) {
       return null;
     }
+    
+    // Clean phone number
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    return this.retryWithBackoff(
+      () => numverifyService.validatePhone(cleanPhone, countryCode),
+      `Phone verification for ${cleanPhone}`
+    );
   }
   
   /**
