@@ -147,6 +147,7 @@ class UccParserService {
     insights: string[];
   }> {
     const allRecords: UccRecord[] = [];
+    const allContinuations: ContinuationRecord[] = [];
     const processedFileNumbers = new Set<string>();
     const insights: string[] = [];
     let filesProcessed = 0;
@@ -155,7 +156,7 @@ class UccParserService {
     const MAX_RECORDS_PER_FILE = 50000;
     const MAX_TOTAL_RECORDS = 100000;
     
-    // Process each file
+    // Process each file - collect ALL records and continuations BEFORE linking
     for (const file of files) {
       try {
         let parseResult: UccParseResult;
@@ -165,10 +166,11 @@ class UccParserService {
         
         if (file.name.toLowerCase().endsWith('.csv')) {
           const csvContent = fileBuffer.toString('utf8');
-          parseResult = await this.parseUccCsv(csvContent);
+          // Parse without linking continuations yet
+          parseResult = await this.parseUccCsvRaw(csvContent);
         } else if (file.name.toLowerCase().endsWith('.xlsx') || 
                    file.name.toLowerCase().endsWith('.xls')) {
-          parseResult = await this.parseUccExcel(fileBuffer);
+          parseResult = await this.parseUccExcelRaw(fileBuffer);
         } else {
           console.log(`Skipping unsupported file: ${file.name}`);
           continue;
@@ -190,8 +192,10 @@ class UccParserService {
           }
           
           allRecords.push(...recordsToAdd);
+          // Also collect continuation records separately
+          allContinuations.push(...parseResult.continuationRecords);
           filesProcessed++;
-          console.log(`Processed ${file.name}: ${recordsToAdd.length} records (total: ${allRecords.length})`);
+          console.log(`Processed ${file.name}: ${recordsToAdd.length} regular records, ${parseResult.continuationRecords.length} continuations (total: ${allRecords.length} regular, ${allContinuations.length} continuations)`);
           
           // Stop processing more files if we've reached the limit
           if (allRecords.length >= MAX_TOTAL_RECORDS) {
@@ -209,9 +213,15 @@ class UccParserService {
       }
     }
     
+    // NOW link continuations across ALL files
+    console.log(`Linking ${allContinuations.length} continuation records to ${allRecords.length} original filings across all files...`);
+    const linkingResult = this.linkContinuationsToOriginals(allRecords, allContinuations);
+    const enrichedRecords = linkingResult.enrichedRecords;
+    console.log(`Successfully linked ${linkingResult.linkedCount} continuations. Orphaned: ${allContinuations.length - linkingResult.linkedCount}`);
+    
     // Deduplicate and merge records (with batching to prevent stack overflow)
-    const mergedRecords = this.deduplicateAndMerge(allRecords);
-    const duplicatesRemoved = allRecords.length - mergedRecords.length;
+    const mergedRecords = this.deduplicateAndMerge(enrichedRecords);
+    const duplicatesRemoved = enrichedRecords.length - mergedRecords.length;
     
     // Calculate statistics
     const uniqueDebtors = new Set(mergedRecords.map(r => 
@@ -316,9 +326,9 @@ class UccParserService {
   }
 
   /**
-   * Parse CSV file containing UCC data
+   * Parse CSV file containing UCC data (without linking continuations)
    */
-  async parseUccCsv(csvContent: string): Promise<UccParseResult> {
+  async parseUccCsvRaw(csvContent: string): Promise<UccParseResult> {
     return new Promise((resolve) => {
       const result: UccParseResult = {
         success: false,
@@ -385,24 +395,8 @@ class UccParserService {
             }
           }
           
-          // Link continuations to original filings
-          const linkingResult = this.linkContinuationsToOriginals(result.records, result.continuationRecords);
-          result.records = linkingResult.enrichedRecords;
-          result.linkedContinuations = linkingResult.linkedCount;
-          result.summary.linkedContinuations = linkingResult.linkedCount;
-          result.summary.orphanedContinuations = result.continuationRecords.length - linkingResult.linkedCount;
-          
-          // Calculate active financing relationships
-          result.summary.activeFinancingRelationships = result.records.filter(r => 
-            r.continuationCount && r.continuationCount > 0 && r.filingType !== 'termination'
-          ).length;
-          
-          // Calculate recent financing activity (continuations in last 6 months)
-          const sixMonthsAgo = new Date();
-          sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-          result.summary.recentFinancingActivity = result.continuationRecords.filter(c => 
-            c.filingDate && c.filingDate >= sixMonthsAgo
-          ).length;
+          // Don't link continuations here - will be done across all files later
+          result.summary.continuationRecords = result.continuationRecords.length;
           
           result.success = (result.records.length > 0 || result.continuationRecords.length > 0);
           resolve(result);
@@ -416,9 +410,9 @@ class UccParserService {
   }
 
   /**
-   * Parse Excel file containing UCC data
+   * Parse Excel file containing UCC data (without linking continuations)
    */
-  async parseUccExcel(buffer: Buffer): Promise<UccParseResult> {
+  async parseUccExcelRaw(buffer: Buffer): Promise<UccParseResult> {
     const result: UccParseResult = {
       success: false,
       records: [],
@@ -485,7 +479,55 @@ class UccParserService {
         }
       }
       
-      // Link continuations to original filings
+      // Don't link continuations here - will be done across all files later
+      result.summary.continuationRecords = result.continuationRecords.length;
+      
+      result.success = (result.records.length > 0 || result.continuationRecords.length > 0);
+    } catch (error: any) {
+      result.errors.push(`Excel parse error: ${error.message}`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse CSV file containing UCC data (with continuation linking for single file)
+   */
+  async parseUccCsv(csvContent: string): Promise<UccParseResult> {
+    const result = await this.parseUccCsvRaw(csvContent);
+    
+    if (result.success && result.records.length > 0) {
+      // Link continuations within this file
+      const linkingResult = this.linkContinuationsToOriginals(result.records, result.continuationRecords);
+      result.records = linkingResult.enrichedRecords;
+      result.linkedContinuations = linkingResult.linkedCount;
+      result.summary.linkedContinuations = linkingResult.linkedCount;
+      result.summary.orphanedContinuations = result.continuationRecords.length - linkingResult.linkedCount;
+      
+      // Calculate active financing relationships
+      result.summary.activeFinancingRelationships = result.records.filter(r => 
+        r.continuationCount && r.continuationCount > 0 && r.filingType !== 'termination'
+      ).length;
+      
+      // Calculate recent financing activity (continuations in last 6 months)
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      result.summary.recentFinancingActivity = result.continuationRecords.filter(c => 
+        c.filingDate && c.filingDate >= sixMonthsAgo
+      ).length;
+    }
+    
+    return result;
+  }
+
+  /**
+   * Parse Excel file containing UCC data (with continuation linking for single file)
+   */
+  async parseUccExcel(buffer: Buffer): Promise<UccParseResult> {
+    const result = await this.parseUccExcelRaw(buffer);
+    
+    if (result.success && result.records.length > 0) {
+      // Link continuations within this file
       const linkingResult = this.linkContinuationsToOriginals(result.records, result.continuationRecords);
       result.records = linkingResult.enrichedRecords;
       result.linkedContinuations = linkingResult.linkedCount;
@@ -503,12 +545,8 @@ class UccParserService {
       result.summary.recentFinancingActivity = result.continuationRecords.filter(c => 
         c.filingDate && c.filingDate >= sixMonthsAgo
       ).length;
-      
-      result.success = (result.records.length > 0 || result.continuationRecords.length > 0);
-    } catch (error: any) {
-      result.errors.push(`Excel parse error: ${error.message}`);
     }
-
+    
     return result;
   }
 
