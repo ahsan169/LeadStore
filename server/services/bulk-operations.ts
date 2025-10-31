@@ -58,41 +58,41 @@ export class BulkOperationsService {
       tierName: "Starter Volume",
       minQuantity: 100,
       maxQuantity: 499,
-      discountPercentage: 5,
-      description: "5% off for 100-499 leads"
+      discountPercentage: 30,
+      description: "30% off for 100-499 leads - $7 per lead"
     },
     {
       tierName: "Growth Package",
       minQuantity: 500,
       maxQuantity: 999,
-      discountPercentage: 10,
-      description: "10% off for 500-999 leads"
+      discountPercentage: 50,
+      description: "50% off for 500-999 leads - $5 per lead"
     },
     {
       tierName: "Scale Package",
       minQuantity: 1000,
       maxQuantity: 2499,
-      discountPercentage: 15,
-      description: "15% off for 1,000-2,499 leads"
+      discountPercentage: 70,
+      description: "70% off for 1,000-2,499 leads - $3 per lead"
     },
     {
       tierName: "Enterprise Package",
       minQuantity: 2500,
       maxQuantity: 4999,
-      discountPercentage: 20,
-      description: "20% off for 2,500-4,999 leads"
+      discountPercentage: 80,
+      description: "80% off for 2,500-4,999 leads - $2 per lead"
     },
     {
       tierName: "Custom Enterprise",
       minQuantity: 5000,
       maxQuantity: null,
-      discountPercentage: 25,
-      description: "25% off + custom pricing for 5,000+ leads"
+      discountPercentage: 90,
+      description: "90% off for 5,000+ leads - $1 per lead"
     }
   ];
 
-  // Base pricing per lead (can be adjusted based on business model)
-  private basePricePerLead = 10; // $10 per lead
+  // Base pricing per lead (now affordable with aggressive bulk discounts)
+  private basePricePerLead = 10; // $10 base price, but heavy discounts bring it down to $1-10 average
 
   constructor() {}
 

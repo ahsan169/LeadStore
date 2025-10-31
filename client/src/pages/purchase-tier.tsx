@@ -12,8 +12,8 @@ import { ArrowLeft } from "lucide-react";
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 const TIER_DETAILS = {
-  starter: { name: "Starter", price: 997, leads: 100 },
-  pro: { name: "Pro", price: 2997, leads: 500 },
+  starter: { name: "Starter", price: 700, leads: 100 }, // $7 per lead with 30% bulk discount
+  pro: { name: "Pro", price: 2500, leads: 500 }, // $5 per lead with 50% bulk discount
 };
 
 function CheckoutForm({ purchaseId, tier }: { purchaseId: string; tier: string }) {

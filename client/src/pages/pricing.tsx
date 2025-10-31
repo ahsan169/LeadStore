@@ -269,14 +269,14 @@ export default function PricingPage() {
                   <TableHead className="text-center">
                     <div className="space-y-1">
                       <div className="font-semibold">Starter</div>
-                      <div className="text-sm text-muted-foreground">$997/month</div>
+                      <div className="text-sm text-muted-foreground">$700/100 leads</div>
                     </div>
                   </TableHead>
                   <TableHead className="text-center bg-primary/5">
                     <div className="space-y-1">
                       <div className="font-semibold">Pro</div>
                       <Badge variant="secondary" className="text-xs">RECOMMENDED</Badge>
-                      <div className="text-sm text-muted-foreground">$2,997/month</div>
+                      <div className="text-sm text-muted-foreground">$2,500/500 leads</div>
                     </div>
                   </TableHead>
                 </TableRow>
