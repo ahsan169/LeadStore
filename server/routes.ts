@@ -28,6 +28,7 @@ import { gte, lte, and, sql, eq } from "drizzle-orm";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
+import { uccIntelligenceExtractor } from "./services/ucc-intelligence-extractor";
 import { WebSocketServer, WebSocket } from 'ws';
 import { leadAlertService, addAlertClient } from "./services/lead-alerts";
 import { leadEnrichmentService } from "./services/lead-enrichment";
@@ -141,6 +142,60 @@ const COLUMN_MAPPINGS = {
     'creditrating', 'credit_rating', 'score', 'personal credit',
     'personal credit score', 'personalcreditscore', 'personal_credit_score',
     'credit', 'fico rating', 'credit points', 'owner credit score'
+  ],
+  // UCC-specific fields for comprehensive intelligence
+  uccNumber: [
+    'ucc_number', 'ucc number', 'uccnumber', 'ucc-number', 'filing number',
+    'filing_number', 'filingnumber', 'file number', 'file_number', 
+    'document number', 'doc_number', 'reference number'
+  ],
+  filingDate: [
+    'filing_date', 'filing date', 'filingdate', 'filing-date',
+    'date filed', 'date_filed', 'filed date', 'filed_date',
+    'file date', 'file_date', 'effective date'
+  ],
+  filingType: [
+    'filing_type', 'filing type', 'filingtype', 'filing-type',
+    'amend_type', 'amend type', 'amendtype', 'amendment type',
+    'transaction type', 'doc type', 'document type'
+  ],
+  expireDate: [
+    'expire_date', 'expire date', 'expiredate', 'expire-date',
+    'expiration date', 'expiration_date', 'expiry date', 'expiry_date',
+    'lapse date', 'lapse_date', 'termination date'
+  ],
+  amendDate: [
+    'amend_date', 'amend date', 'amenddate', 'amend-date',
+    'amendment date', 'amendment_date', 'modification date',
+    'continuation date', 'continuation_date'
+  ],
+  securedParties: [
+    'secured_parties', 'secured parties', 'securedparties', 'secured-parties',
+    'lender', 'lenders', 'creditor', 'creditors', 'secured party',
+    'secured_party', 'financing party', 'financing_party', 'assignee'
+  ],
+  lenderCount: [
+    'lender_count', 'lender count', 'lendercount', 'lender-count',
+    'number of lenders', 'secured party count', 'creditor count',
+    'party count', 'parties count'
+  ],
+  filingCount: [
+    'filing_count', 'filing count', 'filingcount', 'filing-count',
+    'number of filings', 'total filings', 'filing total',
+    'position count', 'positions'
+  ],
+  suggestedPrice: [
+    'suggested_price', 'suggested price', 'suggestedprice', 'suggested-price',
+    'price', 'value', 'lead price', 'lead_price', 'cost'
+  ],
+  notes: [
+    'notes', 'comments', 'remarks', 'additional info', 'additional_info',
+    'metadata', 'details', 'description'
+  ],
+  recencyBucket: [
+    'recency_bucket', 'recency bucket', 'recencybucket', 'recency-bucket',
+    'age bucket', 'age_bucket', 'filing age', 'filing_age',
+    'time bucket', 'time_bucket', 'age category'
   ],
   stateCode: [
     'statecode', 'state code', 'state_code', 'state-code',
@@ -692,11 +747,76 @@ function normalizeLeadData(row: any, debug: boolean = false): any {
   normalized.exclusivityStatus = normalized.exclusivityStatus || 'non_exclusive';
   normalized.leadAge = normalized.leadAge || 0;
   
+  // Check if this is UCC data and extract intelligence
+  const hasUccData = normalized.uccNumber || normalized.securedParties || 
+                     normalized.filingDate || normalized.lenderCount ||
+                     unmappedFields.ucc_number || unmappedFields.secured_parties;
+  
+  if (hasUccData) {
+    // Combine normalized and unmapped data for UCC intelligence extraction
+    const uccData = {
+      ...normalized,
+      ...unmappedFields,
+      // Ensure proper field mapping for UCC extractor
+      debtor_name: normalized.businessName || unmappedFields.debtor_name,
+      secured_parties: normalized.securedParties || unmappedFields.secured_parties,
+      filing_date: normalized.filingDate || unmappedFields.filing_date,
+      filing_type: normalized.filingType || unmappedFields.filing_type,
+      filing_count: normalized.filingCount || unmappedFields.filing_count,
+      lender_count: normalized.lenderCount || unmappedFields.lender_count,
+      expire_date: normalized.expireDate || unmappedFields.expire_date,
+      amend_date: normalized.amendDate || unmappedFields.amend_date,
+      suggested_price: normalized.suggestedPrice || unmappedFields.suggested_price,
+      score: normalized.creditScore || unmappedFields.score,
+      state: normalized.stateCode || unmappedFields.state,
+      notes: normalized.notes || unmappedFields.notes
+    };
+    
+    // Extract UCC intelligence
+    const intelligence = uccIntelligenceExtractor.extractIntelligence(uccData);
+    
+    // Add extracted owner name if not already present
+    if (!normalized.ownerName && intelligence.ownerName) {
+      normalized.ownerName = intelligence.ownerName;
+    }
+    
+    // Add UCC-specific fields
+    normalized.primaryLenderType = intelligence.primaryLenderType;
+    normalized.hasMultipleMcaPositions = intelligence.hasMultipleMcaPositions;
+    normalized.activePositions = intelligence.activePositions;
+    normalized.terminatedPositions = intelligence.terminatedPositions;
+    normalized.lastFilingDate = intelligence.lastFilingDate;
+    normalized.filingSpanDays = intelligence.filingSpanDays;
+    normalized.stackingRisk = intelligence.stackingRisk;
+    normalized.businessMaturity = intelligence.businessMaturity;
+    
+    // Store estimated revenue if not already present
+    if (!normalized.annualRevenue && intelligence.estimatedAnnualRevenue) {
+      normalized.annualRevenue = String(intelligence.estimatedAnnualRevenue);
+      normalized.estimatedRevenue = intelligence.estimatedAnnualRevenue;
+      normalized.revenueConfidence = intelligence.revenueConfidenceScore + '%';
+    }
+    
+    // Store the full intelligence object for reference
+    normalized.uccIntelligence = uccIntelligenceExtractor.formatIntelligence(intelligence);
+    
+    if (debug) {
+      console.log('UCC Intelligence extracted:', {
+        ownerName: intelligence.ownerName,
+        primaryLenderType: intelligence.primaryLenderType,
+        estimatedRevenue: intelligence.estimatedAnnualRevenue,
+        stackingRisk: intelligence.stackingRisk,
+        activePositions: intelligence.activePositions
+      });
+    }
+  }
+  
   if (debug) {
     console.log('Column mapping result:', {
       mapped: Object.keys(normalized),
       unmapped: Object.keys(unmappedFields),
-      phoneFields: phoneFieldsFound
+      phoneFields: phoneFieldsFound,
+      hasUccData: hasUccData
     });
   }
   

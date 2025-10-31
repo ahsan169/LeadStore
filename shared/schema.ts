@@ -113,6 +113,25 @@ export const leads = pgTable("leads", {
   lastActivatedAt: timestamp("last_activated_at"),
   activationCount: integer("activation_count").notNull().default(0),
   
+  // UCC Intelligence fields
+  uccNumber: text("ucc_number"),
+  filingDate: timestamp("filing_date"),
+  filingType: text("filing_type"),
+  expireDate: timestamp("expire_date"),
+  amendDate: timestamp("amend_date"),
+  securedParties: text("secured_parties"),
+  lenderCount: integer("lender_count"),
+  filingCount: integer("filing_count"),
+  primaryLenderType: text("primary_lender_type"), // 'mca', 'traditional', 'mixed', 'unknown'
+  hasMultipleMcaPositions: boolean("has_multiple_mca").default(false),
+  activePositions: integer("active_positions"),
+  terminatedPositions: integer("terminated_positions"),
+  lastFilingDate: timestamp("last_filing_date"),
+  filingSpanDays: integer("filing_span_days"),
+  stackingRisk: text("stacking_risk"), // 'high', 'medium', 'low'
+  businessMaturity: text("business_maturity"), // 'new', 'growing', 'established', 'mature'
+  uccIntelligence: jsonb("ucc_intelligence"), // Full intelligence object
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
