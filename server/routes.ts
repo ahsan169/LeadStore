@@ -8034,6 +8034,56 @@ Time: ${preferredTime || 'Any time'}`);
     }
   });
   
+  // POST /api/ucc/connect - Upload UCC filing and connect to matching leads
+  app.post("/api/ucc/connect", requireAuth, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      
+      const fileContent = req.file.buffer.toString('utf-8');
+      const rows = await csv(fileContent);
+      
+      if (!rows || rows.length === 0) {
+        return res.status(400).json({ error: "No data found in the uploaded file" });
+      }
+      
+      console.log('[UCC Connect] Processing', rows.length, 'UCC filings');
+      
+      // Import the UCC-lead connector service
+      const { uccLeadConnector } = await import('./services/ucc-lead-connector');
+      
+      // Process each UCC filing and connect to leads
+      const results = await uccLeadConnector.processBatchUccFilings(rows);
+      
+      console.log('[UCC Connect] Results:', {
+        processed: results.processed,
+        matched: results.matched,
+        enriched: results.enriched,
+        errors: results.errors.length
+      });
+      
+      res.json({
+        success: true,
+        message: `Processed ${results.processed} UCC filings`,
+        stats: {
+          totalProcessed: results.processed,
+          leadsMatched: results.matched,
+          leadsEnriched: results.enriched,
+          errors: results.errors.length
+        },
+        errors: results.errors
+      });
+      
+    } catch (error: any) {
+      console.error("[UCC Connect] Error:", error);
+      res.status(500).json({ 
+        error: "Failed to process UCC filings", 
+        details: error.message 
+      });
+    }
+  });
+  
   // Process UCC filing with full intelligence
   app.post("/api/ucc/intelligence/upload", requireAuth, upload.single('file'), async (req, res) => {
     try {
