@@ -423,7 +423,7 @@ export default function ManageGuaranteesPage() {
                   <SelectValue placeholder="Select a replacement lead" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No Replacement (Credit Only)</SelectItem>
+                  <SelectItem value="none">No Replacement (Credit Only)</SelectItem>
                   {availableLeads?.map((lead: any) => (
                     <SelectItem key={lead.id} value={lead.id}>
                       Lead {lead.id.slice(0, 8)}... - {lead.businessName}

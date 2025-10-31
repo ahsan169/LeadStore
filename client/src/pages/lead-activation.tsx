@@ -571,7 +571,7 @@ export default function LeadActivation() {
                         <SelectValue placeholder="Choose a template" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No template</SelectItem>
+                        <SelectItem value="none">No template</SelectItem>
                         {campaignTemplates.map((template) => (
                           <SelectItem key={template.id} value={template.id}>
                             {template.name}
@@ -601,7 +601,7 @@ export default function LeadActivation() {
                         <SelectValue placeholder="Choose CRM" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">No CRM export</SelectItem>
+                        <SelectItem value="none">No CRM export</SelectItem>
                         {crmIntegrations.map((crm) => (
                           <SelectItem key={crm.id} value={crm.id}>
                             {crm.name} ({crm.provider})
