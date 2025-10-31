@@ -2267,7 +2267,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .filter(p => p.riskScore > 70)
           .slice(0, 10);
         
-        // Save UCC filings to database
+        // Save UCC filings to database in batches (to avoid stack overflow)
         console.log(`Saving ${processingResult.mergedRecords.length} UCC filings to database...`);
         const uccFilingsToSave = processingResult.mergedRecords.map(record => ({
           leadId: null, // Will be updated later when matched to leads
@@ -2283,7 +2283,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         let savedFilings: any[] = [];
         try {
-          savedFilings = await storage.createUccFilings(uccFilingsToSave);
+          // Insert in batches of 1000 to avoid stack overflow
+          const BATCH_SIZE = 1000;
+          for (let i = 0; i < uccFilingsToSave.length; i += BATCH_SIZE) {
+            const batch = uccFilingsToSave.slice(i, i + BATCH_SIZE);
+            const batchResults = await storage.createUccFilings(batch);
+            savedFilings.push(...batchResults);
+            console.log(`Saved UCC batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(uccFilingsToSave.length / BATCH_SIZE)} (${batchResults.length} filings)`);
+          }
           console.log(`Successfully saved ${savedFilings.length} UCC filings to database`);
         } catch (error) {
           console.error('Error saving UCC filings:', error);
@@ -2292,8 +2299,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Create a batch for UCC-sourced leads
         const uccBatch = await storage.createLeadBatch({
-          source: 'UCC Import',
-          fileName: files.map(f => f.name).join(', '),
+          filename: files.map(f => f.name).join(', '),
+          storageKey: `ucc-import-${Date.now()}`,
           totalLeads: processingResult.summary.uniqueDebtors,
           uploadedBy: req.user!.id,
           status: 'processing',
