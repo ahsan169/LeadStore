@@ -63,9 +63,11 @@ export default function LeadActivation() {
   });
 
   // Fetch leads
-  const { data: leads = [], isLoading: leadsLoading } = useQuery<Lead[]>({
+  const { data: leadsData, isLoading: leadsLoading } = useQuery<{ leads: Lead[], total: string }>({
     queryKey: ["/api/leads"]
   });
+  
+  const leads = leadsData?.leads || [];
 
   // Fetch CRM integrations
   const { data: crmIntegrations = [] } = useQuery<CrmIntegration[]>({
