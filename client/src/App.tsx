@@ -24,6 +24,7 @@ import TiersPage from "@/pages/admin/tiers";
 import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
 import ManageGuaranteesPage from "@/pages/admin/manage-guarantees";
 import BulkManagementPage from "@/pages/admin/bulk-management";
+import UccManagerPage from "@/pages/admin/ucc-manager";
 import AnalyticsPage from "@/pages/analytics";
 import IntegrationsPage from "@/pages/integrations";
 import AlertsPage from "@/pages/alerts";
@@ -126,6 +127,7 @@ function AppSidebar() {
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Smart Search", url: "/smart-search", icon: Search },
     { title: "UCC Intelligence", url: "/ucc-intelligence", icon: Shield },
+    { title: "UCC Manager", url: "/admin/ucc-manager", icon: FileSearch },
     { title: "Upload Leads", url: "/admin/upload", icon: Upload },
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
     { title: "Quality Guarantees", url: "/admin/manage-guarantees", icon: ShieldCheck },
@@ -280,6 +282,7 @@ function Router() {
                 <>
                   <Route path="/admin" component={AdminDashboardPage} />
                   <Route path="/admin/dashboard" component={AdminDashboardPage} />
+                  <Route path="/admin/ucc-manager" component={UccManagerPage} />
                   <Route path="/admin/upload" component={UploadLeadsPage} />
                   <Route path="/admin/verify-leads" component={VerifyLeadsPage} />
                   <Route path="/admin/leads" component={ManageLeadsPage} />
