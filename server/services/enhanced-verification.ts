@@ -6,6 +6,7 @@ import { hunterService } from "./enrichment/hunter-service";
 import { numverifyService } from "../numverify-service";
 import type { HunterEmailVerification } from "./enrichment/hunter-service";
 import type { PhoneValidationResult } from "../numverify-service";
+import { cacheManager } from "./cache-manager";
 
 export interface VerificationConfidenceFactors {
   emailDeliverable: boolean;
@@ -206,21 +207,41 @@ export class EnhancedVerificationService {
   }
 
   /**
-   * Verify email using Hunter.io API with retry logic
+   * Verify email using Hunter.io API with retry logic and caching
    */
   private async verifyEmail(email: string): Promise<HunterEmailVerification | null> {
     if (!email || !email.includes('@')) {
       return null;
     }
     
-    return this.retryWithBackoff(
+    // Check cache first
+    const cacheKey = `email:${email}`;
+    const cached = await cacheManager.get<HunterEmailVerification>(
+      'hunter-verification',
+      cacheKey
+    );
+    
+    if (cached) {
+      console.log(`[EnhancedVerification] Using cached email verification for ${email}`);
+      return cached;
+    }
+    
+    // Verify with retry logic
+    const result = await this.retryWithBackoff(
       () => hunterService.verifyEmail(email),
       `Email verification for ${email}`
     );
+    
+    // Cache successful verification
+    if (result) {
+      await cacheManager.set('hunter-verification', cacheKey, result);
+    }
+    
+    return result;
   }
   
   /**
-   * Verify phone using Numverify API with retry logic
+   * Verify phone using Numverify API with retry logic and caching
    */
   private async verifyPhone(phone: string, countryCode: string = 'US'): Promise<PhoneValidationResult | null> {
     if (!phone || phone.length < 10) {
@@ -230,10 +251,30 @@ export class EnhancedVerificationService {
     // Clean phone number
     const cleanPhone = phone.replace(/\D/g, '');
     
-    return this.retryWithBackoff(
+    // Check cache first
+    const cacheKey = `phone:${cleanPhone}:${countryCode}`;
+    const cached = await cacheManager.get<PhoneValidationResult>(
+      'numverify-validation',
+      cacheKey
+    );
+    
+    if (cached) {
+      console.log(`[EnhancedVerification] Using cached phone validation for ${cleanPhone}`);
+      return cached;
+    }
+    
+    // Verify with retry logic
+    const result = await this.retryWithBackoff(
       () => numverifyService.validatePhone(cleanPhone, countryCode),
       `Phone verification for ${cleanPhone}`
     );
+    
+    // Cache successful validation
+    if (result) {
+      await cacheManager.set('numverify-validation', cacheKey, result);
+    }
+    
+    return result;
   }
   
   /**
