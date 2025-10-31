@@ -506,6 +506,14 @@ export interface IStorage {
   }>;
   getUccStateFormats(): Promise<UccStateFormat[]>;
   
+  // UCC-Lead matching operations
+  findLeadsByUccNumber(uccNumber: string): Promise<Lead[]>;
+  searchLeadsByBusinessName(businessName: string): Promise<Lead[]>;
+  searchLeadsByOwnerAndState(ownerName: string, state: string): Promise<Lead[]>;
+  searchLeadsByLocationAndIndustry(city: string, state: string, industry: string): Promise<Lead[]>;
+  linkUccFilingToLead(uccFilingId: string, leadId: string): Promise<void>;
+  getLeadById(id: string): Promise<Lead | undefined>;
+  
   // Lead Activation History operations
   createLeadActivationHistory(data: any): Promise<any>;
   getLeadActivationHistory(leadId: string): Promise<any[]>;
@@ -2522,6 +2530,69 @@ export class DbStorage implements IStorage {
   
   async getCrmIntegrations(): Promise<CrmIntegration[]> {
     return db.select().from(crmIntegrations).orderBy(desc(crmIntegrations.createdAt));
+  }
+  
+  // UCC-Lead matching operations
+  async findLeadsByUccNumber(uccNumber: string): Promise<Lead[]> {
+    return db.select().from(leads)
+      .where(eq(leads.uccNumber, uccNumber))
+      .orderBy(desc(leads.createdAt));
+  }
+  
+  async searchLeadsByBusinessName(businessName: string): Promise<Lead[]> {
+    // Fuzzy search by business name
+    const searchTerm = `%${businessName.toLowerCase()}%`;
+    return db.select().from(leads)
+      .where(sql`LOWER(${leads.businessName}) LIKE ${searchTerm}`)
+      .limit(50)
+      .orderBy(desc(leads.qualityScore));
+  }
+  
+  async searchLeadsByOwnerAndState(ownerName: string, state: string): Promise<Lead[]> {
+    const ownerSearchTerm = `%${ownerName.toLowerCase()}%`;
+    return db.select().from(leads)
+      .where(and(
+        sql`LOWER(${leads.ownerName}) LIKE ${ownerSearchTerm}`,
+        eq(leads.state, state)
+      ))
+      .limit(20)
+      .orderBy(desc(leads.qualityScore));
+  }
+  
+  async searchLeadsByLocationAndIndustry(city: string, state: string, industry: string): Promise<Lead[]> {
+    const conditions = [];
+    
+    if (city) {
+      conditions.push(sql`LOWER(${leads.city}) = ${city.toLowerCase()}`);
+    }
+    if (state) {
+      conditions.push(eq(leads.state, state));
+    }
+    if (industry) {
+      const industrySearchTerm = `%${industry.toLowerCase()}%`;
+      conditions.push(sql`LOWER(${leads.industry}) LIKE ${industrySearchTerm}`);
+    }
+    
+    if (conditions.length === 0) return [];
+    
+    return db.select().from(leads)
+      .where(and(...conditions))
+      .limit(20)
+      .orderBy(desc(leads.qualityScore));
+  }
+  
+  async linkUccFilingToLead(uccFilingId: string, leadId: string): Promise<void> {
+    // Update the UCC filing with the lead ID
+    await db.update(uccFilings)
+      .set({ leadId })
+      .where(eq(uccFilings.id, uccFilingId));
+  }
+  
+  async getLeadById(id: string): Promise<Lead | undefined> {
+    const result = await db.select().from(leads)
+      .where(eq(leads.id, id))
+      .limit(1);
+    return result[0];
   }
 }
 
