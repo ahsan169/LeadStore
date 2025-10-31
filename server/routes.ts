@@ -76,7 +76,8 @@ const COLUMN_MAPPINGS = {
     'company name', 'companyname', 'company_name', 'company-name', 
     'company', 'business', 'dba', 'legal name', 'legal_name',
     'firm name', 'firm_name', 'organization', 'corp', 'corporation',
-    'enterprise', 'establishment', 'vendor', 'merchant', 'merchant name'
+    'enterprise', 'establishment', 'vendor', 'merchant', 'merchant name',
+    'debtor', 'debtor name', 'debtor_name', 'debtor-name'
   ],
   ownerName: [
     'ownername', 'owner name', 'owner_name', 'owner-name',
@@ -152,7 +153,8 @@ const COLUMN_MAPPINGS = {
     'address', 'street address', 'streetaddress', 'street_address',
     'street', 'business address', 'businessaddress', 'business_address',
     'location address', 'address1', 'address 1', 'address_1',
-    'street1', 'street 1', 'street_1', 'main address', 'physical address'
+    'street1', 'street 1', 'street_1', 'main address', 'physical address',
+    'full address', 'full_address', 'fulladdress', 'full-address'
   ],
   city: [
     'city', 'town', 'municipality', 'business city', 'businesscity',
