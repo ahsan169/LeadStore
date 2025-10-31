@@ -4,6 +4,7 @@ import type { Lead, LeadPrediction, MarketBenchmark } from "@shared/schema";
 import { eq, and, gte, lte, sql, desc, avg, count } from "drizzle-orm";
 import { MLScoringService } from "./ml-scoring";
 import { marketInsightsService } from "./market-insights";
+import { cacheManager } from "./cache-manager";
 
 export interface TimeToClosePrediction {
   days: number;
@@ -212,14 +213,27 @@ export class PredictiveScoringEngine {
   }
 
   /**
-   * Get cached prediction from database
+   * Get cached prediction using CacheManager
    */
   private async getCachedPrediction(leadId: string): Promise<PredictiveInsight | null> {
+    // Try CacheManager first
+    const cacheKey = `lead:${leadId}`;
+    const cached = await cacheManager.get<PredictiveInsight>(
+      'predictive-analytics',
+      cacheKey
+    );
+    
+    if (cached) {
+      console.log(`[PredictiveScoring] Cache hit for prediction ${leadId}`);
+      return cached;
+    }
+    
+    // Fall back to database
     try {
       const now = new Date();
       
       // Query for cached predictions that haven't expired
-      const cached = await db
+      const dbCached = await db
         .select()
         .from(leadPredictions)
         .where(
@@ -230,11 +244,11 @@ export class PredictiveScoringEngine {
         )
         .limit(1);
 
-      if (cached.length === 0) {
+      if (dbCached.length === 0) {
         return null;
       }
 
-      const cachedData = cached[0];
+      const cachedData = dbCached[0];
       
       // Reconstruct the PredictiveInsight from cached data
       return {
