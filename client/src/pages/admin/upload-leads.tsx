@@ -472,17 +472,7 @@ export default function UploadLeadsPage() {
           </h1>
           <p className="text-muted-foreground">Upload and process new MCA leads</p>
         </div>
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={handleGenerateTestLeads}
-          disabled={generatingTestLeads}
-          className="gap-2"
-          data-testid="button-generate-test-leads"
-        >
-          <Sparkles className="w-4 h-4" />
-          {generatingTestLeads ? "Generating..." : "Generate Test Leads"}
-        </Button>
+        {/* Test data generation removed - working with real data only */}
       </div>
 
       {/* Progress Indicator */}
