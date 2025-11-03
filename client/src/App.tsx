@@ -38,7 +38,8 @@ import SmartSearchPage from "@/pages/smart-search";
 import MLScoringPage from "@/pages/ml-scoring";
 import CommandCenterPage from "@/pages/command-center";
 import UccIntelligencePage from "@/pages/ucc-intelligence";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket, FileSearch } from "lucide-react";
+import LeadEnrichmentManagerPage from "@/pages/admin/lead-enrichment-manager";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket, FileSearch, Brain } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -127,6 +128,7 @@ function AppSidebar() {
     { title: "Lead Discovery", url: "/leads", icon: Search },
     { title: "Smart Search", url: "/smart-search", icon: Search },
     { title: "UCC Intelligence", url: "/ucc-intelligence", icon: Shield },
+    { title: "Lead Enrichment", url: "/admin/lead-enrichment", icon: Brain },
     { title: "UCC Manager", url: "/admin/ucc-manager", icon: FileSearch },
     { title: "Upload Leads", url: "/admin/upload", icon: Upload },
     { title: "Manage Leads", url: "/admin/leads", icon: Database },
@@ -282,6 +284,7 @@ function Router() {
                 <>
                   <Route path="/admin" component={AdminDashboardPage} />
                   <Route path="/admin/dashboard" component={AdminDashboardPage} />
+                  <Route path="/admin/lead-enrichment" component={LeadEnrichmentManagerPage} />
                   <Route path="/admin/ucc-manager" component={UccManagerPage} />
                   <Route path="/admin/upload" component={UploadLeadsPage} />
                   <Route path="/admin/verify-leads" component={VerifyLeadsPage} />
