@@ -441,6 +441,8 @@ export interface IStorage {
   getLeadEnrichmentsByBatchId(batchId: string): Promise<LeadEnrichment[]>;
   updateLeadEnrichment(leadId: string, data: Partial<InsertLeadEnrichment>): Promise<LeadEnrichment | undefined>;
   deleteLeadEnrichment(leadId: string): Promise<void>;
+  getLeadsNeedingEnrichment(minCompletionScore: number, limit: number): Promise<Lead[]>;
+  updateLeadEnrichmentStatus(leadId: string, status: string): Promise<void>;
   getEnrichmentStats(): Promise<{
     totalEnriched: number;
     averageConfidence: number;
@@ -1926,6 +1928,60 @@ export class DbStorage implements IStorage {
     await db.delete(leadEnrichment).where(eq(leadEnrichment.leadId, leadId));
   }
   
+  async getLeadsNeedingEnrichment(minCompletionScore: number, limit: number): Promise<Lead[]> {
+    // Get leads that have low completion scores or are missing critical fields
+    const leads = await db.select().from(leads)
+      .where(and(
+        eq(leads.sold, false), // Only unsold leads
+        or(
+          // Not enriched recently (30+ days old)
+          and(
+            isNotNull(leads.lastEnrichedAt),
+            lte(leads.lastEnrichedAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+          ),
+          // Never enriched
+          isNull(leads.lastEnrichedAt),
+          // Low enrichment confidence
+          lte(leads.enrichmentConfidence, minCompletionScore),
+          // Missing critical fields
+          or(
+            isNull(leads.ownerName),
+            eq(leads.ownerName, ''),
+            isNull(leads.email),
+            eq(leads.email, ''),
+            isNull(leads.annualRevenue),
+            and(isNull(leads.estimatedRevenue), eq(leads.annualRevenue, '')),
+            isNull(leads.websiteUrl),
+            eq(leads.websiteUrl, '')
+          ),
+          // Status indicates need for enrichment
+          or(
+            eq(leads.enrichmentStatus, 'pending'),
+            eq(leads.enrichmentStatus, 'failed'),
+            isNull(leads.enrichmentStatus)
+          )
+        )
+      ))
+      .orderBy(
+        // Prioritize by intelligence score (lower score = higher priority for enrichment)
+        asc(leads.intelligenceScore),
+        // Then by last enriched date (older = higher priority)
+        asc(leads.lastEnrichedAt)
+      )
+      .limit(limit);
+    
+    return leads;
+  }
+
+  async updateLeadEnrichmentStatus(leadId: string, status: string): Promise<void> {
+    await db.update(leads)
+      .set({ 
+        enrichmentStatus: status,
+        lastEnrichedAt: status === 'completed' ? new Date() : undefined
+      })
+      .where(eq(leads.id, leadId));
+  }
+
   async getEnrichmentStats(): Promise<{
     totalEnriched: number;
     averageConfidence: number;

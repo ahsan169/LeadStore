@@ -93,6 +93,14 @@ export const leads = pgTable("leads", {
   researchInsights: jsonb("research_insights"),
   lastEnrichedAt: timestamp("last_enriched_at"),
   
+  // Enrichment tracking fields
+  enrichmentConfidence: integer("enrichment_confidence").default(0), // 0-100 confidence score
+  enrichmentSources: jsonb("enrichment_sources"), // Array of data sources used
+  enrichmentStatus: text("enrichment_status").default("pending"), // 'pending', 'processing', 'completed', 'failed'
+  fullAddress: text("full_address"), // Complete address from enrichment
+  businessDescription: text("business_description"), // Company description from enrichment
+  city: text("city"), // City from enrichment
+  
   // ML scoring fields
   mlQualityScore: integer("ml_quality_score").default(0), // 0-100
   conversionProbability: decimal("conversion_probability", { precision: 5, scale: 4 }), // 0.0000-1.0000

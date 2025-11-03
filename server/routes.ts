@@ -52,6 +52,10 @@ import { commandCenterService } from "./services/command-center";
 import { marketInsightsService } from "./services/market-insights";
 import { predictiveScoringEngine } from "./services/predictive-scoring";
 import { insightsDashboardService } from "./services/insights-dashboard";
+import { leadCompletionAnalyzer } from "./services/lead-completion-analyzer";
+import { enrichmentQueue } from "./services/enrichment-queue";
+import { eventBus } from "./services/event-bus";
+import { registerEnrichmentQueueRoutes } from "./routes/enrichment-queue-routes";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1028,6 +1032,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize Command Center WebSocket server
   commandCenterService.initializeWebSocketServer(server);
   
+  // Register enrichment queue management routes
+  registerEnrichmentQueueRoutes(app);
+  
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -1470,6 +1477,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (alertError) {
         console.error('Error checking alerts:', alertError);
         // Don't fail the upload if alert checking fails
+      }
+      
+      // Auto-enrich incomplete leads
+      try {
+        console.log(`[Auto-Enrichment] Analyzing ${createdLeads.length} new leads for enrichment`);
+        let queuedCount = 0;
+        
+        for (const lead of createdLeads) {
+          // Analyze lead completion
+          const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(lead);
+          
+          // Queue for enrichment if incomplete
+          if (analysis.completionScore < 80 && analysis.canBeAutoEnriched) {
+            const priority = analysis.enrichmentPriority === 'high' ? 'high' : 
+                           analysis.enrichmentPriority === 'medium' ? 'medium' : 'low';
+            
+            await enrichmentQueue.addToQueue(
+              lead,
+              priority,
+              'upload',
+              { 
+                userId: req.user!.id,
+                batchId: batch.id
+              }
+            );
+            
+            queuedCount++;
+            console.log(`[Auto-Enrichment] Queued lead ${lead.id} (${analysis.completionScore}% complete)`);
+          }
+        }
+        
+        if (queuedCount > 0) {
+          console.log(`[Auto-Enrichment] Queued ${queuedCount} leads for automatic enrichment`);
+        }
+        
+        // Emit event for tracking
+        eventBus.emit('lead:batch-uploaded', {
+          batchId: batch.id,
+          leadCount: createdLeads.length,
+          userId: req.user!.id
+        });
+      } catch (enrichmentError) {
+        console.error('[Auto-Enrichment] Error queuing leads for enrichment:', enrichmentError);
+        // Don't fail the upload if enrichment queueing fails
       }
 
       // Calculate tier distribution
@@ -4093,6 +4144,40 @@ Format your response as JSON with the following structure:
       
       if (!updatedLead) {
         return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      // Check if lead data is stale and needs enrichment
+      try {
+        const lastEnrichedAt = updatedLead.lastEnrichedAt ? new Date(updatedLead.lastEnrichedAt) : null;
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const isStale = !lastEnrichedAt || lastEnrichedAt < thirtyDaysAgo;
+        
+        if (isStale || updatedLead.enrichmentConfidence < 70) {
+          // Analyze lead completion
+          const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(updatedLead);
+          
+          // Queue for enrichment if incomplete
+          if (analysis.completionScore < 90 && analysis.canBeAutoEnriched) {
+            await enrichmentQueue.addToQueue(
+              updatedLead,
+              'low', // Low priority for view-triggered enrichment
+              'view',
+              { userId: req.user!.id }
+            );
+            
+            console.log(`[Auto-Enrichment] Lead ${leadId} queued for enrichment (viewed, ${analysis.completionScore}% complete)`);
+          }
+        }
+        
+        // Emit event for tracking
+        eventBus.emit('lead:viewed', {
+          leadId,
+          leadData: updatedLead,
+          userId: req.user!.id
+        });
+      } catch (enrichmentError) {
+        console.error(`[Auto-Enrichment] Error checking enrichment for lead ${leadId}:`, enrichmentError);
+        // Don't fail the view tracking if enrichment check fails
       }
       
       res.json({ 
