@@ -240,11 +240,87 @@ export class EnrichmentQueue {
       // Update rate limit counters
       this.updateRateLimitCounters();
       
-      // Perform enrichment
-      const result = await this.enricher.enrichSingleLead(
-        item.leadData,
-        item.enrichmentOptions || {}
-      );
+      let result: EnrichmentResult;
+      
+      // Check if we should use master enrichment orchestrator
+      const useOrchestrator = item.enrichmentOptions?.useOrchestrator || 
+                             (item as any).useOrchestrator || 
+                             (item as any).metadata?.useOrchestrator;
+      
+      if (useOrchestrator) {
+        console.log(`[EnrichmentQueue] Using Master Enrichment Orchestrator for lead ${item.leadId}`);
+        
+        // Import and use master orchestrator
+        const { masterEnrichmentOrchestrator } = await import('./master-enrichment-orchestrator');
+        
+        // Convert lead data for orchestrator
+        const leadForOrchestrator = {
+          ...item.leadData,
+          id: item.leadId
+        } as Lead;
+        
+        // Execute master orchestration
+        const orchestratorResult = await masterEnrichmentOrchestrator.enrichLead(leadForOrchestrator, {
+          source: item.source || 'queue',
+          userId: item.userId,
+          priority: item.priority,
+          forceRefresh: item.enrichmentOptions?.forceRefresh || false,
+          cascadeDepth: (item as any).metadata?.cascadeDepth || 2
+        });
+        
+        // Convert orchestrator result to EnrichmentResult format
+        result = {
+          businessName: orchestratorResult.businessName,
+          ownerName: orchestratorResult.ownerName,
+          email: orchestratorResult.email,
+          phone: orchestratorResult.phone,
+          secondaryPhone: orchestratorResult.secondaryPhone,
+          industry: orchestratorResult.industry,
+          annualRevenue: orchestratorResult.annualRevenue,
+          estimatedRevenue: orchestratorResult.estimatedRevenue,
+          revenueConfidence: orchestratorResult.revenueConfidence,
+          requestedAmount: orchestratorResult.requestedAmount,
+          timeInBusiness: orchestratorResult.timeInBusiness,
+          yearsInBusiness: orchestratorResult.yearsInBusiness,
+          creditScore: orchestratorResult.creditScore,
+          websiteUrl: orchestratorResult.websiteUrl,
+          linkedinUrl: orchestratorResult.linkedinUrl,
+          companySize: orchestratorResult.companySize,
+          employeeCount: orchestratorResult.employeeCount,
+          yearFounded: orchestratorResult.yearFounded,
+          naicsCode: orchestratorResult.naicsCode,
+          stateCode: orchestratorResult.stateCode,
+          city: orchestratorResult.city,
+          fullAddress: orchestratorResult.fullAddress,
+          ownerBackground: orchestratorResult.ownerBackground,
+          businessDescription: orchestratorResult.businessDescription,
+          researchInsights: orchestratorResult.researchInsights,
+          confidenceScores: {
+            overall: orchestratorResult.masterEnrichmentScore || 0,
+            businessInfo: orchestratorResult.dataCompleteness?.businessInfo || 0,
+            contactInfo: orchestratorResult.dataCompleteness?.contactInfo || 0,
+            financialInfo: orchestratorResult.dataCompleteness?.financialInfo || 0
+          },
+          enrichmentMetadata: {
+            sources: orchestratorResult.enrichmentSystems || [],
+            timestamp: new Date().toISOString(),
+            dataPoints: orchestratorResult.enrichmentMetadata?.dataPointsEnriched || 0,
+            apiCalls: orchestratorResult.enrichmentMetadata?.apiCalls || 0,
+            cacheHits: orchestratorResult.enrichmentMetadata?.cacheHits || 0,
+            totalDuration: orchestratorResult.enrichmentMetadata?.totalDuration || (Date.now() - startTime)
+          }
+        } as EnrichmentResult;
+        
+        console.log(`[EnrichmentQueue] Master Enrichment completed - Score: ${orchestratorResult.masterEnrichmentScore}`);
+        
+      } else {
+        // Use standard enrichment
+        console.log(`[EnrichmentQueue] Using standard enrichment for lead ${item.leadId}`);
+        result = await this.enricher.enrichSingleLead(
+          item.leadData,
+          item.enrichmentOptions || {}
+        );
+      }
       
       // Save enriched data
       await this.saveEnrichedData(item, result);
@@ -265,7 +341,8 @@ export class EnrichmentQueue {
         queueId: item.id,
         leadId: item.leadId,
         result,
-        processingTime: Date.now() - startTime
+        processingTime: Date.now() - startTime,
+        usedOrchestrator: useOrchestrator
       });
       
     } catch (error) {

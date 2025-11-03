@@ -153,6 +153,22 @@ export interface IStorage {
   updateFreshnessScores(): Promise<void>;
   getLeadsByFreshness(category: string): Promise<Lead[]>;
   
+  // Master Enrichment operations
+  getLeadsByEnrichmentScore(minScore: number, maxScore?: number): Promise<Lead[]>;
+  getLeadsNeedingEnrichment(limit?: number): Promise<Lead[]>;
+  updateLeadMasterEnrichment(leadId: string, enrichmentData: {
+    masterEnrichmentScore: number;
+    dataCompleteness: any;
+    enrichmentCascadeDepth: number;
+    dataLineage: any;
+  }): Promise<Lead | undefined>;
+  getEnrichmentAnalytics(): Promise<{
+    totalEnriched: number;
+    averageScore: number;
+    averageCompleteness: number;
+    systemUsage: Record<string, number>;
+  }>;
+  
   // Lead Intelligence Score operations
   calculateAndUpdateIntelligenceScore(leadId: string): Promise<Lead | undefined>;
   batchCalculateIntelligenceScores(leadIds: string[]): Promise<void>;
@@ -794,6 +810,95 @@ export class DbStorage implements IStorage {
     
     const leadIds = leadsToScore.map(lead => lead.id);
     await this.batchCalculateIntelligenceScores(leadIds);
+  }
+
+  // Master Enrichment operations
+  async getLeadsByEnrichmentScore(minScore: number, maxScore?: number): Promise<Lead[]> {
+    const conditions = [
+      gte(leads.masterEnrichmentScore, minScore),
+      eq(leads.sold, false)
+    ];
+    
+    if (maxScore !== undefined) {
+      conditions.push(lte(leads.masterEnrichmentScore, maxScore));
+    }
+    
+    return db.select()
+      .from(leads)
+      .where(and(...conditions))
+      .orderBy(desc(leads.masterEnrichmentScore));
+  }
+  
+  async getLeadsNeedingEnrichment(limit: number = 100): Promise<Lead[]> {
+    return db.select()
+      .from(leads)
+      .where(and(
+        eq(leads.sold, false),
+        or(
+          isNull(leads.masterEnrichmentScore),
+          lte(leads.masterEnrichmentScore, 50),
+          sql`${leads.lastMasterEnrichmentAt} < NOW() - INTERVAL '7 days'`
+        )
+      ))
+      .orderBy(asc(leads.masterEnrichmentScore))
+      .limit(limit);
+  }
+  
+  async updateLeadMasterEnrichment(leadId: string, enrichmentData: {
+    masterEnrichmentScore: number;
+    dataCompleteness: any;
+    enrichmentCascadeDepth: number;
+    dataLineage: any;
+  }): Promise<Lead | undefined> {
+    const result = await db.update(leads)
+      .set({
+        masterEnrichmentScore: enrichmentData.masterEnrichmentScore,
+        dataCompleteness: enrichmentData.dataCompleteness,
+        enrichmentCascadeDepth: enrichmentData.enrichmentCascadeDepth,
+        dataLineage: enrichmentData.dataLineage,
+        lastMasterEnrichmentAt: new Date()
+      })
+      .where(eq(leads.id, leadId))
+      .returning();
+    
+    return result[0];
+  }
+  
+  async getEnrichmentAnalytics(): Promise<{
+    totalEnriched: number;
+    averageScore: number;
+    averageCompleteness: number;
+    systemUsage: Record<string, number>;
+  }> {
+    const result = await db.select({
+      totalEnriched: sql<number>`count(*) filter (where ${leads.masterEnrichmentScore} is not null)::int`,
+      averageScore: sql<number>`avg(${leads.masterEnrichmentScore})::numeric`,
+      averageCompleteness: sql<number>`avg((${leads.dataCompleteness}->>'overall')::numeric)::numeric`
+    }).from(leads);
+    
+    // Get system usage from enrichment sources
+    const systemUsageResult = await db.select({
+      systems: leads.enrichmentSources
+    })
+    .from(leads)
+    .where(isNotNull(leads.enrichmentSources));
+    
+    // Count system usage
+    const systemUsage: Record<string, number> = {};
+    for (const row of systemUsageResult) {
+      if (row.systems && Array.isArray(row.systems)) {
+        for (const system of row.systems) {
+          systemUsage[system] = (systemUsage[system] || 0) + 1;
+        }
+      }
+    }
+    
+    return {
+      totalEnriched: result[0]?.totalEnriched || 0,
+      averageScore: Number(result[0]?.averageScore || 0),
+      averageCompleteness: Number(result[0]?.averageCompleteness || 0),
+      systemUsage
+    };
   }
 
   // Lead Aging operations

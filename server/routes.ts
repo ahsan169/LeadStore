@@ -56,6 +56,7 @@ import { leadCompletionAnalyzer } from "./services/lead-completion-analyzer";
 import { enrichmentQueue } from "./services/enrichment-queue";
 import { eventBus } from "./services/event-bus";
 import { registerEnrichmentQueueRoutes } from "./routes/enrichment-queue-routes";
+import { masterEnrichmentOrchestrator } from "./services/master-enrichment-orchestrator";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1479,47 +1480,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the upload if alert checking fails
       }
       
-      // Auto-enrich incomplete leads
+      // Auto-enrich all leads using Master Enrichment Orchestrator
       try {
-        console.log(`[Auto-Enrichment] Analyzing ${createdLeads.length} new leads for enrichment`);
+        console.log(`[Master Enrichment] Processing ${createdLeads.length} new leads for automatic enrichment`);
+        let enrichedCount = 0;
         let queuedCount = 0;
         
-        for (const lead of createdLeads) {
-          // Analyze lead completion
-          const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(lead);
+        // Process leads in batches for better performance
+        const batchSize = 10;
+        for (let i = 0; i < createdLeads.length; i += batchSize) {
+          const batch = createdLeads.slice(i, Math.min(i + batchSize, createdLeads.length));
           
-          // Queue for enrichment if incomplete
-          if (analysis.completionScore < 80 && analysis.canBeAutoEnriched) {
-            const priority = analysis.enrichmentPriority === 'high' ? 'high' : 
-                           analysis.enrichmentPriority === 'medium' ? 'medium' : 'low';
-            
-            await enrichmentQueue.addToQueue(
-              lead,
-              priority,
-              'upload',
-              { 
-                userId: req.user!.id,
-                batchId: batch.id
+          // Process batch in parallel
+          await Promise.all(batch.map(async (lead) => {
+            try {
+              // Analyze lead completion first
+              const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(lead);
+              
+              // Determine priority based on lead quality and completeness
+              const priority = lead.qualityScore >= 80 ? 'high' :
+                             lead.qualityScore >= 70 ? 'medium' : 'low';
+              
+              // Always enrich leads to maximize data quality
+              // Even "complete" leads can benefit from verification and additional data
+              if (analysis.completionScore < 95 || !lead.masterEnrichmentScore || lead.masterEnrichmentScore < 80) {
+                // Queue for async enrichment through master orchestrator
+                await enrichmentQueue.addToQueue(
+                  lead,
+                  priority,
+                  'upload',
+                  { 
+                    userId: req.user!.id,
+                    batchId: batch.id,
+                    useOrchestrator: true,  // Flag to use master enrichment orchestrator
+                    cascadeDepth: 3,       // Allow deep enrichment cascades
+                    forceRefresh: false
+                  }
+                );
+                queuedCount++;
+                console.log(`[Master Enrichment] Queued lead ${lead.id} for orchestrated enrichment (${analysis.completionScore}% complete, priority: ${priority})`);
               }
-            );
-            
-            queuedCount++;
-            console.log(`[Auto-Enrichment] Queued lead ${lead.id} (${analysis.completionScore}% complete)`);
-          }
+            } catch (error) {
+              console.error(`[Master Enrichment] Error processing lead ${lead.id}:`, error);
+            }
+          }));
         }
         
         if (queuedCount > 0) {
-          console.log(`[Auto-Enrichment] Queued ${queuedCount} leads for automatic enrichment`);
+          console.log(`[Master Enrichment] Queued ${queuedCount} leads for master enrichment orchestration`);
         }
         
         // Emit event for tracking
         eventBus.emit('lead:batch-uploaded', {
           batchId: batch.id,
           leadCount: createdLeads.length,
-          userId: req.user!.id
+          userId: req.user!.id,
+          enrichmentQueued: queuedCount
         });
       } catch (enrichmentError) {
-        console.error('[Auto-Enrichment] Error queuing leads for enrichment:', enrichmentError);
+        console.error('[Master Enrichment] Error queuing leads for orchestrated enrichment:', enrichmentError);
         // Don't fail the upload if enrichment queueing fails
       }
 
@@ -8170,6 +8189,193 @@ Time: ${preferredTime || 'Any time'}`);
     } catch (error) {
       console.error("Error testing webhook:", error);
       res.status(500).json({ error: "Failed to test webhook" });
+    }
+  });
+
+  // ==========================================
+  // Master Enrichment Endpoints
+  // ==========================================
+  
+  // Trigger master enrichment for a single lead
+  app.post("/api/master/enrich", requireAuth, async (req, res) => {
+    try {
+      const { leadId, priority = "medium", forceRefresh = false } = req.body;
+      
+      if (!leadId) {
+        return res.status(400).json({ error: "Lead ID is required" });
+      }
+      
+      const lead = await storage.getLead(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      // Trigger master enrichment
+      const result = await masterEnrichmentOrchestrator.enrichLead(lead, {
+        source: 'api',
+        userId: req.user!.id,
+        priority: priority as 'high' | 'medium' | 'low',
+        forceRefresh
+      });
+      
+      res.json({
+        success: true,
+        leadId,
+        enrichmentScore: result.masterEnrichmentScore,
+        completeness: result.dataCompleteness,
+        systemsUsed: result.enrichmentSystems.length,
+        duration: result.enrichmentMetadata.totalDuration
+      });
+    } catch (error) {
+      console.error("Error in master enrichment:", error);
+      res.status(500).json({ error: "Failed to enrich lead" });
+    }
+  });
+  
+  // Get enrichment status and statistics
+  app.get("/api/master/status", requireAuth, async (req, res) => {
+    try {
+      const stats = masterEnrichmentOrchestrator.getStatistics();
+      const config = masterEnrichmentOrchestrator.getConfiguration();
+      const analytics = await storage.getEnrichmentAnalytics();
+      
+      res.json({
+        status: "active",
+        statistics: stats,
+        configuration: config,
+        analytics: analytics,
+        queueStatus: enrichmentQueue.getQueueStats()
+      });
+    } catch (error) {
+      console.error("Error fetching enrichment status:", error);
+      res.status(500).json({ error: "Failed to fetch status" });
+    }
+  });
+  
+  // Configure enrichment preferences
+  app.post("/api/master/configure", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const config = req.body;
+      
+      // Validate configuration
+      const validConfig: any = {};
+      if (config.enableUccIntelligence !== undefined) validConfig.enableUccIntelligence = config.enableUccIntelligence;
+      if (config.enableLeadIntelligence !== undefined) validConfig.enableLeadIntelligence = config.enableLeadIntelligence;
+      if (config.enableComprehensiveEnrichment !== undefined) validConfig.enableComprehensiveEnrichment = config.enableComprehensiveEnrichment;
+      if (config.enableVerification !== undefined) validConfig.enableVerification = config.enableVerification;
+      if (config.enablePerplexityResearch !== undefined) validConfig.enablePerplexityResearch = config.enablePerplexityResearch;
+      if (config.enableOpenAI !== undefined) validConfig.enableOpenAI = config.enableOpenAI;
+      if (config.cascadeDepthLimit !== undefined) validConfig.cascadeDepthLimit = config.cascadeDepthLimit;
+      if (config.confidenceThreshold !== undefined) validConfig.confidenceThreshold = config.confidenceThreshold;
+      if (config.parallelProcessingLimit !== undefined) validConfig.parallelProcessingLimit = config.parallelProcessingLimit;
+      
+      masterEnrichmentOrchestrator.updateConfiguration(validConfig);
+      
+      res.json({
+        success: true,
+        updatedConfig: masterEnrichmentOrchestrator.getConfiguration()
+      });
+    } catch (error) {
+      console.error("Error updating enrichment configuration:", error);
+      res.status(500).json({ error: "Failed to update configuration" });
+    }
+  });
+  
+  // Get enrichment analytics and accuracy metrics
+  app.get("/api/master/analytics", requireAuth, async (req, res) => {
+    try {
+      const analytics = await storage.getEnrichmentAnalytics();
+      const stats = masterEnrichmentOrchestrator.getStatistics();
+      
+      // Calculate accuracy metrics for each system
+      const systemAccuracy: Record<string, number> = {};
+      for (const [system, data] of stats.systemAccuracy) {
+        systemAccuracy[system] = data.total > 0 ? (data.correct / data.total) * 100 : 0;
+      }
+      
+      res.json({
+        totalEnriched: analytics.totalEnriched,
+        averageEnrichmentScore: analytics.averageScore,
+        averageCompleteness: analytics.averageCompleteness,
+        systemUsage: analytics.systemUsage,
+        systemAccuracy,
+        totalApiCalls: stats.totalApiCalls,
+        averageEnrichmentTime: stats.averageEnrichmentTime,
+        cacheHitRate: stats.cacheHits / Math.max(1, stats.totalCacheAttempts)
+      });
+    } catch (error) {
+      console.error("Error fetching enrichment analytics:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+  
+  // Batch enrichment endpoint
+  app.post("/api/master/enrich-batch", requireAuth, async (req, res) => {
+    try {
+      const { leadIds, priority = "medium" } = req.body;
+      
+      if (!leadIds || !Array.isArray(leadIds)) {
+        return res.status(400).json({ error: "Lead IDs array is required" });
+      }
+      
+      if (leadIds.length > 100) {
+        return res.status(400).json({ error: "Maximum 100 leads per batch" });
+      }
+      
+      // Add leads to enrichment queue
+      const queueIds = [];
+      for (const leadId of leadIds) {
+        const lead = await storage.getLead(leadId);
+        if (lead) {
+          const queueId = await enrichmentQueue.addToQueue(lead, priority as 'high' | 'medium' | 'low', 'api', {
+            userId: req.user!.id
+          });
+          queueIds.push({ leadId, queueId });
+        }
+      }
+      
+      res.json({
+        success: true,
+        queued: queueIds.length,
+        queueIds
+      });
+    } catch (error) {
+      console.error("Error in batch enrichment:", error);
+      res.status(500).json({ error: "Failed to queue batch enrichment" });
+    }
+  });
+  
+  // Get leads by enrichment quality
+  app.get("/api/master/leads-by-quality", requireAuth, async (req, res) => {
+    try {
+      const minScore = parseInt(req.query.minScore as string) || 0;
+      const maxScore = req.query.maxScore ? parseInt(req.query.maxScore as string) : undefined;
+      
+      const leads = await storage.getLeadsByEnrichmentScore(minScore, maxScore);
+      
+      res.json({
+        total: leads.length,
+        leads: leads.slice(0, 100) // Limit to 100 for performance
+      });
+    } catch (error) {
+      console.error("Error fetching leads by enrichment quality:", error);
+      res.status(500).json({ error: "Failed to fetch leads" });
+    }
+  });
+  
+  // Get leads needing enrichment
+  app.get("/api/master/leads-needing-enrichment", requireAuth, async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const leads = await storage.getLeadsNeedingEnrichment(limit);
+      
+      res.json({
+        total: leads.length,
+        leads
+      });
+    } catch (error) {
+      console.error("Error fetching leads needing enrichment:", error);
+      res.status(500).json({ error: "Failed to fetch leads" });
     }
   });
 

@@ -121,6 +121,13 @@ export const leads = pgTable("leads", {
   lastActivatedAt: timestamp("last_activated_at"),
   activationCount: integer("activation_count").notNull().default(0),
   
+  // Master Enrichment Orchestration fields
+  masterEnrichmentScore: integer("master_enrichment_score").default(0), // 0-100 unified score from all systems
+  dataCompleteness: jsonb("data_completeness"), // { overall, businessInfo, contactInfo, financialInfo, uccInfo, verificationInfo }
+  enrichmentCascadeDepth: integer("enrichment_cascade_depth").default(0), // How many cascade steps were performed
+  dataLineage: jsonb("data_lineage"), // Track which source provided which data
+  lastMasterEnrichmentAt: timestamp("last_master_enrichment_at"),
+  
   // UCC Intelligence fields
   uccNumber: text("ucc_number"),
   filingDate: timestamp("filing_date"),
