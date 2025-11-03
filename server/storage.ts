@@ -446,6 +446,9 @@ export interface IStorage {
     averageConfidence: number;
     sourceBreakdown: Record<string, number>;
   }>;
+  getIncompleteLeads(limit?: number): Promise<Lead[]>;
+  updateLeadWithEnrichment(leadId: string, enrichmentData: any): Promise<Lead | undefined>;
+  bulkUpdateLeadsWithEnrichment(enrichments: Array<{leadId: string, data: any}>): Promise<number>;
   
   // Campaign Template operations
   getCampaignTemplate(id: string): Promise<CampaignTemplate | undefined>;
@@ -1961,6 +1964,104 @@ export class DbStorage implements IStorage {
       averageConfidence: Number(avgResult[0]?.avgConfidence || 0),
       sourceBreakdown
     };
+  }
+  
+  // Get incomplete leads (missing critical fields)
+  async getIncompleteLeads(limit: number = 100): Promise<Lead[]> {
+    // A lead is considered incomplete if it's missing critical fields like:
+    // owner name, email, phone, revenue, employee count, website, etc.
+    return db.select().from(leads)
+      .where(and(
+        eq(leads.sold, false), // Only get unsold leads
+        or(
+          isNull(leads.ownerName),
+          eq(leads.ownerName, ''),
+          isNull(leads.email),
+          eq(leads.email, ''),
+          isNull(leads.phone),
+          eq(leads.phone, ''),
+          isNull(leads.annualRevenue),
+          eq(leads.annualRevenue, ''),
+          isNull(leads.estimatedRevenue),
+          isNull(leads.websiteUrl),
+          eq(leads.websiteUrl, ''),
+          isNull(leads.employeeCount),
+          isNull(leads.yearsInBusiness),
+          isNull(leads.linkedinUrl),
+          eq(leads.isEnriched, false)
+        )
+      ))
+      .limit(limit)
+      .orderBy(desc(leads.uploadedAt)); // Prioritize newer leads
+  }
+  
+  // Update lead with enrichment data
+  async updateLeadWithEnrichment(leadId: string, enrichmentData: any): Promise<Lead | undefined> {
+    const updateData: Partial<InsertLead> = {
+      isEnriched: true,
+      lastEnrichedAt: new Date()
+    };
+    
+    // Map enrichment data to lead fields
+    if (enrichmentData.businessName) updateData.businessName = enrichmentData.businessName;
+    if (enrichmentData.ownerName) updateData.ownerName = enrichmentData.ownerName;
+    if (enrichmentData.email) updateData.email = enrichmentData.email;
+    if (enrichmentData.phone) updateData.phone = enrichmentData.phone;
+    if (enrichmentData.secondaryPhone) updateData.secondaryPhone = enrichmentData.secondaryPhone;
+    if (enrichmentData.industry) updateData.industry = enrichmentData.industry;
+    if (enrichmentData.annualRevenue) updateData.annualRevenue = enrichmentData.annualRevenue;
+    if (enrichmentData.estimatedRevenue) updateData.estimatedRevenue = enrichmentData.estimatedRevenue;
+    if (enrichmentData.revenueConfidence) updateData.revenueConfidence = enrichmentData.revenueConfidence;
+    if (enrichmentData.requestedAmount) updateData.requestedAmount = enrichmentData.requestedAmount;
+    if (enrichmentData.timeInBusiness) updateData.timeInBusiness = enrichmentData.timeInBusiness;
+    if (enrichmentData.yearsInBusiness) updateData.yearsInBusiness = enrichmentData.yearsInBusiness;
+    if (enrichmentData.creditScore) updateData.creditScore = enrichmentData.creditScore;
+    if (enrichmentData.websiteUrl) updateData.websiteUrl = enrichmentData.websiteUrl;
+    if (enrichmentData.linkedinUrl) updateData.linkedinUrl = enrichmentData.linkedinUrl;
+    if (enrichmentData.companySize) updateData.companySize = enrichmentData.companySize;
+    if (enrichmentData.employeeCount) updateData.employeeCount = enrichmentData.employeeCount;
+    if (enrichmentData.yearFounded) updateData.yearFounded = enrichmentData.yearFounded;
+    if (enrichmentData.naicsCode) updateData.naicsCode = enrichmentData.naicsCode;
+    if (enrichmentData.stateCode) updateData.stateCode = enrichmentData.stateCode;
+    if (enrichmentData.city) updateData.city = enrichmentData.city;
+    if (enrichmentData.fullAddress) updateData.fullAddress = enrichmentData.fullAddress;
+    if (enrichmentData.uccNumber) updateData.uccNumber = enrichmentData.uccNumber;
+    if (enrichmentData.filingDate) updateData.filingDate = enrichmentData.filingDate;
+    if (enrichmentData.securedParties) updateData.securedParties = enrichmentData.securedParties;
+    if (enrichmentData.ownerBackground) updateData.ownerBackground = enrichmentData.ownerBackground;
+    if (enrichmentData.researchInsights) updateData.researchInsights = enrichmentData.researchInsights;
+    if (enrichmentData.intelligenceScore) updateData.intelligenceScore = enrichmentData.intelligenceScore;
+    
+    // Update confidence scores if available
+    if (enrichmentData.confidenceScores) {
+      updateData.qualityScore = enrichmentData.confidenceScores.overall || 0;
+      updateData.qualitySubScore = enrichmentData.confidenceScores.businessInfo || 0;
+      updateData.confidenceSubScore = enrichmentData.confidenceScores.verificationStatus || 0;
+    }
+    
+    const result = await db.update(leads)
+      .set(updateData)
+      .where(eq(leads.id, leadId))
+      .returning();
+      
+    return result[0];
+  }
+  
+  // Bulk update leads with enrichment data
+  async bulkUpdateLeadsWithEnrichment(enrichments: Array<{leadId: string, data: any}>): Promise<number> {
+    let successCount = 0;
+    
+    // Process in batches to avoid overwhelming the database
+    for (const enrichment of enrichments) {
+      try {
+        await this.updateLeadWithEnrichment(enrichment.leadId, enrichment.data);
+        successCount++;
+      } catch (error) {
+        console.error(`Failed to update lead ${enrichment.leadId}:`, error);
+      }
+    }
+    
+    return successCount;
   }
   
   // Bulk Discount operations

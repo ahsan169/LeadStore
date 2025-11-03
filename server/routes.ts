@@ -33,6 +33,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { leadAlertService, addAlertClient } from "./services/lead-alerts";
 import { leadEnrichmentService } from "./services/lead-enrichment";
 import { qualityGuaranteeService } from "./services/quality-guarantee";
+import { comprehensiveLeadEnricher } from "./services/comprehensive-lead-enricher";
 import { numverifyService } from "./numverify-service";
 import { leadFreshnessService, FreshnessCategory } from "./services/lead-freshness";
 import { bulkOperationsService } from "./services/bulk-operations";
@@ -6264,6 +6265,257 @@ Time: ${preferredTime || 'Any time'}`);
     } catch (error) {
       console.error('Failed to get enrichment stats:', error);
       res.status(500).json({ error: 'Failed to get enrichment statistics' });
+    }
+  });
+
+  // ==================== COMPREHENSIVE LEAD ENRICHMENT ENDPOINTS ====================
+  
+  // POST /api/leads/enrich-single - Enrich a single lead with real data
+  app.post('/api/leads/enrich-single', requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      const isAdmin = user?.role === 'admin';
+      
+      // Parse and validate input lead data
+      const leadData = req.body;
+      
+      if (!leadData.businessName && !leadData.ownerName) {
+        return res.status(400).json({ 
+          error: 'At least business name or owner name is required' 
+        });
+      }
+      
+      console.log(`[API] Starting comprehensive enrichment for: ${leadData.businessName || leadData.ownerName}`);
+      
+      // Enrich the lead with real data from multiple sources
+      const enrichedLead = await comprehensiveLeadEnricher.enrichSingleLead(leadData, {
+        skipPerplexity: false,
+        skipHunter: false,
+        skipNumverify: false,
+        skipOpenAI: false
+      });
+      
+      // If this is an existing lead, update it in the database
+      if (leadData.id) {
+        await storage.updateLeadWithEnrichment(leadData.id, enrichedLead);
+        
+        // Also store in lead enrichment table
+        await storage.createLeadEnrichment({
+          leadId: leadData.id,
+          enrichedData: enrichedLead,
+          enrichmentSource: 'comprehensive',
+          confidenceScore: String(enrichedLead.confidenceScores?.overall || 0),
+          socialProfiles: enrichedLead.socialProfiles,
+          companyDetails: {
+            businessDescription: enrichedLead.businessDescription,
+            marketPosition: enrichedLead.marketPosition,
+            competitiveAdvantages: enrichedLead.competitiveAdvantages
+          },
+          industryDetails: {
+            industry: enrichedLead.industry,
+            naicsCode: enrichedLead.naicsCode
+          },
+          contactInfo: {
+            ownerName: enrichedLead.ownerName,
+            email: enrichedLead.email,
+            phone: enrichedLead.phone,
+            city: enrichedLead.city,
+            stateCode: enrichedLead.stateCode,
+            fullAddress: enrichedLead.fullAddress
+          }
+        });
+      }
+      
+      res.json({
+        success: true,
+        enrichedLead,
+        metadata: {
+          fieldsEnriched: enrichedLead.enrichmentMetadata?.fieldsEnriched.length || 0,
+          dataQuality: enrichedLead.enrichmentMetadata?.dataQuality,
+          sources: enrichedLead.enrichmentMetadata?.sources,
+          confidenceScore: enrichedLead.confidenceScores?.overall
+        }
+      });
+      
+    } catch (error) {
+      console.error('Failed to enrich single lead:', error);
+      res.status(500).json({ error: 'Failed to enrich lead with real data' });
+    }
+  });
+  
+  // POST /api/leads/enrich-bulk - Enrich multiple leads in batch
+  app.post('/api/leads/enrich-bulk', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leads, options = {} } = req.body;
+      
+      if (!Array.isArray(leads) || leads.length === 0) {
+        return res.status(400).json({ error: 'Array of leads is required' });
+      }
+      
+      if (leads.length > 50) {
+        return res.status(400).json({ 
+          error: 'Maximum 50 leads can be enriched at once' 
+        });
+      }
+      
+      console.log(`[API] Starting bulk enrichment for ${leads.length} leads`);
+      
+      // Enrich leads in batches
+      const enrichedLeads = await comprehensiveLeadEnricher.enrichBulkLeads(leads, options);
+      
+      // Update leads in database if they have IDs
+      const updateResults = await Promise.allSettled(
+        enrichedLeads.map((enrichedLead, index) => {
+          const originalLead = leads[index];
+          if (originalLead.id) {
+            // Add the lead ID to enrichment result
+            enrichedLead.leadId = originalLead.id;
+            return storage.updateLeadWithEnrichment(originalLead.id, enrichedLead);
+          }
+          return Promise.resolve(null);
+        })
+      );
+      
+      const successCount = updateResults.filter(r => r.status === 'fulfilled' && r.value).length;
+      
+      res.json({
+        success: true,
+        totalProcessed: leads.length,
+        enrichedCount: enrichedLeads.length,
+        updatedInDatabase: successCount,
+        enrichedLeads,
+        summary: {
+          highQuality: enrichedLeads.filter(l => (l.confidenceScores?.overall || 0) > 80).length,
+          mediumQuality: enrichedLeads.filter(l => {
+            const score = l.confidenceScores?.overall || 0;
+            return score > 50 && score <= 80;
+          }).length,
+          lowQuality: enrichedLeads.filter(l => (l.confidenceScores?.overall || 0) <= 50).length
+        }
+      });
+      
+    } catch (error) {
+      console.error('Failed to enrich bulk leads:', error);
+      res.status(500).json({ error: 'Failed to enrich leads in bulk' });
+    }
+  });
+  
+  // POST /api/leads/enrich-all-incomplete - Find and enrich all incomplete leads
+  app.post('/api/leads/enrich-all-incomplete', requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { limit = 50, options = {} } = req.body;
+      
+      console.log(`[API] Finding and enriching incomplete leads (limit: ${limit})`);
+      
+      // Get incomplete leads from storage
+      const incompleteLeads = await storage.getIncompleteLeads(limit);
+      
+      if (incompleteLeads.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No incomplete leads found',
+          totalProcessed: 0,
+          successCount: 0,
+          failureCount: 0
+        });
+      }
+      
+      console.log(`[API] Found ${incompleteLeads.length} incomplete leads. Starting enrichment...`);
+      
+      // Enrich all incomplete leads
+      const enrichmentResult = await comprehensiveLeadEnricher.enrichAllIncompleteLeads(options);
+      
+      // Store enrichment data in lead_enrichment table
+      const enrichmentRecords = enrichmentResult.results.map(result => ({
+        leadId: result.leadId || '',
+        enrichedData: result,
+        enrichmentSource: 'comprehensive',
+        confidenceScore: String(result.confidenceScores?.overall || 0),
+        socialProfiles: result.socialProfiles,
+        companyDetails: {
+          businessDescription: result.businessDescription,
+          marketPosition: result.marketPosition,
+          competitiveAdvantages: result.competitiveAdvantages,
+          fundingHistory: result.fundingHistory
+        },
+        industryDetails: {
+          industry: result.industry,
+          naicsCode: result.naicsCode
+        },
+        contactInfo: {
+          ownerName: result.ownerName,
+          email: result.email,
+          phone: result.phone,
+          city: result.city,
+          stateCode: result.stateCode,
+          fullAddress: result.fullAddress
+        }
+      })).filter(record => record.leadId);
+      
+      if (enrichmentRecords.length > 0) {
+        await storage.createLeadEnrichments(enrichmentRecords);
+      }
+      
+      res.json({
+        success: true,
+        ...enrichmentResult,
+        message: `Successfully enriched ${enrichmentResult.successCount} out of ${enrichmentResult.totalProcessed} incomplete leads`,
+        summary: {
+          totalIncomplete: incompleteLeads.length,
+          processed: enrichmentResult.totalProcessed,
+          succeeded: enrichmentResult.successCount,
+          failed: enrichmentResult.failureCount,
+          averageConfidence: enrichmentResult.results.reduce((sum, r) => 
+            sum + (r.confidenceScores?.overall || 0), 0
+          ) / (enrichmentResult.results.length || 1)
+        }
+      });
+      
+    } catch (error) {
+      console.error('Failed to enrich incomplete leads:', error);
+      res.status(500).json({ error: 'Failed to enrich incomplete leads' });
+    }
+  });
+  
+  // GET /api/leads/enrichment-status - Get enrichment status for all leads
+  app.get('/api/leads/enrichment-status', requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      const isAdmin = user?.role === 'admin';
+      
+      if (!isAdmin) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+      
+      // Get lead statistics
+      const leadStats = await storage.getLeadStats();
+      const enrichmentStats = await storage.getEnrichmentStats();
+      
+      // Get counts of incomplete leads
+      const incompleteLeads = await storage.getIncompleteLeads(1000);
+      const criticallyIncomplete = incompleteLeads.filter(lead => 
+        !lead.ownerName && !lead.email && !lead.phone
+      );
+      
+      res.json({
+        total: leadStats.total,
+        enriched: enrichmentStats.totalEnriched,
+        incomplete: incompleteLeads.length,
+        criticallyIncomplete: criticallyIncomplete.length,
+        percentageEnriched: ((enrichmentStats.totalEnriched / leadStats.total) * 100).toFixed(1),
+        averageConfidence: enrichmentStats.averageConfidence,
+        sourceBreakdown: enrichmentStats.sourceBreakdown,
+        recommendations: {
+          needsEnrichment: incompleteLeads.length > 0,
+          priorityLeads: criticallyIncomplete.length,
+          estimatedEnrichmentTime: `${Math.ceil(incompleteLeads.length / 5)} minutes`,
+          potentialValueIncrease: `$${(incompleteLeads.length * 5).toLocaleString()}`
+        }
+      });
+      
+    } catch (error) {
+      console.error('Failed to get enrichment status:', error);
+      res.status(500).json({ error: 'Failed to get enrichment status' });
     }
   });
 
