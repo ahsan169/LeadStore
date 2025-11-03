@@ -40,7 +40,8 @@ import CommandCenterPage from "@/pages/command-center";
 import UccIntelligencePage from "@/pages/ucc-intelligence";
 import LeadEnrichmentManagerPage from "@/pages/admin/lead-enrichment-manager";
 import IntelligenceCenterPage from "@/pages/admin/intelligence-center";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket, FileSearch, Brain, Sparkles } from "lucide-react";
+import APIConfigurationPage from "@/pages/admin/api-configuration";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket, FileSearch, Brain, Sparkles, Settings } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -125,6 +126,7 @@ function AppSidebar() {
   const adminMenuItems = [
     { title: "Dashboard", url: "/admin/dashboard", icon: BarChart },
     { title: "Intelligence Center", url: "/admin/intelligence-center", icon: Sparkles },
+    { title: "API Configuration", url: "/admin/api-configuration", icon: Settings },
     { title: "Command Center", url: "/command-center", icon: BarChart },
     { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
     { title: "Lead Discovery", url: "/leads", icon: Search },
@@ -284,6 +286,7 @@ function Router() {
                   <Route path="/admin" component={AdminDashboardPage} />
                   <Route path="/admin/dashboard" component={AdminDashboardPage} />
                   <Route path="/admin/intelligence-center" component={IntelligenceCenterPage} />
+                  <Route path="/admin/api-configuration" component={APIConfigurationPage} />
                   <Route path="/admin/lead-enrichment" component={LeadEnrichmentManagerPage} />
                   <Route path="/admin/ucc-manager" component={UccManagerPage} />
                   <Route path="/admin/upload" component={UploadLeadsPage} />
