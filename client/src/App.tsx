@@ -8,88 +8,20 @@ import { Button } from "@/components/ui/button";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import HomePage from "@/pages/home";
-import PricingPage from "@/pages/pricing";
-import DashboardPage from "@/pages/dashboard";
+import SimplifiedDashboard from "@/pages/simplified-dashboard";
+import SimplifiedPurchasePage from "@/pages/simplified-purchase";
 import PurchasesPage from "@/pages/purchases";
-import PurchaseTierPage from "@/pages/purchase-tier";
-import PurchaseFlowPage from "@/pages/purchase-flow";
 import PaymentSuccessPage from "@/pages/payment-success";
 import PaymentCancelPage from "@/pages/payment-cancel";
-import AdminDashboardPage from "@/pages/admin/admin-dashboard";
-import UploadLeadsPage from "@/pages/admin/upload-leads";
-import VerifyLeadsPage from "@/pages/admin/verify-leads";
-import ManageLeadsPage from "@/pages/admin/manage-leads";
-import CustomersPage from "@/pages/admin/customers";
-import TiersPage from "@/pages/admin/tiers";
-import ContactSubmissionsPage from "@/pages/admin/contact-submissions";
-import ManageGuaranteesPage from "@/pages/admin/manage-guarantees";
-import BulkManagementPage from "@/pages/admin/bulk-management";
-import UccManagerPage from "@/pages/admin/ucc-manager";
-import AnalyticsPage from "@/pages/analytics";
-import IntegrationsPage from "@/pages/integrations";
-import AlertsPage from "@/pages/alerts";
-import LeadsPage from "@/pages/leads";
-import GuaranteeReportsPage from "@/pages/guarantee-reports";
-import CampaignsPage from "@/pages/campaigns";
-import LeadActivationPage from "@/pages/lead-activation";
-import DeveloperPage from "@/pages/developer";
-import ApiDocsPage from "@/pages/api-docs";
-import SmartSearchPage from "@/pages/smart-search";
-import MLScoringPage from "@/pages/ml-scoring";
-import CommandCenterPage from "@/pages/command-center";
-import UccIntelligencePage from "@/pages/ucc-intelligence";
-import LeadEnrichmentManagerPage from "@/pages/admin/lead-enrichment-manager";
-import IntelligenceCenterPage from "@/pages/admin/intelligence-center";
-import APIConfigurationPage from "@/pages/admin/api-configuration";
-import CostMonitoringDashboard from "@/pages/cost-monitoring";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket, FileSearch, Brain, Sparkles, Settings, Activity } from "lucide-react";
+import SimplifiedAdminPage from "@/pages/admin/simplified-admin";
+import { Home, Package, DollarSign, Users, Upload, LogOut, ShoppingCart, CreditCard, Settings } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 
-// Engagement components
-import { ExitIntentPopup } from "@/components/engagement/ExitIntentPopup";
-import { FloatingActionButton } from "@/components/engagement/FloatingActionButton";
-import { ActivityFeed } from "@/components/engagement/ActivityFeed";
-import { NewsletterSlideIn } from "@/components/engagement/NewsletterSlideIn";
-import { ChatWidget } from "@/components/engagement/ChatWidget";
-import { StickyCTABar } from "@/components/engagement/StickyCTABar";
-import { ProductTour } from "@/components/engagement/ProductTour";
 import { StripeTestModeIndicator } from "@/components/StripeTestModeIndicator";
 import { Badge } from "@/components/ui/badge";
-
-// Alert Indicator Component
-function AlertIndicator() {
-  const [location, setLocation] = useLocation();
-  const { data: unviewedCount } = useQuery<{ count: number }>({
-    queryKey: ["/api/alerts/unviewed/count"],
-    refetchInterval: 30000, // Check every 30 seconds
-    enabled: !!queryClient.getQueryData(["/api/auth/me"]), // Only run if user is authenticated
-  });
-  
-  if (!unviewedCount?.count || unviewedCount.count === 0) {
-    return null;
-  }
-  
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      onClick={() => setLocation("/alerts")}
-      className="relative"
-      data-testid="button-alert-indicator"
-    >
-      <Bell className="w-5 h-5" />
-      <Badge 
-        variant="destructive" 
-        className="absolute -top-1 -right-1 px-1.5 py-0.5 text-xs"
-      >
-        {unviewedCount.count}
-      </Badge>
-    </Button>
-  );
-}
 
 function AppSidebar() {
   const [location, setLocation] = useLocation();
@@ -110,37 +42,15 @@ function AppSidebar() {
 
   const buyerMenuItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home },
-    { title: "Command Center", url: "/command-center", icon: BarChart },
-    { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
-    { title: "Lead Discovery", url: "/leads", icon: Search },
-    { title: "Smart Search", url: "/smart-search", icon: Search },
-    { title: "UCC Intelligence", url: "/ucc-intelligence", icon: Shield },
-    { title: "Browse Leads", url: "/purchase", icon: Tags },
-    { title: "Pricing", url: "/pricing", icon: DollarSign },
+    { title: "Buy Leads", url: "/purchase", icon: ShoppingCart },
     { title: "My Purchases", url: "/purchases", icon: Package },
-    { title: "Quality Guarantee", url: "/guarantee-reports", icon: ShieldCheck },
-    { title: "Alerts", url: "/alerts", icon: Bell },
-    { title: "ML Scoring", url: "/ml-scoring", icon: TrendingUp },
-    { title: "API Docs", url: "/api-docs", icon: Book },
   ];
 
   const adminMenuItems = [
-    { title: "Dashboard", url: "/admin/dashboard", icon: BarChart },
-    { title: "Cost Monitoring", url: "/admin/cost-monitoring", icon: Activity },
-    { title: "Intelligence Center", url: "/admin/intelligence-center", icon: Sparkles },
-    { title: "API Configuration", url: "/admin/api-configuration", icon: Settings },
-    { title: "Command Center", url: "/command-center", icon: BarChart },
-    { title: "Lead Activation Hub", url: "/lead-activation", icon: Rocket },
-    { title: "Lead Discovery", url: "/leads", icon: Search },
-    { title: "Smart Search", url: "/smart-search", icon: Search },
-    { title: "Upload Leads", url: "/admin/upload", icon: Upload },
-    { title: "Manage Leads", url: "/admin/leads", icon: Database },
-    { title: "Quality Guarantees", url: "/admin/manage-guarantees", icon: ShieldCheck },
-    { title: "Pricing Tiers", url: "/admin/tiers", icon: Tags },
-    { title: "Bulk Operations", url: "/admin/bulk-management", icon: Calculator },
-    { title: "ML Scoring", url: "/ml-scoring", icon: TrendingUp },
-    { title: "Customers", url: "/admin/customers", icon: Users },
-    { title: "Contact Forms", url: "/admin/contact-submissions", icon: MessageSquare },
+    { title: "Dashboard", url: "/dashboard", icon: Home },
+    { title: "Buy Leads", url: "/purchase", icon: ShoppingCart },
+    { title: "My Purchases", url: "/purchases", icon: Package },
+    { title: "Admin Panel", url: "/admin", icon: Settings },
   ];
 
   const menuItems = isAdmin ? adminMenuItems : buyerMenuItems;
@@ -253,53 +163,23 @@ function Router() {
         <div className="flex flex-col flex-1 overflow-hidden">
           <header className="flex items-center justify-between p-4 border-b">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
-            <AlertIndicator />
           </header>
           <main className="flex-1 overflow-auto">
             <Switch>
-              {/* Buyer routes */}
-              <Route path="/" component={DashboardPage} />
-              <Route path="/dashboard" component={DashboardPage} />
-              <Route path="/command-center" component={CommandCenterPage} />
-              <Route path="/analytics" component={AnalyticsPage} />
-              <Route path="/lead-activation" component={LeadActivationPage} />
-              <Route path="/leads" component={LeadsPage} />
-              <Route path="/pricing" component={PricingPage} />
-              <Route path="/purchase" component={PurchaseFlowPage} />
+              {/* Main routes */}
+              <Route path="/" component={SimplifiedDashboard} />
+              <Route path="/dashboard" component={SimplifiedDashboard} />
+              <Route path="/purchase" component={SimplifiedPurchasePage} />
               <Route path="/purchases" component={PurchasesPage} />
-              <Route path="/campaigns" component={CampaignsPage} />
-              <Route path="/guarantee-reports" component={GuaranteeReportsPage} />
-              <Route path="/quality-guarantee" component={GuaranteeReportsPage} />
-              <Route path="/alerts" component={AlertsPage} />
-              <Route path="/integrations" component={IntegrationsPage} />
-              <Route path="/crm-integrations" component={IntegrationsPage} />
-              <Route path="/smart-search" component={SmartSearchPage} />
-              <Route path="/ml-scoring" component={MLScoringPage} />
-              <Route path="/ucc-intelligence" component={UccIntelligencePage} />
-              <Route path="/developer" component={DeveloperPage} />
-              <Route path="/api-docs" component={ApiDocsPage} />
-              <Route path="/purchase/:tier" component={PurchaseTierPage} />
               <Route path="/payment-success" component={PaymentSuccessPage} />
               <Route path="/payment-cancel" component={PaymentCancelPage} />
 
               {/* Admin routes */}
               {user.role === "admin" && (
                 <>
-                  <Route path="/admin" component={AdminDashboardPage} />
-                  <Route path="/admin/dashboard" component={AdminDashboardPage} />
-                  <Route path="/admin/cost-monitoring" component={CostMonitoringDashboard} />
-                  <Route path="/admin/intelligence-center" component={IntelligenceCenterPage} />
-                  <Route path="/admin/api-configuration" component={APIConfigurationPage} />
-                  <Route path="/admin/lead-enrichment" component={LeadEnrichmentManagerPage} />
-                  <Route path="/admin/ucc-manager" component={UccManagerPage} />
-                  <Route path="/admin/upload" component={UploadLeadsPage} />
-                  <Route path="/admin/verify-leads" component={VerifyLeadsPage} />
-                  <Route path="/admin/leads" component={ManageLeadsPage} />
-                  <Route path="/admin/manage-guarantees" component={ManageGuaranteesPage} />
-                  <Route path="/admin/tiers" component={TiersPage} />
-                  <Route path="/admin/customers" component={CustomersPage} />
-                  <Route path="/admin/contact-submissions" component={ContactSubmissionsPage} />
-                  <Route path="/admin/bulk-management" component={BulkManagementPage} />
+                  <Route path="/admin" component={SimplifiedAdminPage} />
+                  <Route path="/admin/upload" component={SimplifiedAdminPage} />
+                  <Route path="/admin/customers" component={SimplifiedAdminPage} />
                 </>
               )}
 
@@ -319,15 +199,6 @@ export default function App() {
       <TooltipProvider>
         <Toaster />
         <Router />
-        
-        {/* Global engagement components */}
-        <ExitIntentPopup />
-        <FloatingActionButton />
-        <ActivityFeed />
-        <NewsletterSlideIn />
-        <ChatWidget />
-        <StickyCTABar />
-        <ProductTour autoStart={false} />
         
         {/* Stripe Test Mode Indicator */}
         <StripeTestModeIndicator />
