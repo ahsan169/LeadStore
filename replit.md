@@ -1,8 +1,8 @@
-# Lakefront Leadworks - Intelligent Lead Intelligence Platform
+# Lakefront Leadworks - Streamlined MCA Lead Marketplace
 
 ## Overview
 
-Lakefront Leadworks is a sophisticated AI-powered lead enrichment and verification system designed for the Merchant Cash Advance (MCA) industry. It transforms raw leads into intelligent, actionable data by providing real-time verification, predictive insights, and a comprehensive lead intelligence scoring system. The platform offers a unified intelligence score with five transparent sub-scores, real-time API verification, predictive market analysis, and a centralized command center. It also includes an advanced AI-powered UCC (Uniform Commercial Code) filing intelligence system for in-depth debt analysis and relationship matching, and enterprise-grade features like CRM integration, advanced filtering, and ML-powered lead scoring. The business vision is to be the leading platform for MCA lead intelligence, offering significant market potential through its advanced capabilities and simplified two-tier pricing model.
+Lakefront Leadworks is a simplified, practical MCA lead marketplace designed to be an "all-in-one machine" that's easy to understand and use. The platform focuses on essential functionality: user authentication, lead purchasing with clear pricing tiers, and consolidated admin management. After a major simplification effort on November 4, 2025, the application has been reduced from 40+ complex pages to just 6 essential pages, making it significantly more practical and user-friendly.
 
 ## User Preferences
 
