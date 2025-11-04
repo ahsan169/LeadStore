@@ -33,6 +33,16 @@ Practical UCC (Uniform Commercial Code) filing intelligence for better lead asse
 - **UCC Upload & Processing**: Admin can upload UCC filing CSV/Excel files for automatic matching
 - **Statistics Dashboard**: Real-time UCC metrics including total filings, matched leads, and debt distribution
 
+### Advanced Lead Intelligence Features
+Comprehensive lead enrichment and verification capabilities:
+- **Auto-Enrichment System**: Queue-based processing for high-quality leads (score ≥70), enriching company details, revenue, and employee count
+- **Auto-Verification System**: Automatic verification scoring (0-100) for email, phone, and business names with visual badges
+- **Unified Lead Scoring**: Single score (0-100) with color coding - Green (80-100), Blue (60-79), Yellow (40-59), Red (0-39)
+- **Practical Insights Engine**: Rule-based insights displayed as badges ("High revenue potential", "Verified contact info", "Low debt risk")
+- **Smart Lead Matching**: Saved searches with automatic alerts when new leads match buyer criteria
+- **CRM Export Support**: Multi-format export (CSV, Salesforce, HubSpot, JSON) available on My Purchases page
+- **Enhanced UCC Matching**: Fuzzy string matching with confidence scores for better business name matching
+
 ## System Architecture
 
 ### Frontend Architecture
