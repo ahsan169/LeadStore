@@ -3,7 +3,7 @@ import { Lead, InsertLead, enrichmentJobs, enrichmentCosts } from '@shared/schem
 import { db } from '../db';
 import { sql, eq, and, gte, lte } from 'drizzle-orm';
 import { enrichmentCache } from './enrichment/cache-service';
-import { enrichmentRateLimiter } from './enrichment/rate-limiter';
+import { rateLimiter as enrichmentRateLimiter } from './enrichment/rate-limiter';
 import { leadDeduplicationService } from './lead-deduplication-service';
 import { cacheManager } from './cache-manager';
 import OpenAI from 'openai';
