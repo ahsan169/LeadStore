@@ -4430,6 +4430,92 @@ Format your response as JSON with the following structure:
     }
   });
 
+  // Cost Monitoring Dashboard API endpoints
+  
+  // GET /api/cost-monitoring/dashboard - Get comprehensive dashboard data
+  app.get("/api/cost-monitoring/dashboard", requireAuth, async (req, res) => {
+    try {
+      const { costMonitoringService } = await import('./services/cost-monitoring-service');
+      const dashboardData = await costMonitoringService.getDashboardSummary();
+      res.json(dashboardData);
+    } catch (error) {
+      console.error("Cost monitoring dashboard error:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard data" });
+    }
+  });
+  
+  // GET /api/cost-monitoring/metrics - Get cost metrics
+  app.get("/api/cost-monitoring/metrics", requireAuth, async (req, res) => {
+    try {
+      const { costMonitoringService } = await import('./services/cost-monitoring-service');
+      const metrics = await costMonitoringService.getCostMetrics();
+      res.json(metrics);
+    } catch (error) {
+      console.error("Cost metrics error:", error);
+      res.status(500).json({ error: "Failed to fetch cost metrics" });
+    }
+  });
+  
+  // GET /api/cost-monitoring/vendors - Get vendor usage
+  app.get("/api/cost-monitoring/vendors", requireAuth, async (req, res) => {
+    try {
+      const { costMonitoringService } = await import('./services/cost-monitoring-service');
+      const vendors = await costMonitoringService.getVendorUsage();
+      res.json(vendors);
+    } catch (error) {
+      console.error("Vendor usage error:", error);
+      res.status(500).json({ error: "Failed to fetch vendor usage" });
+    }
+  });
+  
+  // GET /api/cost-monitoring/queues - Get queue metrics
+  app.get("/api/cost-monitoring/queues", requireAuth, async (req, res) => {
+    try {
+      const { costMonitoringService } = await import('./services/cost-monitoring-service');
+      const queues = await costMonitoringService.getQueueMetrics();
+      res.json(queues);
+    } catch (error) {
+      console.error("Queue metrics error:", error);
+      res.status(500).json({ error: "Failed to fetch queue metrics" });
+    }
+  });
+  
+  // GET /api/cost-monitoring/freshness - Get data freshness
+  app.get("/api/cost-monitoring/freshness", requireAuth, async (req, res) => {
+    try {
+      const { costMonitoringService } = await import('./services/cost-monitoring-service');
+      const freshness = await costMonitoringService.getDataFreshnessMetrics();
+      res.json(freshness);
+    } catch (error) {
+      console.error("Freshness metrics error:", error);
+      res.status(500).json({ error: "Failed to fetch freshness metrics" });
+    }
+  });
+  
+  // GET /api/cost-monitoring/errors - Get error metrics
+  app.get("/api/cost-monitoring/errors", requireAuth, async (req, res) => {
+    try {
+      const { costMonitoringService } = await import('./services/cost-monitoring-service');
+      const errors = await costMonitoringService.getErrorMetrics();
+      res.json(errors);
+    } catch (error) {
+      console.error("Error metrics error:", error);
+      res.status(500).json({ error: "Failed to fetch error metrics" });
+    }
+  });
+  
+  // GET /api/cost-monitoring/efficiency - Get enrichment efficiency
+  app.get("/api/cost-monitoring/efficiency", requireAuth, async (req, res) => {
+    try {
+      const { costMonitoringService } = await import('./services/cost-monitoring-service');
+      const efficiency = await costMonitoringService.getEnrichmentEfficiency();
+      res.json(efficiency);
+    } catch (error) {
+      console.error("Efficiency metrics error:", error);
+      res.status(500).json({ error: "Failed to fetch efficiency metrics" });
+    }
+  });
+  
   // Quality Guarantee API endpoints
   
   // POST /api/guarantee/report - Report a quality issue

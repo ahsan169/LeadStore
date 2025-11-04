@@ -41,7 +41,8 @@ import UccIntelligencePage from "@/pages/ucc-intelligence";
 import LeadEnrichmentManagerPage from "@/pages/admin/lead-enrichment-manager";
 import IntelligenceCenterPage from "@/pages/admin/intelligence-center";
 import APIConfigurationPage from "@/pages/admin/api-configuration";
-import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket, FileSearch, Brain, Sparkles, Settings } from "lucide-react";
+import CostMonitoringDashboard from "@/pages/cost-monitoring";
+import { Home, Package, Download, DollarSign, Users, Upload, Database, BarChart, Shield, LogOut, Tags, MessageSquare, Waves, TrendingUp, Link2, Bell, Search, ShieldCheck, Calculator, Send, Key, Book, Rocket, FileSearch, Brain, Sparkles, Settings, Activity } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -125,6 +126,7 @@ function AppSidebar() {
 
   const adminMenuItems = [
     { title: "Dashboard", url: "/admin/dashboard", icon: BarChart },
+    { title: "Cost Monitoring", url: "/admin/cost-monitoring", icon: Activity },
     { title: "Intelligence Center", url: "/admin/intelligence-center", icon: Sparkles },
     { title: "API Configuration", url: "/admin/api-configuration", icon: Settings },
     { title: "Command Center", url: "/command-center", icon: BarChart },
@@ -285,6 +287,7 @@ function Router() {
                 <>
                   <Route path="/admin" component={AdminDashboardPage} />
                   <Route path="/admin/dashboard" component={AdminDashboardPage} />
+                  <Route path="/admin/cost-monitoring" component={CostMonitoringDashboard} />
                   <Route path="/admin/intelligence-center" component={IntelligenceCenterPage} />
                   <Route path="/admin/api-configuration" component={APIConfigurationPage} />
                   <Route path="/admin/lead-enrichment" component={LeadEnrichmentManagerPage} />

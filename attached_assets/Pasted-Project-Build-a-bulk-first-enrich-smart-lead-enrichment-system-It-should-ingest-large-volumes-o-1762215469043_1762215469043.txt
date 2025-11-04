@@ -1,0 +1,95 @@
+Project: Build a “bulk‑first, enrich‑smart” lead enrichment system. It should ingest large volumes of cheap or free data, deduplicate and normalize records, selectively enrich premium data only when necessary, and expose results through an API and admin dashboard.
+
+Key features and architecture:
+
+Project structure: Create a modular repo with top‑level directories:
+
+api/ for a FastAPI (or Flask) service exposing endpoints to fetch and manage leads.
+
+workers/ for asynchronous tasks (Celery or RQ) managing ingestion, enrichment, verification, and cron jobs.
+
+pipelines/ for data ingestion and enrichment logic (UCC, SoS, public registries, email/phone verification, premium enrichment).
+
+db/ with SQLAlchemy or Prisma models and migrations for PostgreSQL (via Supabase). Include a canonical lead schema: owner_name, legal_name, aliases[], address, phones[], emails[], domains[], sources[] (evidence), confidence, last_verified_at, do_not_call, etc.
+
+orchestrator/ for the waterfall router that caches data and calls low‑cost sources before high‑cost APIs. Rate limit each vendor; use bulk endpoints where possible.
+
+admin/ for a minimal dashboard (e.g. FastAPI + Jinja or React) showing queue depth, match rate, cost per record, enrich rate, source freshness, error logs, and configurable caps.
+
+cache/ implementing Redis caching plus deduplication (hash keys on (normalized_name | state | domain) and (street|city|zip|legal_name)).
+
+storage/ for storing raw data dumps and exports (CSV, parquet).
+
+utils/ for normalization (USPS address standardization, name fuzzy matching, E.164 phone formatting, domain WHOIS/MX lookup).
+
+Ingestion pipeline:
+
+Foundation data: Write adapters to ingest bulk data from state UCC filings, Secretary of State registries, OpenCorporates, property/assessor records, IRS/SEC filings, BBB listings, and Google Places API (free tier). Save raw files under storage/ and load into staging tables.
+
+Normalization & dedupe: Implement functions to standardize addresses (CASS/NCOA if available), names, and company fields; assign a canonical lead_id via hash. Check cache to avoid re‑enriching existing leads.
+
+Scoring: Compute a HotnessScore based on recency of signals, number of lenders (from UCC), industry codes, locality, domain presence, and contact confidence.
+
+Selective enrichment:
+
+Add vendor drivers for external APIs (e.g. People Data Labs, Clearbit, Melissa, Kickbox, phone intelligence, DNC/TCPA check). Use environment variables for API keys.
+
+Implement waterfall logic: first consult cache → low‑cost verification (email/phone) → mid‑tier signals → premium enrichment only if HotnessScore passes a threshold or a customer specifically requests the lead.
+
+Support bulk calls: when sending to premium APIs, batch 50–100 records per request to maximize throughput.
+
+Capture and store evidence returned by vendors (source URLs, timestamp, match reasons).
+
+Verification & compliance:
+
+Integrate address standardization (USPS or a third‑party API), phone validation (line type, carrier, active/disconnected), email verification (valid/catch‑all/risky).
+
+Check leads against Do‑Not‑Call lists, corporate suppression lists, and (optional) KYC/OFAC if needed for enterprise customers.
+
+Store compliance flags and provide them in lead exports.
+
+Asynchronous workers and queue:
+
+Use Redis or RabbitMQ to manage job queues (enrich.incoming, enrich.retry).
+
+Workers should honor vendor rate limits (requests per minute/hour) and implement exponential backoff on 429/5xx errors.
+
+Schedule nightly cron tasks to bulk‑verify new emails/phones and to refresh UCC/SoS data.
+
+Implement deduplication and idempotency tokens to avoid double processing.
+
+Admin and API:
+
+Expose endpoints: POST /leads/import (upload CSV/JSON), GET /leads/{id}, GET /leads/search, GET /metrics, POST /enrich (on‑demand enrichment for a single lead or a list).
+
+Build an admin UI showing current queue sizes, enrichment success rate, cost per record (aggregated by source/vendor), error logs, and per‑customer usage.
+
+Include authentication and roles (admin vs user) with JWT or API keys.
+
+Export & billing:
+
+Create a CSV/Parquet exporter that respects tiered access (e.g. “Instant” vs “Standard” vs “Premium”) and attaches evidence plus pricing metadata.
+
+Integrate with Stripe’s Usage API: emit one usage record per verified/enriched lead for metered billing. Make the pricing per record configurable.
+
+Testing & docs:
+
+Write unit tests for normalization, scoring, and enrichment routing. Use pytest.
+
+Create a README that explains architecture, environment variables, how to run locally (docker-compose up), how to seed data, and how to add new data sources or vendors.
+
+Add sample JSON/CSV import files in a samples/ folder.
+
+External services to integrate or procure (manual steps the code cannot fetch itself):
+
+Purchase state UCC bulk feeds for key states (e.g. FL, CA, TX, OH) and store credentials in .env.
+
+Get an address standardization subscription (USPS or SmartyStreets).
+
+Obtain phone intelligence and email verification API keys (Numverify, Kickbox, etc.).
+
+Secure a DNC/TCPA list subscription and load updates monthly.
+
+Subscribe to a premium enrichment API with high‑volume or enterprise plan (PDL or Clearbit) for waterfall fallback.
+
+Deliverables: Generate Python code in a single project directory (multi‑file repo) implementing all of the above. Ensure tasks are asynchronous and rate‑limited, and that the system is configurable via environment variables. Use modern libraries (FastAPI, SQLAlchemy, Alembic, Celery/RQ, Redis) and ensure Docker compatibility. Include thorough comments and docstrings for clarity.

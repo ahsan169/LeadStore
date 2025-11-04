@@ -358,6 +358,117 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Staging table for bulk data ingestion
+export const stagingLeads = pgTable("staging_leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: text("job_id").notNull(),
+  source: text("source").notNull(),
+  rawId: text("raw_id").notNull(),
+  
+  // Business information
+  businessName: text("business_name"),
+  ownerName: text("owner_name"),
+  legalName: text("legal_name"),
+  aliases: text("aliases").array(),
+  
+  // Location
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
+  
+  // Contact information
+  phones: text("phones").array(),
+  emails: text("emails").array(),
+  domains: text("domains").array(),
+  
+  // Metadata
+  confidence: decimal("confidence", { precision: 3, scale: 2 }).notNull().default("0.5"),
+  rawData: jsonb("raw_data"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  processed: boolean("processed").notNull().default(false),
+  processedAt: timestamp("processed_at"),
+  error: text("error"),
+});
+
+// Raw data dumps for audit trail
+export const rawDataDumps = pgTable("raw_data_dumps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: text("job_id").notNull(),
+  source: text("source").notNull(),
+  path: text("path").notNull(), // S3 or local path
+  recordCount: integer("record_count").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Data ingestion jobs
+export const dataIngestionJobs = pgTable("data_ingestion_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  source: text("source").notNull(),
+  status: text("status").notNull().default("pending"), // pending, running, completed, failed
+  recordsProcessed: integer("records_processed").notNull().default(0),
+  recordsFailed: integer("records_failed").notNull().default(0),
+  totalCost: decimal("total_cost", { precision: 10, scale: 4 }).notNull().default("0"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  error: text("error"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Enrichment job queue for async processing
+export const enrichmentJobs = pgTable("enrichment_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  batchId: text("batch_id"),
+  priority: text("priority").notNull().default("medium"), // high, medium, low
+  status: text("status").notNull().default("pending"), // pending, processing, completed, failed
+  retryCount: integer("retry_count").notNull().default(0),
+  maxRetries: integer("max_retries").notNull().default(3),
+  
+  // Job configuration
+  enrichmentOptions: jsonb("enrichment_options"),
+  source: text("source").notNull(), // upload, view, manual, scheduled, api
+  userId: varchar("user_id").references(() => users.id),
+  
+  // Results
+  result: jsonb("result"),
+  error: text("error"),
+  apiCallCount: integer("api_call_count").notNull().default(0),
+  totalCost: decimal("total_cost", { precision: 10, scale: 4 }).notNull().default("0"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  processedAt: timestamp("processed_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+// Enrichment cost tracking
+export const enrichmentCosts = pgTable("enrichment_costs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  jobId: varchar("job_id").references(() => enrichmentJobs.id),
+  service: text("service").notNull(),
+  apiCall: text("api_call").notNull(),
+  cost: decimal("cost", { precision: 10, scale: 6 }).notNull(),
+  response: jsonb("response"),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+});
+
+// Lead deduplication tracking
+export const leadDedupeCandidates = pgTable("lead_dedupe_candidates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId1: varchar("lead_id_1").references(() => leads.id),
+  leadId2: varchar("lead_id_2").references(() => leads.id),
+  matchType: text("match_type").notNull(), // exact, fuzzy_name, domain, phone, address
+  matchScore: decimal("match_score", { precision: 3, scale: 2 }).notNull(),
+  resolved: boolean("resolved").notNull().default(false),
+  resolution: text("resolution"), // merge, keep_both, delete_1, delete_2
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Credits system for flexible purchasing
 export const credits = pgTable("credits", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
