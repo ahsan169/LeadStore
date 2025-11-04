@@ -152,8 +152,32 @@ export const leads = pgTable("leads", {
   activeUccCount: integer("active_ucc_count").default(0),
   lastUccFilingDate: timestamp("last_ucc_filing_date"),
   uccRiskLevel: text("ucc_risk_level"), // 'low', 'medium', 'high'
+  uccMatchConfidence: integer("ucc_match_confidence").default(0), // 0-100 confidence score for UCC match
+  
+  // Auto-Verification System Fields
+  emailVerificationScore: integer("email_verification_score").default(0), // 0-100
+  phoneVerificationScore: integer("phone_verification_score").default(0), // 0-100
+  nameVerificationScore: integer("name_verification_score").default(0), // 0-100
+  overallVerificationScore: integer("overall_verification_score").default(0), // 0-100 average
+  verificationStatus: text("verification_status").default("unverified"), // 'verified', 'partial', 'unverified', 'failed'
+  lastVerifiedAt: timestamp("last_verified_at"),
+  
+  // Simplified Lead Scoring System
+  unifiedLeadScore: integer("unified_lead_score").default(0), // 0-100 unified score
+  dataCompletenessScore: integer("data_completeness_score").default(0), // 0-100
+  leadScoreCategory: text("lead_score_category"), // 'excellent', 'good', 'fair', 'poor'
+  
+  // Practical Insights
+  leadInsights: jsonb("lead_insights"), // Array of insight objects
+  insightTags: text("insight_tags").array(), // Quick tags for filtering
+  
+  // CRM Export Tracking
+  crmExportCount: integer("crm_export_count").default(0),
+  lastCrmExportAt: timestamp("last_crm_export_at"),
+  crmExportHistory: jsonb("crm_export_history"), // Array of export records
   
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // UCC filings table for tracking business financing history
@@ -185,6 +209,41 @@ export const uccMonitoringAlerts = pgTable("ucc_monitoring_alerts", {
   acknowledgedBy: varchar("acknowledged_by").references(() => users.id),
   acknowledgedAt: timestamp("acknowledged_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Saved searches for smart lead matching
+export const savedSearches = pgTable("saved_searches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  searchCriteria: jsonb("search_criteria").notNull(), // Stores all search filters
+  
+  // Notification preferences
+  emailNotifications: boolean("email_notifications").notNull().default(true),
+  inAppNotifications: boolean("in_app_notifications").notNull().default(true),
+  notificationFrequency: text("notification_frequency").default("daily"), // 'instant', 'daily', 'weekly'
+  
+  // Matching stats
+  lastMatchedAt: timestamp("last_matched_at"),
+  matchCount: integer("match_count").notNull().default(0),
+  newMatchCount: integer("new_match_count").notNull().default(0), // Unread matches
+  
+  // Metadata
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Lead matches for saved searches
+export const savedSearchMatches = pgTable("saved_search_matches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  savedSearchId: varchar("saved_search_id").references(() => savedSearches.id).notNull(),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  matchScore: integer("match_score").notNull(), // 0-100 how well the lead matches
+  isRead: boolean("is_read").notNull().default(false),
+  notificationSent: boolean("notification_sent").notNull().default(false),
+  matchedAt: timestamp("matched_at").notNull().defaultNow(),
 });
 
 // Lead aging tracking for freshness analytics
@@ -735,18 +794,7 @@ export const leadEnrichment = pgTable("lead_enrichment", {
   enrichedAt: timestamp("enriched_at").notNull().defaultNow(),
 });
 
-// Saved searches for advanced lead filtering
-export const savedSearches = pgTable("saved_searches", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  searchName: text("search_name").notNull(),
-  filters: jsonb("filters").notNull(), // All filter criteria as JSON
-  isDefault: boolean("is_default").notNull().default(false),
-  sortBy: text("sort_by"),
-  sortOrder: text("sort_order"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  lastUsedAt: timestamp("last_used_at"),
-});
+// Note: savedSearches table is already defined at line 215 with additional notification fields
 
 // Quality Guarantee table for lead replacement system
 export const qualityGuarantee = pgTable("quality_guarantee", {

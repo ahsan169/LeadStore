@@ -15,9 +15,10 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { 
   Loader2, Upload, Users, TrendingUp, Package, DollarSign, Database, 
   Check, X, AlertCircle, Calendar, Filter, Edit, Settings,
-  ChevronDown, Search, Download, RefreshCw, Trash2, Save, FileText, Shield, Link2
+  ChevronDown, Search, Download, RefreshCw, Trash2, Save, FileText, Shield, Link2, Zap
 } from "lucide-react";
 import type { User, Lead, LeadBatch, Purchase, ProductTier } from "@shared/schema";
+import { AdminEnrichmentConfig } from "@/components/AdminEnrichmentConfig";
 
 export default function SimplifiedAdminPage() {
   const { toast } = useToast();
@@ -342,7 +343,7 @@ export default function SimplifiedAdminPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="upload" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
@@ -350,6 +351,7 @@ export default function SimplifiedAdminPage() {
           <TabsTrigger value="ucc">UCC</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
+          <TabsTrigger value="enrichment">Enrichment</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -1034,6 +1036,11 @@ export default function SimplifiedAdminPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Enrichment Tab */}
+        <TabsContent value="enrichment" className="space-y-4">
+          <AdminEnrichmentConfig />
         </TabsContent>
 
         {/* Settings Tab */}

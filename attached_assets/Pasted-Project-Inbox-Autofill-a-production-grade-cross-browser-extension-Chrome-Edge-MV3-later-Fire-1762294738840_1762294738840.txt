@@ -1,0 +1,211 @@
+Project: “Inbox Autofill” — a production‑grade cross‑browser extension (Chrome/Edge, MV3; later Firefox via WebExtensions) plus a small backend that checks a user’s new Gmail messages daily and helps auto‑fill web forms and PDF forms with the user’s saved profile data.
+
+Primary outcomes
+
+Extension (MV3) that:
+
+Injects a content script to detect form fields (text, email, tel, address, company, EIN/Tax ID, etc.), maps them to user profile keys, and pre‑fills (never auto‑submits) with a visible “Confirm autofill” UI.
+
+Supports on‑page links from emails (CTA buttons that open forms), and attachments (PDF forms) by launching a secure viewer to fill fields and export.
+
+Minimizes permissions: use activeTab + optional host_permissions (request per‑site access at runtime). Provide an allowlist UI.
+
+Local “Profile Vault” (name, address, company, etc.) encrypted at rest in extension storage; easy edit + import/export.
+
+Keyboard shortcut to “Autofill this page”.
+
+Backend (Node 20 + Express) that:
+
+Handles OAuth 2.0 for Gmail with restricted scopes limited to gmail.readonly and label filters.
+
+Uses Gmail Push Notifications + Pub/Sub users.watch and users.history.list to fetch only changes since the last historyId. Store last processed historyId per user.
+
+Extracts actionable items: links to forms, PDF/DOCX attachments, dates/deadlines, sender domain.
+
+Runs URL safety checks (Google Safe Browsing v5 or alternative) before offering autofill suggestions.
+
+Sends the extension a “review queue” of items (via polling endpoint or WebSocket) so users can one‑click open a form and autofill.
+
+PDF forms support
+
+Implement PDF form fill via a JavaScript library that supports AcroForms (e.g., pdf‑lib or a viewer SDK with forms API). Provide: open → map fields → fill → export/download.
+
+Product polish
+
+Guided onboarding (sign into Google, grant scopes, set profile vault, choose allowlisted domains, set label filter like label:inbox newer_than:1d).
+
+Clear safety rails: “never auto‑submit”, require per‑item user confirmation, domain allowlist, and risk banners for unknown or unsafe links.
+
+Observability: server logs, client error reporting; no PII in logs.
+
+Packaging for Chrome Web Store with privacy policy & “Limited Use” disclosures; production build scripts; versioned releases.
+
+Non‑functional requirements
+
+Security & compliance: Follow Gmail restricted scope “Limited Use” requirements. Never use Gmail data for ads or unrelated purposes. Encrypt tokens server‑side; rotate and revoke; CSRF on OAuth.
+
+Performance: Content script must scan and map typical forms in <150ms after page idle.
+
+Reliability: Backend job to refresh Gmail watch every ~24h; handle missing/expired historyId by fallbacks.
+
+Tech stack & repo
+
+Monorepo with pnpm workspaces:
+
+/apps/extension   (MV3: service worker, content script, UI in React)
+/apps/server      (Node/Express + Gmail + Pub/Sub handlers)
+/packages/shared  (field-schema, mapping heuristics, validators)
+/packages/ui      (component library for extension popups & overlays)
+/infra            (IaC or setup scripts; example GCP config)
+
+
+TypeScript everywhere. ESLint + Prettier.
+
+Tests: Vitest unit tests; Playwright e2e for form mapping and PDF fill; mocked Gmail fixtures.
+
+Concrete features to implement now
+
+Field schema & synonyms: Build a mapping table for common fields (e.g., first_name, last_name, full_name, email, phone, street, city, state, postal_code, country, company, job_title, ein, tax_id). Include synonyms and HTML signals (label text, name/id, aria-label, placeholder, autocomplete attr).
+
+Heuristic mapper: Given DOM inputs, score candidate profile keys using string similarity, regex (e.g., zip, phone), and autocomplete hints. Output {selector, profileKey, confidence}. Draw an overlay with per‑field toggles.
+
+Attachment handling: When an email has a PDF form, provide a “Fill with Profile” flow using a web viewer. Save a filled copy for download.
+
+Gmail pipeline:
+
+OAuth 2.0 flow (External user type) with gmail.readonly.
+
+users.watch to a Pub/Sub topic; on notification, call users.history.list from the last stored historyId to find new messages & attachments.
+
+Extract links + attachments; run Safe Browsing check; persist queue items for the user.
+
+Provide /api/queue for the extension to fetch in the popup UI.
+
+Extension UX:
+
+Popup: review queue, open target form in a new tab, then press “Autofill” to run the content script.
+
+Options page: edit Profile Vault, domain allowlist, labels to monitor.
+
+Minimal permissions (MV3):
+
+permissions: storage, scripting, activeTab, identity (if using chrome.identity for OAuth helper).
+
+host_permissions: none by default; request at runtime for the current site.
+
+Docs: README with setup; Chrome Web Store listing copy; privacy policy template; threat model.
+
+Deliverables
+
+Working extension (zip signed build) + server (start script).
+
+.env.example with GOOGLE_CLIENT_ID/SECRET, PUBSUB_TOPIC, etc.
+
+End‑to‑end demo using seed emails (fixtures) and two sample public forms (e.g., generic signup + shipping form) plus a sample PDF form.
+
+Test suite CI; lint + typecheck gates.
+
+Constraints
+
+Never auto‑submit forms; only prefill after user confirmation.
+
+Do not store email content beyond what’s required to extract links/attachments/metadata for the user’s queue.
+
+No analytics on message contents; comply with Limited Use.
+
+Acceptance criteria
+
+Onboarding completes successfully; Gmail watch established; a new email with a link to a form appears in the queue within seconds/minutes; opening the form and clicking “Autofill” fills >90% of common fields correctly and never submits without user action.
+
+PDF form is opened and filled with Profile Vault values, then exported as a new PDF.
+
+Minimal permissions; allowlist enforced; Safe Browsing check warns on risky links.
+
+Build artifacts and a ready‑to‑publish Chrome Web Store package with required disclosures are produced.
+
+🚀 Best way to go about this (practical plan)
+1) Decide on architecture (extension‑only vs. extension + backend)
+
+Recommended: extension + small backend. The backend can process new mail even when the browser is closed and is the right way to meet “daily” processing reliably. Implement Gmail push notifications (users.watch → Pub/Sub) and use users.history.list to fetch only new changes since the last historyId. This is the Gmail‑recommended pattern for change detection. 
+Google for Developers
++2
+Google for Developers
++2
+
+An extension‑only approach (poll Gmail from the client) works only when the browser is running and still requires sensitive scopes; it’s weaker for a commercial product.
+
+2) Handle Google’s OAuth verification and “restricted scopes”
+
+Reading Gmail requires restricted scope verification and compliance with Google API Services User Data Policy (“Limited Use”). Plan for an external app verification (and a security assessment if Google requests it). Keep scopes as narrow as possible (gmail.readonly) and publish a detailed privacy policy. 
+Google for Developers
++1
+
+3) Follow Chrome/Edge extension standards (Manifest V3 + minimal permissions)
+
+Declare only what you need in permissions and use runtime host permissions so users grant site access on demand. Add an allowlist UI and avoid <all_urls> by default. 
+Chrome for Developers
++1
+
+Ensure your Chrome Web Store listing and privacy policy satisfy the User Data and Limited Use policies. 
+Chrome for Developers
+
+4) Build the form‑mapping engine
+
+Use multiple signals: <label> text, placeholder, name/id, aria-label, and the HTML autocomplete attribute (e.g., given-name, family-name, street-address, postal-code).
+
+Apply regex for structured fields (ZIP/phone/EIN), plus a synonyms table and string similarity scoring. Draw an overlay with per‑field controls and a confidence display.
+
+Default to never auto‑submitting; let users approve fills field‑by‑field or “Fill all”.
+
+5) PDF forms & document filling
+
+For PDFs, support AcroForms (read/write). You can use pdf‑lib or a viewer SDK with a dedicated forms API (e.g., PDF.js Express). Provide “Fill with Profile” then export a new file. 
+pdfjs.express
+
+6) Safety & trust
+
+Check all outbound form links against Safe Browsing v5 (or Google Web Risk for commercial URL risk). Warn clearly on suspicious targets. 
+Google for Developers
+
+Respect Limited Use: no ads; no sharing Gmail‑derived data; log only metadata and errors without PII. 
+Google for Developers
+
+Implement code‑review gates and do not let any AI agent auto‑deploy to production without human approval—industry incidents show why guardrails matter. 
+Business Insider
+
+7) Developer experience & testing
+
+Provide fixtures: .eml sample emails that include (a) a link to a sign‑up form, (b) a vendor onboarding form, (c) a PDF with fillable fields.
+
+Playwright e2e tests that: open a test form → run the content script → verify the correct values are present in the DOM → ensure no submit event fired.
+
+Unit tests for mapping heuristics and PDF fill.
+
+8) Publishing & go‑to‑market
+
+Ship a free tier (e.g., 50 autofills/month) and a paid plan for power users (teams, CRM export, custom field packs).
+
+Chrome Web Store listing: crisp value prop (“Fill forms from your inbox — fast and safe”), demo GIF, privacy disclosures, and support email. 
+Chrome for Developers
+
+🧩 Helpful implementation notes (you/your devs)
+
+Gmail watch loop: call users.watch (per user), store the returned historyId, refresh the watch at least daily, and on Pub/Sub notification call users.history.list to enumerate messageAdded/labelsAdded, then fetch just those messages/attachments. Handle empty histories gracefully and backfill if you lose state. 
+Google for Developers
++1
+
+Permissions: start with activeTab, storage, scripting; request site access on click (“This extension can read and change data on this site”). 
+Chrome for Developers
++1
+
+Queue design: Store only the minimum: message id, subject, sender domain, safe parsed links, attachment metadata. Never persist raw email bodies unless strictly necessary (and disclose if you do).
+
+Edge cases: dynamic frameworks (React/Vue forms), iframes (needs host permissions), anti‑bot widgets (reCAPTCHA), masked inputs; support manual override when mapping fails.
+
+📝 Tiny starter spec you can hand‑check in the PR
+
+Opening a “Create Account” form with fields Full Name, Email, Phone, Company, Address, Zip should show a non‑modal overlay mapping each to the Profile Vault with confidences, and a single click should fill the fields without submitting.
+
+A PDF W‑9 sample opens in your viewer, the EIN and address are filled, and the user can download a completed PDF.
+
+A risky link (caught by Safe Browsing) shows a red banner and disables the autofill button.

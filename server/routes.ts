@@ -9417,6 +9417,343 @@ Time: ${preferredTime || 'Any time'}`);
     return leads;
   }
 
+  // Auto-Verification and Scoring Routes
+  app.post("/api/leads/:id/verify", requireAuth, async (req, res) => {
+    try {
+      const lead = await storage.getLeadById(req.params.id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      // Import services
+      const { autoVerificationService } = await import("./services/auto-verification");
+      const result = await autoVerificationService.updateLeadVerification(req.params.id);
+      
+      res.json({ 
+        success: true,
+        lead: result,
+        message: "Lead verification completed"
+      });
+    } catch (error) {
+      console.error("Verification error:", error);
+      res.status(500).json({ error: "Failed to verify lead" });
+    }
+  });
+
+  app.post("/api/leads/:id/calculate-score", requireAuth, async (req, res) => {
+    try {
+      const lead = await storage.getLeadById(req.params.id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      // Import services
+      const { simplifiedLeadScoringService } = await import("./services/simplified-lead-scoring");
+      const result = await simplifiedLeadScoringService.updateLeadScore(req.params.id);
+      
+      res.json({ 
+        success: true,
+        lead: result,
+        message: "Lead score calculated"
+      });
+    } catch (error) {
+      console.error("Scoring error:", error);
+      res.status(500).json({ error: "Failed to calculate lead score" });
+    }
+  });
+
+  app.post("/api/leads/:id/generate-insights", requireAuth, async (req, res) => {
+    try {
+      const lead = await storage.getLeadById(req.params.id);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      // Import services
+      const { practicalInsightsEngine } = await import("./services/practical-insights");
+      const result = await practicalInsightsEngine.updateLeadInsights(req.params.id);
+      
+      res.json({ 
+        success: true,
+        lead: result,
+        message: "Lead insights generated"
+      });
+    } catch (error) {
+      console.error("Insights error:", error);
+      res.status(500).json({ error: "Failed to generate insights" });
+    }
+  });
+
+  // CRM Export Routes
+  app.post("/api/leads/export", requireAuth, async (req, res) => {
+    try {
+      const { leadIds, format, options } = req.body;
+      
+      if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "No leads selected for export" });
+      }
+
+      // Import service
+      const { crmExportService } = await import("./services/crm-export-service");
+      
+      const exportOptions = {
+        format: format || 'csv',
+        includeEnrichment: options?.includeEnrichment ?? true,
+        includeVerification: options?.includeVerification ?? true,
+        includeUccData: options?.includeUccData ?? true,
+        includeScoring: options?.includeScoring ?? true,
+        includeInsights: options?.includeInsights ?? true,
+      };
+
+      const result = await crmExportService.exportLeads(leadIds, exportOptions);
+      
+      // Track the export
+      await crmExportService.trackExport(req.user!.id, leadIds, exportOptions.format);
+
+      // Send appropriate response based on format
+      if (exportOptions.format === 'json') {
+        res.json(result.data);
+      } else {
+        res.setHeader('Content-Type', result.mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${result.fileName}"`);
+        res.send(result.data);
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      res.status(500).json({ error: "Failed to export leads" });
+    }
+  });
+
+  // Saved Searches Routes
+  app.get("/api/saved-searches", requireAuth, async (req, res) => {
+    try {
+      const { savedSearchService } = await import("./services/saved-searches");
+      const searches = await savedSearchService.getUserSavedSearches(req.user!.id);
+      res.json(searches);
+    } catch (error) {
+      console.error("Error fetching saved searches:", error);
+      res.status(500).json({ error: "Failed to fetch saved searches" });
+    }
+  });
+
+  app.post("/api/saved-searches", requireAuth, async (req, res) => {
+    try {
+      const { savedSearchService } = await import("./services/saved-searches");
+      const result = await savedSearchService.createSavedSearch(req.user!.id, req.body);
+      res.json(result);
+    } catch (error) {
+      console.error("Error creating saved search:", error);
+      res.status(500).json({ error: "Failed to create saved search" });
+    }
+  });
+
+  app.put("/api/saved-searches/:id", requireAuth, async (req, res) => {
+    try {
+      const { savedSearchService } = await import("./services/saved-searches");
+      const result = await savedSearchService.updateSavedSearch(
+        req.params.id,
+        req.user!.id,
+        req.body
+      );
+      
+      if (!result) {
+        return res.status(404).json({ error: "Saved search not found" });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error updating saved search:", error);
+      res.status(500).json({ error: "Failed to update saved search" });
+    }
+  });
+
+  app.delete("/api/saved-searches/:id", requireAuth, async (req, res) => {
+    try {
+      const { savedSearchService } = await import("./services/saved-searches");
+      const success = await savedSearchService.deleteSavedSearch(
+        req.params.id,
+        req.user!.id
+      );
+      
+      if (!success) {
+        return res.status(404).json({ error: "Saved search not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting saved search:", error);
+      res.status(500).json({ error: "Failed to delete saved search" });
+    }
+  });
+
+  app.get("/api/saved-searches/:id/matches", requireAuth, async (req, res) => {
+    try {
+      const { savedSearchService } = await import("./services/saved-searches");
+      const matches = await savedSearchService.getSavedSearchMatches(
+        req.params.id,
+        req.user!.id
+      );
+      res.json(matches);
+    } catch (error) {
+      console.error("Error fetching matches:", error);
+      res.status(500).json({ error: "Failed to fetch matches" });
+    }
+  });
+
+  app.post("/api/saved-searches/:id/mark-read", requireAuth, async (req, res) => {
+    try {
+      const { savedSearchService } = await import("./services/saved-searches");
+      await savedSearchService.markMatchesAsRead(
+        req.params.id,
+        req.user!.id
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error marking matches as read:", error);
+      res.status(500).json({ error: "Failed to mark matches as read" });
+    }
+  });
+
+  app.get("/api/saved-searches/notifications", requireAuth, async (req, res) => {
+    try {
+      const { savedSearchService } = await import("./services/saved-searches");
+      const summary = await savedSearchService.getUserNotificationSummary(req.user!.id);
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching notification summary:", error);
+      res.status(500).json({ error: "Failed to fetch notification summary" });
+    }
+  });
+
+  // UCC Matching Routes
+  app.post("/api/admin/ucc/match-leads", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { enhancedUccMatchingService } = await import("./services/enhanced-ucc-matching");
+      const linkedCount = await enhancedUccMatchingService.autoLinkHighConfidenceMatches(
+        req.body.threshold || 80
+      );
+      
+      res.json({ 
+        success: true,
+        linkedCount,
+        message: `Successfully linked ${linkedCount} UCC filings to leads`
+      });
+    } catch (error) {
+      console.error("UCC matching error:", error);
+      res.status(500).json({ error: "Failed to match UCC filings" });
+    }
+  });
+
+  app.post("/api/admin/ucc/:filingId/link", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leadId, confidenceScore } = req.body;
+      
+      if (!leadId) {
+        return res.status(400).json({ error: "Lead ID is required" });
+      }
+
+      const { enhancedUccMatchingService } = await import("./services/enhanced-ucc-matching");
+      await enhancedUccMatchingService.linkUccToLead(
+        req.params.filingId,
+        leadId,
+        confidenceScore || 100
+      );
+      
+      res.json({ 
+        success: true,
+        message: "UCC filing linked to lead"
+      });
+    } catch (error) {
+      console.error("UCC linking error:", error);
+      res.status(500).json({ error: "Failed to link UCC filing" });
+    }
+  });
+
+  app.post("/api/admin/ucc/:filingId/unlink", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { enhancedUccMatchingService } = await import("./services/enhanced-ucc-matching");
+      await enhancedUccMatchingService.unlinkUccFromLead(req.params.filingId);
+      
+      res.json({ 
+        success: true,
+        message: "UCC filing unlinked from lead"
+      });
+    } catch (error) {
+      console.error("UCC unlinking error:", error);
+      res.status(500).json({ error: "Failed to unlink UCC filing" });
+    }
+  });
+
+  // Batch Processing Routes
+  app.post("/api/admin/leads/batch-verify", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      
+      if (!leadIds || !Array.isArray(leadIds)) {
+        return res.status(400).json({ error: "Lead IDs are required" });
+      }
+
+      const { autoVerificationService } = await import("./services/auto-verification");
+      
+      // Process in background
+      autoVerificationService.batchVerifyLeads(leadIds).catch(console.error);
+      
+      res.json({ 
+        success: true,
+        message: `Started verification for ${leadIds.length} leads`
+      });
+    } catch (error) {
+      console.error("Batch verification error:", error);
+      res.status(500).json({ error: "Failed to start batch verification" });
+    }
+  });
+
+  app.post("/api/admin/leads/batch-score", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      
+      if (!leadIds || !Array.isArray(leadIds)) {
+        return res.status(400).json({ error: "Lead IDs are required" });
+      }
+
+      const { simplifiedLeadScoringService } = await import("./services/simplified-lead-scoring");
+      
+      // Process in background
+      simplifiedLeadScoringService.batchUpdateLeadScores(leadIds).catch(console.error);
+      
+      res.json({ 
+        success: true,
+        message: `Started scoring for ${leadIds.length} leads`
+      });
+    } catch (error) {
+      console.error("Batch scoring error:", error);
+      res.status(500).json({ error: "Failed to start batch scoring" });
+    }
+  });
+
+  app.post("/api/admin/leads/batch-insights", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      
+      if (!leadIds || !Array.isArray(leadIds)) {
+        return res.status(400).json({ error: "Lead IDs are required" });
+      }
+
+      const { practicalInsightsEngine } = await import("./services/practical-insights");
+      
+      // Process in background
+      practicalInsightsEngine.batchUpdateInsights(leadIds).catch(console.error);
+      
+      res.json({ 
+        success: true,
+        message: `Started insight generation for ${leadIds.length} leads`
+      });
+    } catch (error) {
+      console.error("Batch insights error:", error);
+      res.status(500).json({ error: "Failed to start batch insight generation" });
+    }
+  });
+
   // Return the server instance for WebSocket setup
   return server;
 }
