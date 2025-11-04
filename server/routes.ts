@@ -4350,6 +4350,17 @@ Format your response as JSON with the following structure:
     }
   });
 
+  // Get all purchases - admin only endpoint  
+  app.get("/api/purchases/all", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const allPurchases = await storage.getAllPurchases();
+      res.json(allPurchases || []);
+    } catch (error) {
+      console.error("Get all purchases error:", error);
+      res.status(500).json({ error: "Failed to fetch all purchases" });
+    }
+  });
+
   app.get("/api/purchases/:id", requireAuth, async (req, res) => {
     try {
       const purchase = await storage.getPurchase(req.params.id);
@@ -4862,6 +4873,282 @@ Format your response as JSON with the following structure:
     } catch (error) {
       console.error("Conversion funnel error:", error);
       res.status(500).json({ error: "Failed to fetch funnel data" });
+    }
+  });
+
+  // ============ ENHANCED ADMIN API ENDPOINTS ============
+
+  // GET /api/admin/analytics/detailed - Enhanced admin analytics
+  app.get("/api/admin/analytics/detailed", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      // Get leads by date (last 30 days)
+      const leadsByDate = await db.select({
+        date: sql<string>`DATE(${leads.uploadedAt})`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(leads)
+      .where(gte(leads.uploadedAt, sql`CURRENT_DATE - INTERVAL '30 days'`))
+      .groupBy(sql`DATE(${leads.uploadedAt})`)
+      .orderBy(sql`DATE(${leads.uploadedAt})` as any);
+
+      // Revenue trends (last 30 days)
+      const revenueTrends = await db.select({
+        date: sql<string>`DATE(${purchases.createdAt})`,
+        revenue: sql<number>`SUM(${purchases.totalAmount})`,
+        purchases: sql<number>`COUNT(*)`,
+      })
+      .from(purchases)
+      .where(gte(purchases.createdAt, sql`CURRENT_DATE - INTERVAL '30 days'`))
+      .groupBy(sql`DATE(${purchases.createdAt})`)
+      .orderBy(sql`DATE(${purchases.createdAt})` as any);
+
+      // Top customers by revenue
+      const topCustomers = await db.select({
+        userId: purchases.userId,
+        username: users.username,
+        email: users.email,
+        totalRevenue: sql<number>`SUM(${purchases.totalAmount})`,
+        purchaseCount: sql<number>`COUNT(${purchases.id})`,
+        totalLeads: sql<number>`SUM(${purchases.leadCount})`,
+      })
+      .from(purchases)
+      .innerJoin(users, eq(purchases.userId, users.id))
+      .groupBy(purchases.userId, users.username, users.email)
+      .orderBy(sql`SUM(${purchases.totalAmount}) DESC`)
+      .limit(10);
+
+      // Conversion rates by tier
+      const conversionRates = await db.select({
+        tier: leads.tier,
+        total: sql<number>`COUNT(*)`,
+        sold: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
+        conversionRate: sql<number>`ROUND((COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)::DECIMAL / NULLIF(COUNT(*), 0)) * 100, 2)`,
+      })
+      .from(leads)
+      .where(isNotNull(leads.tier))
+      .groupBy(leads.tier);
+
+      res.json({
+        leadsByDate,
+        revenueTrends,
+        topCustomers,
+        conversionRates,
+      });
+    } catch (error) {
+      console.error("Admin analytics error:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
+  // GET /api/admin/users/detailed - Get users with stats
+  app.get("/api/admin/users/detailed", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const usersWithStats = await db.select({
+        id: users.id,
+        username: users.username,
+        email: users.email,
+        role: users.role,
+        createdAt: users.createdAt,
+        purchaseCount: sql<number>`COUNT(DISTINCT ${purchases.id})`,
+        totalSpent: sql<number>`COALESCE(SUM(${purchases.totalAmount}), 0)`,
+        totalLeads: sql<number>`COALESCE(SUM(${purchases.leadCount}), 0)`,
+        lastPurchase: sql<Date>`MAX(${purchases.createdAt})`,
+      })
+      .from(users)
+      .leftJoin(purchases, eq(users.id, purchases.userId))
+      .groupBy(users.id, users.username, users.email, users.role, users.createdAt);
+
+      res.json(usersWithStats);
+    } catch (error) {
+      console.error("User fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
+  // PATCH /api/admin/users/:userId - Update user
+  app.patch("/api/admin/users/:userId", requireAuth, requireAdmin, async (req, res) => {
+    const { userId } = req.params;
+    const { role } = req.body;
+
+    try {
+      const updates: any = {};
+      if (role) updates.role = role;
+      
+      const result = await db.update(users)
+        .set(updates)
+        .where(eq(users.id, userId))
+        .returning();
+
+      if (result.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json(result[0]);
+    } catch (error) {
+      console.error("User update error:", error);
+      res.status(500).json({ error: "Failed to update user" });
+    }
+  });
+
+  // GET /api/admin/leads/all - Get all leads with pagination
+  app.get("/api/admin/leads/all", requireAuth, requireAdmin, async (req, res) => {
+    const { page = 1, limit = 50, search, tier, sold } = req.query;
+    const offset = (Number(page) - 1) * Number(limit);
+
+    try {
+      let conditions = [];
+
+      if (search) {
+        conditions.push(
+          or(
+            like(leads.businessName, `%${search}%`),
+            like(leads.ownerName, `%${search}%`),
+            like(leads.email, `%${search}%`),
+            like(leads.phone, `%${search}%`)
+          )
+        );
+      }
+
+      if (tier) {
+        conditions.push(eq(leads.tier, String(tier)));
+      }
+
+      if (sold !== undefined) {
+        conditions.push(eq(leads.sold, sold === 'true'));
+      }
+
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [totalResult, leadsResult] = await Promise.all([
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(leads)
+          .where(whereClause),
+        db.select()
+          .from(leads)
+          .where(whereClause)
+          .orderBy(desc(leads.createdAt))
+          .limit(Number(limit))
+          .offset(offset)
+      ]);
+
+      res.json({
+        leads: leadsResult,
+        total: totalResult[0].count,
+        page: Number(page),
+        limit: Number(limit),
+      });
+    } catch (error) {
+      console.error("Leads fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch leads" });
+    }
+  });
+
+  // PATCH /api/admin/leads/:leadId - Update lead
+  app.patch("/api/admin/leads/:leadId", requireAuth, requireAdmin, async (req, res) => {
+    const { leadId } = req.params;
+    const updates = req.body;
+
+    try {
+      const result = await db.update(leads)
+        .set(updates)
+        .where(eq(leads.id, leadId))
+        .returning();
+
+      if (result.length === 0) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Lead update error:", error);
+      res.status(500).json({ error: "Failed to update lead" });
+    }
+  });
+
+  // POST /api/admin/leads/bulk-action - Bulk lead actions
+  app.post("/api/admin/leads/bulk-action", requireAuth, requireAdmin, async (req, res) => {
+    const { leadIds, action, value } = req.body;
+
+    try {
+      let updates: any = {};
+      
+      switch (action) {
+        case 'markSold':
+          updates.sold = true;
+          updates.soldAt = new Date();
+          break;
+        case 'markAvailable':
+          updates.sold = false;
+          updates.soldAt = null;
+          updates.soldTo = null;
+          break;
+        case 'changeTier':
+          updates.tier = value;
+          break;
+        case 'updateQuality':
+          updates.qualityScore = value;
+          break;
+      }
+
+      const result = await db.update(leads)
+        .set(updates)
+        .where(inArray(leads.id, leadIds))
+        .returning();
+
+      res.json({ updated: result.length });
+    } catch (error) {
+      console.error("Bulk action error:", error);
+      res.status(500).json({ error: "Failed to perform bulk action" });
+    }
+  });
+
+  // GET /api/admin/settings - Get system settings
+  app.get("/api/admin/settings", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const [tiers, pricingStrategy] = await Promise.all([
+        storage.getAllProductTiers(),
+        storage.getActivePricingStrategy(),
+      ]);
+
+      res.json({
+        tiers,
+        pricingStrategy,
+        uploadLimits: {
+          maxFileSize: 50 * 1024 * 1024, // 50MB
+          allowedFormats: ['.csv', '.xlsx', '.xls'],
+        },
+      });
+    } catch (error) {
+      console.error("Settings fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  // PATCH /api/admin/settings/tier/:tierId - Update tier
+  app.patch("/api/admin/settings/tier/:tierId", requireAuth, requireAdmin, async (req, res) => {
+    const { tierId } = req.params;
+    const updates = req.body;
+
+    try {
+      const result = await storage.updateProductTier(tierId, updates);
+      if (!result) {
+        return res.status(404).json({ error: "Tier not found" });
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("Tier update error:", error);
+      res.status(500).json({ error: "Failed to update tier" });
+    }
+  });
+
+  // POST /api/admin/settings/tier - Create tier
+  app.post("/api/admin/settings/tier", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const result = await storage.createProductTier(req.body);
+      res.json(result);
+    } catch (error) {
+      console.error("Tier creation error:", error);
+      res.status(500).json({ error: "Failed to create tier" });
     }
   });
   
