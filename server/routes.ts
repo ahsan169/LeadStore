@@ -23,8 +23,8 @@ import {
   sendAlertNotification 
 } from "./email";
 import { db } from "./db";
-import { leadPerformance, purchases, leadScoringModels } from "@shared/schema";
-import { gte, lte, and, sql, eq } from "drizzle-orm";
+import { leadPerformance, purchases, leadScoringModels, leads, users } from "@shared/schema";
+import { gte, lte, and, or, sql, eq, desc, like, isNotNull, inArray } from "drizzle-orm";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
@@ -4938,6 +4938,8 @@ Format your response as JSON with the following structure:
   // GET /api/admin/analytics/detailed - Enhanced admin analytics
   app.get("/api/admin/analytics/detailed", requireAuth, requireAdmin, async (req, res) => {
     try {
+      console.log("Fetching detailed admin analytics...");
+      
       // Get leads by date (last 30 days)
       const leadsByDate = await db.select({
         date: sql<string>`DATE(${leads.uploadedAt})`,
@@ -4946,7 +4948,11 @@ Format your response as JSON with the following structure:
       .from(leads)
       .where(gte(leads.uploadedAt, sql`CURRENT_DATE - INTERVAL '30 days'`))
       .groupBy(sql`DATE(${leads.uploadedAt})`)
-      .orderBy(sql`DATE(${leads.uploadedAt})` as any);
+      .orderBy(sql`DATE(${leads.uploadedAt})` as any)
+      .catch((err) => {
+        console.error("Error fetching leads by date:", err);
+        return [];
+      });
 
       // Revenue trends (last 30 days)
       const revenueTrends = await db.select({
@@ -4957,7 +4963,11 @@ Format your response as JSON with the following structure:
       .from(purchases)
       .where(gte(purchases.createdAt, sql`CURRENT_DATE - INTERVAL '30 days'`))
       .groupBy(sql`DATE(${purchases.createdAt})`)
-      .orderBy(sql`DATE(${purchases.createdAt})` as any);
+      .orderBy(sql`DATE(${purchases.createdAt})` as any)
+      .catch((err) => {
+        console.error("Error fetching revenue trends:", err);
+        return [];
+      });
 
       // Top customers by revenue
       const topCustomers = await db.select({
@@ -4972,7 +4982,11 @@ Format your response as JSON with the following structure:
       .innerJoin(users, eq(purchases.userId, users.id))
       .groupBy(purchases.userId, users.username, users.email)
       .orderBy(sql`SUM(${purchases.totalAmount}) DESC`)
-      .limit(10);
+      .limit(10)
+      .catch((err) => {
+        console.error("Error fetching top customers:", err);
+        return [];
+      });
 
       // Conversion rates by tier
       const conversionRates = await db.select({
@@ -4983,23 +4997,32 @@ Format your response as JSON with the following structure:
       })
       .from(leads)
       .where(isNotNull(leads.tier))
-      .groupBy(leads.tier);
+      .groupBy(leads.tier)
+      .catch((err) => {
+        console.error("Error fetching conversion rates:", err);
+        return [];
+      });
 
       res.json({
-        leadsByDate,
-        revenueTrends,
-        topCustomers,
-        conversionRates,
+        leadsByDate: leadsByDate || [],
+        revenueTrends: revenueTrends || [],
+        topCustomers: topCustomers || [],
+        conversionRates: conversionRates || [],
       });
     } catch (error) {
-      console.error("Admin analytics error:", error);
-      res.status(500).json({ error: "Failed to fetch analytics" });
+      console.error("Admin analytics error - Full details:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch analytics",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
   // GET /api/admin/users/detailed - Get users with stats
   app.get("/api/admin/users/detailed", requireAuth, requireAdmin, async (req, res) => {
     try {
+      console.log("Fetching detailed user stats...");
+      
       const usersWithStats = await db.select({
         id: users.id,
         username: users.username,
@@ -5013,12 +5036,19 @@ Format your response as JSON with the following structure:
       })
       .from(users)
       .leftJoin(purchases, eq(users.id, purchases.userId))
-      .groupBy(users.id, users.username, users.email, users.role, users.createdAt);
+      .groupBy(users.id, users.username, users.email, users.role, users.createdAt)
+      .catch((err) => {
+        console.error("Error fetching users with stats:", err);
+        return [];
+      });
 
-      res.json(usersWithStats);
+      res.json(usersWithStats || []);
     } catch (error) {
-      console.error("User fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch users" });
+      console.error("User fetch error - Full details:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch users",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -5053,6 +5083,8 @@ Format your response as JSON with the following structure:
     const offset = (Number(page) - 1) * Number(limit);
 
     try {
+      console.log("Fetching all leads with pagination...");
+      
       let conditions = [];
 
       if (search) {
@@ -5079,24 +5111,35 @@ Format your response as JSON with the following structure:
       const [totalResult, leadsResult] = await Promise.all([
         db.select({ count: sql<number>`COUNT(*)` })
           .from(leads)
-          .where(whereClause),
+          .where(whereClause)
+          .catch((err) => {
+            console.error("Error counting leads:", err);
+            return [{ count: 0 }];
+          }),
         db.select()
           .from(leads)
           .where(whereClause)
           .orderBy(desc(leads.createdAt))
           .limit(Number(limit))
           .offset(offset)
+          .catch((err) => {
+            console.error("Error fetching leads:", err);
+            return [];
+          })
       ]);
 
       res.json({
-        leads: leadsResult,
-        total: totalResult[0].count,
+        leads: leadsResult || [],
+        total: totalResult?.[0]?.count || 0,
         page: Number(page),
         limit: Number(limit),
       });
     } catch (error) {
-      console.error("Leads fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch leads" });
+      console.error("Leads fetch error - Full details:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch leads",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -5162,22 +5205,33 @@ Format your response as JSON with the following structure:
   // GET /api/admin/settings - Get system settings
   app.get("/api/admin/settings", requireAuth, requireAdmin, async (req, res) => {
     try {
+      console.log("Fetching system settings...");
+      
       const [tiers, pricingStrategy] = await Promise.all([
-        storage.getAllProductTiers(),
-        storage.getActivePricingStrategy(),
+        storage.getAllProductTiers().catch((err) => {
+          console.error("Error fetching product tiers:", err);
+          return [];
+        }),
+        storage.getActivePricingStrategy().catch((err) => {
+          console.error("Error fetching pricing strategy:", err);
+          return null;
+        }),
       ]);
 
       res.json({
-        tiers,
-        pricingStrategy,
+        tiers: tiers || [],
+        pricingStrategy: pricingStrategy || null,
         uploadLimits: {
           maxFileSize: 50 * 1024 * 1024, // 50MB
           allowedFormats: ['.csv', '.xlsx', '.xls'],
         },
       });
     } catch (error) {
-      console.error("Settings fetch error:", error);
-      res.status(500).json({ error: "Failed to fetch settings" });
+      console.error("Settings fetch error - Full details:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch settings",
+        message: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

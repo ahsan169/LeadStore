@@ -1231,6 +1231,33 @@ export class DbStorage implements IStorage {
       .where(eq(productTiers.id, id));
   }
 
+  // Pricing strategy operations
+  async getPricingStrategy(id: string): Promise<PricingStrategy | undefined> {
+    const result = await db.select().from(pricingStrategies).where(eq(pricingStrategies.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getActivePricingStrategy(): Promise<PricingStrategy | undefined> {
+    const result = await db.select().from(pricingStrategies)
+      .where(eq(pricingStrategies.active, true))
+      .orderBy(desc(pricingStrategies.createdAt))
+      .limit(1);
+    return result[0];
+  }
+
+  async createPricingStrategy(strategy: InsertPricingStrategy): Promise<PricingStrategy> {
+    const result = await db.insert(pricingStrategies).values(strategy).returning();
+    return result[0];
+  }
+
+  async updatePricingStrategy(id: string, data: Partial<InsertPricingStrategy>): Promise<PricingStrategy | undefined> {
+    const result = await db.update(pricingStrategies)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(pricingStrategies.id, id))
+      .returning();
+    return result[0];
+  }
+
   // Allocation operations
   async createAllocation(allocation: InsertAllocation): Promise<Allocation> {
     const result = await db.insert(allocations).values(allocation).returning();
