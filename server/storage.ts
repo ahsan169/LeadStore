@@ -322,6 +322,22 @@ export interface IStorage {
     logicOperator?: 'AND' | 'OR';
   }): Promise<{ leads: Lead[]; total: number }>;
   
+  // UCC operations
+  createUccFiling(filing: InsertUccFiling): Promise<UccFiling>;
+  createUccFilings(filings: InsertUccFiling[]): Promise<UccFiling[]>;
+  getUccFiling(id: string): Promise<UccFiling | undefined>;
+  getUccFilingsByLeadId(leadId: string): Promise<UccFiling[]>;
+  getAllUccFilings(): Promise<UccFiling[]>;
+  updateUccFiling(id: string, data: Partial<InsertUccFiling>): Promise<UccFiling | undefined>;
+  matchUccFilingsToLeads(debtorName: string): Promise<Lead[]>;
+  calculateUccRiskLevel(leadId: string): Promise<string>;
+  updateLeadUccSummary(leadId: string, summary: {
+    totalUccDebt: number;
+    activeUccCount: number;
+    lastUccFilingDate: Date | null;
+    uccRiskLevel: string;
+  }): Promise<Lead | undefined>;
+  
   // Saved searches operations
   createSavedSearch(search: InsertSavedSearch): Promise<SavedSearch>;
   getSavedSearch(id: string): Promise<SavedSearch | undefined>;
@@ -2854,6 +2870,106 @@ export class DbStorage implements IStorage {
     const result = await db.select().from(leads)
       .where(eq(leads.id, id))
       .limit(1);
+    return result[0];
+  }
+  // UCC operations implementation
+  async createUccFiling(filing: InsertUccFiling): Promise<UccFiling> {
+    const result = await db.insert(uccFilings).values(filing).returning();
+    return result[0];
+  }
+
+  async createUccFilings(filings: InsertUccFiling[]): Promise<UccFiling[]> {
+    if (filings.length === 0) return [];
+    const result = await db.insert(uccFilings).values(filings).returning();
+    return result;
+  }
+
+  async getUccFiling(id: string): Promise<UccFiling | undefined> {
+    const result = await db.select().from(uccFilings).where(eq(uccFilings.id, id));
+    return result[0];
+  }
+
+  async getUccFilingsByLeadId(leadId: string): Promise<UccFiling[]> {
+    return await db.select().from(uccFilings).where(eq(uccFilings.leadId, leadId));
+  }
+
+  async getAllUccFilings(): Promise<UccFiling[]> {
+    return await db.select().from(uccFilings);
+  }
+
+  async updateUccFiling(id: string, data: Partial<InsertUccFiling>): Promise<UccFiling | undefined> {
+    const result = await db.update(uccFilings).set(data).where(eq(uccFilings.id, id)).returning();
+    return result[0];
+  }
+
+  async matchUccFilingsToLeads(debtorName: string): Promise<Lead[]> {
+    // Simple fuzzy matching by business name
+    const searchTerm = debtorName.toLowerCase().trim();
+    const searchWords = searchTerm.split(/\s+/).filter(word => word.length > 2);
+    
+    if (searchWords.length === 0) return [];
+
+    // Build search condition for fuzzy matching
+    const conditions = searchWords.map(word => 
+      like(sql`LOWER(${leads.businessName})`, `%${word}%`)
+    );
+
+    const result = await db.select()
+      .from(leads)
+      .where(or(...conditions))
+      .limit(10);
+    
+    return result;
+  }
+
+  async calculateUccRiskLevel(leadId: string): Promise<string> {
+    // Get the lead and its UCC filings
+    const lead = await this.getLead(leadId);
+    if (!lead) return 'unknown';
+
+    const filings = await this.getUccFilingsByLeadId(leadId);
+    
+    // Calculate risk based on UCC data
+    const totalDebt = filings.reduce((sum, filing) => 
+      sum + (filing.loanAmount ? filing.loanAmount / 100 : 0), 0
+    );
+    
+    const activeFilings = filings.filter(f => 
+      f.filingType !== 'termination'
+    ).length;
+
+    // Simple risk calculation
+    if (activeFilings === 0) return 'low';
+    
+    // If we have revenue data, use debt-to-revenue ratio
+    if (lead.annualRevenue) {
+      const revenue = parseInt(lead.annualRevenue.replace(/[^0-9]/g, '')) || 0;
+      if (revenue > 0) {
+        const debtToRevenue = totalDebt / revenue;
+        if (debtToRevenue < 0.2) return 'low';
+        if (debtToRevenue < 0.5) return 'medium';
+        return 'high';
+      }
+    }
+    
+    // Otherwise use filing count and amount
+    if (activeFilings >= 5 || totalDebt > 500000) return 'high';
+    if (activeFilings >= 3 || totalDebt > 200000) return 'medium';
+    return 'low';
+  }
+
+  async updateLeadUccSummary(leadId: string, summary: {
+    totalUccDebt: number;
+    activeUccCount: number;
+    lastUccFilingDate: Date | null;
+    uccRiskLevel: string;
+  }): Promise<Lead | undefined> {
+    const result = await db.update(leads).set({
+      totalUccDebt: summary.totalUccDebt.toString(),
+      activeUccCount: summary.activeUccCount,
+      lastUccFilingDate: summary.lastUccFilingDate,
+      uccRiskLevel: summary.uccRiskLevel,
+    }).where(eq(leads.id, leadId)).returning();
     return result[0];
   }
 }

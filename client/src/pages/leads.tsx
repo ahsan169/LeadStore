@@ -27,6 +27,7 @@ import { LeadIntelligenceScore, IntelligenceScoreBadge } from "@/components/Lead
 import { EnrichmentBadge } from "@/components/EnrichmentBadge";
 import { FreshnessBadge } from "@/components/FreshnessBadge";
 import { UccLeadDetails } from "@/components/UccLeadDetails";
+import { UccDataDisplay } from "@/components/UccDataDisplay";
 import type { Lead, SavedSearch } from "@shared/schema";
 
 // FreshnessInfo component defined inline
@@ -1108,6 +1109,19 @@ export default function LeadsPage() {
                       </div>
                       
                       <Separator className="my-2" />
+                      
+                      {/* UCC Data Display */}
+                      {(lead.totalUccDebt || lead.activeUccCount) ? (
+                        <div className="mb-2">
+                          <UccDataDisplay 
+                            totalDebt={lead.totalUccDebt ? parseFloat(lead.totalUccDebt) : 0}
+                            activeUccCount={lead.activeUccCount || 0}
+                            lastFilingDate={lead.lastUccFilingDate}
+                            riskLevel={lead.uccRiskLevel || 'unknown'}
+                            compact={true}
+                          />
+                        </div>
+                      ) : null}
                       
                       {/* ML Scoring Information */}
                       {(lead.conversionProbability || lead.expectedDealSize) && (

@@ -147,6 +147,12 @@ export const leads = pgTable("leads", {
   businessMaturity: text("business_maturity"), // 'new', 'growing', 'established', 'mature'
   uccIntelligence: jsonb("ucc_intelligence"), // Full intelligence object
   
+  // Simplified UCC fields for quick access
+  totalUccDebt: decimal("total_ucc_debt", { precision: 15, scale: 2 }),
+  activeUccCount: integer("active_ucc_count").default(0),
+  lastUccFilingDate: timestamp("last_ucc_filing_date"),
+  uccRiskLevel: text("ucc_risk_level"), // 'low', 'medium', 'high'
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

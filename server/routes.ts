@@ -4145,11 +4145,68 @@ Format your response as JSON with the following structure:
   // GET /api/admin/ucc/stats - Get overall UCC filing statistics
   app.get("/api/admin/ucc/stats", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const stats = await storage.getUccFilingStats();
+      const filings = await storage.getAllUccFilings();
+      const leads = await storage.getLeadStats();
+      
+      // Calculate stats
+      const totalFilings = filings.length;
+      const matchedLeads = filings.filter(f => f.leadId).length;
+      const activeFilings = filings.filter(f => f.filingType !== 'termination').length;
+      const terminatedFilings = filings.filter(f => f.filingType === 'termination').length;
+      
+      // Calculate total and average debt
+      const totalDebt = filings.reduce((sum, f) => sum + (f.loanAmount || 0), 0);
+      const averageDebt = totalFilings > 0 ? Math.round(totalDebt / totalFilings) : 0;
+      
+      // Calculate risk distribution
+      const riskFilings = await Promise.all(
+        filings.filter(f => f.leadId).map(async (f) => ({
+          filing: f,
+          risk: await storage.calculateUccRiskLevel(f.leadId!)
+        }))
+      );
+      
+      const lowRisk = riskFilings.filter(r => r.risk === 'low').length;
+      const mediumRisk = riskFilings.filter(r => r.risk === 'medium').length;
+      const highRisk = riskFilings.filter(r => r.risk === 'high').length;
+      
+      const stats = {
+        totalFilings,
+        matchedLeads,
+        activeFilings,
+        terminatedFilings,
+        totalDebt,
+        averageDebt,
+        lowRisk,
+        mediumRisk,
+        highRisk,
+        lastUpdated: filings.length > 0 ? filings[0].createdAt : null
+      };
+      
       res.json(stats);
     } catch (error) {
       console.error("[UCC Stats] Error:", error);
       res.status(500).json({ error: "Failed to fetch UCC statistics" });
+    }
+  });
+  
+  // GET /api/admin/ucc-filings - Get all UCC filings
+  app.get("/api/admin/ucc-filings", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const filings = await storage.getAllUccFilings();
+      
+      // Add risk level to each filing
+      const filingsWithRisk = await Promise.all(
+        filings.map(async (filing) => ({
+          ...filing,
+          riskLevel: filing.leadId ? await storage.calculateUccRiskLevel(filing.leadId) : 'unknown'
+        }))
+      );
+      
+      res.json(filingsWithRisk);
+    } catch (error) {
+      console.error("[UCC Filings] Error:", error);
+      res.status(500).json({ error: "Failed to fetch UCC filings" });
     }
   });
 

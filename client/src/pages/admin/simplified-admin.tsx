@@ -15,14 +15,16 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, L
 import { 
   Loader2, Upload, Users, TrendingUp, Package, DollarSign, Database, 
   Check, X, AlertCircle, Calendar, Filter, Edit, Settings,
-  ChevronDown, Search, Download, RefreshCw, Trash2, Save
+  ChevronDown, Search, Download, RefreshCw, Trash2, Save, FileText, Shield, Link2
 } from "lucide-react";
 import type { User, Lead, LeadBatch, Purchase, ProductTier } from "@shared/schema";
 
 export default function SimplifiedAdminPage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uccFileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingUcc, setIsUploadingUcc] = useState(false);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -65,6 +67,22 @@ export default function SimplifiedAdminPage() {
   // Fetch settings
   const { data: settings } = useQuery({
     queryKey: ['/api/admin/settings'],
+  });
+
+  // Fetch UCC stats
+  const { data: uccStats } = useQuery({
+    queryKey: ['/api/admin/ucc/stats'],
+  });
+
+  // Fetch all UCC filings
+  const { data: uccFilings } = useQuery({
+    queryKey: ['/api/admin/ucc-filings'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/ucc-filings', {
+        credentials: 'include',
+      });
+      return response.json();
+    },
   });
 
   // Handle file upload
@@ -178,11 +196,58 @@ export default function SimplifiedAdminPage() {
     },
   });
 
+  // UCC upload mutation
+  const uploadUccMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/admin/upload-ucc', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'UCC upload failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "UCC Data Uploaded!",
+        description: `Processed ${data.summary?.totalRecords || 0} UCC filings. Matched ${data.summary?.matchedLeads || 0} leads.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/ucc/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/ucc-filings'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/leads/all'] });
+      setIsUploadingUcc(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "UCC Upload Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      setIsUploadingUcc(false);
+    },
+  });
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setIsUploading(true);
       uploadMutation.mutate(file);
+    }
+  };
+
+  const handleUccFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setIsUploadingUcc(true);
+      uploadUccMutation.mutate(file);
     }
   };
 
@@ -277,11 +342,12 @@ export default function SimplifiedAdminPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="upload" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
+          <TabsTrigger value="ucc">UCC</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
@@ -697,6 +763,194 @@ export default function SimplifiedAdminPage() {
                   Showing {leadsData?.leads?.length || 0} of {leadsData?.total} leads
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* UCC Intelligence Tab */}
+        <TabsContent value="ucc" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* UCC Stats Cards */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total UCC Filings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold">{uccStats?.totalFilings || 0}</span>
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {uccStats?.matchedLeads || 0} matched to leads
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Debt</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold">
+                    ${((uccStats?.totalDebt || 0) / 100).toLocaleString()}
+                  </span>
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Avg: ${((uccStats?.averageDebt || 0) / 100).toLocaleString()}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Risk Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-green-600">Low Risk</span>
+                    <span>{uccStats?.lowRisk || 0}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-yellow-600">Medium Risk</span>
+                    <span>{uccStats?.mediumRisk || 0}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-red-600">High Risk</span>
+                    <span>{uccStats?.highRisk || 0}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Upload UCC Filings</CardTitle>
+              <CardDescription>
+                Upload a CSV or Excel file containing UCC filing data to match against existing leads
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="border-2 border-dashed border-muted rounded-lg p-8 text-center">
+                <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  Upload UCC filing data (CSV or Excel format)
+                </p>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Required columns: Debtor Name, Creditor, Amount, Filing Date
+                </p>
+                <input
+                  ref={uccFileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleUccFileSelect}
+                  className="hidden"
+                />
+                <Button
+                  onClick={() => uccFileInputRef.current?.click()}
+                  disabled={isUploadingUcc}
+                  data-testid="button-upload-ucc"
+                >
+                  {isUploadingUcc ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processing UCC Data...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Select UCC File
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Recent UCC Filings */}
+              {uccFilings && uccFilings.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="font-medium">Recent UCC Filings</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Debtor</TableHead>
+                        <TableHead>Creditor</TableHead>
+                        <TableHead>Amount</TableHead>
+                        <TableHead>Filing Date</TableHead>
+                        <TableHead>Risk</TableHead>
+                        <TableHead>Matched Lead</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {uccFilings.slice(0, 10).map((filing: any) => (
+                        <TableRow key={filing.id}>
+                          <TableCell className="font-medium">{filing.debtorName}</TableCell>
+                          <TableCell>{filing.securedParty}</TableCell>
+                          <TableCell>${(filing.loanAmount / 100).toLocaleString()}</TableCell>
+                          <TableCell>
+                            {new Date(filing.filingDate).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={
+                                filing.riskLevel === 'low' ? 'secondary' :
+                                filing.riskLevel === 'medium' ? 'outline' :
+                                'destructive'
+                              }
+                            >
+                              {filing.riskLevel || 'Unknown'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {filing.leadId ? (
+                              <div className="flex items-center gap-1">
+                                <Link2 className="w-3 h-3" />
+                                <span className="text-sm">Matched</span>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">No match</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* UCC Intelligence Summary */}
+              <div className="bg-muted/50 rounded-lg p-4">
+                <h3 className="font-medium mb-3 flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  UCC Intelligence Summary
+                </h3>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Active Liens</p>
+                    <p className="font-bold">{uccStats?.activeFilings || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Terminated</p>
+                    <p className="font-bold">{uccStats?.terminatedFilings || 0}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Match Rate</p>
+                    <p className="font-bold">
+                      {uccStats?.totalFilings ? 
+                        Math.round((uccStats.matchedLeads / uccStats.totalFilings) * 100) : 0}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Last Updated</p>
+                    <p className="font-bold">
+                      {uccStats?.lastUpdated ? 
+                        new Date(uccStats.lastUpdated).toLocaleDateString() : 'Never'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
