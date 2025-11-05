@@ -644,6 +644,34 @@ function parseExcelFile(buffer: Buffer, filename: string): { rows: any[], header
  * Parse CSV file with multiple encoding support
  */
 function parseCSVFile(buffer: Buffer, filename: string): { rows: any[], headers: string[] } {
+  // First, validate this is not a binary file
+  const firstBytes = buffer.slice(0, 8).toString('hex').toUpperCase();
+  
+  // Check for common binary file signatures
+  const binarySignatures = [
+    '504B0304', // ZIP files
+    '89504E47', // PNG
+    'FFD8FF',   // JPEG
+    '47494638', // GIF
+    '25504446', // PDF
+    '52617221', // RAR
+    'D0CF11E0', // MS Office
+  ];
+  
+  for (const signature of binarySignatures) {
+    if (firstBytes.startsWith(signature)) {
+      if (signature === '504B0304') {
+        throw new Error('This appears to be a ZIP or compressed file. Please extract the contents and upload a CSV file.');
+      } else if (signature.startsWith('FFD8') || signature === '89504E47' || signature === '47494638') {
+        throw new Error('This appears to be an image file. Please upload a CSV file containing lead data.');
+      } else if (signature === '25504446') {
+        throw new Error('This appears to be a PDF file. Please convert to CSV format before uploading.');
+      } else {
+        throw new Error('This appears to be a binary file. Please upload a CSV file.');
+      }
+    }
+  }
+  
   // Try different encodings
   const encodings = ['utf-8', 'latin1', 'windows-1252', 'utf-16'];
   let csvContent: string = '';
@@ -668,27 +696,51 @@ function parseCSVFile(buffer: Buffer, filename: string): { rows: any[], headers:
     usedEncoding = 'utf-8 (fallback)';
   }
   
+  // Check for non-text characters
+  const nonPrintableCount = (csvContent.slice(0, 1000).match(/[^\x20-\x7E\t\n\r]/g) || []).length;
+  const printableRatio = 1 - (nonPrintableCount / Math.min(csvContent.length, 1000));
+  
+  if (printableRatio < 0.95) {
+    throw new Error('File contains too many non-text characters. Please ensure the file is a valid CSV file.');
+  }
+  
   console.log(`Parsing CSV with encoding: ${usedEncoding}`);
   
+  // Parse with error handling and limits
   const parseResult = Papa.parse(csvContent, {
     header: true,
     skipEmptyLines: true,
     transformHeader: (header: string) => header.trim(),
     dynamicTyping: false,  // Keep everything as strings for consistency
-    delimitersToGuess: [',', '\t', '|', ';', Papa.RECORD_SEP, Papa.UNIT_SEP]
+    delimitersToGuess: [',', '\t', '|', ';', Papa.RECORD_SEP, Papa.UNIT_SEP],
+    preview: 10000  // Limit to 10000 rows for safety
   });
   
   if (parseResult.errors.length > 0) {
     // Log errors but try to continue if we have some data
-    console.warn('CSV parsing warnings:', parseResult.errors);
+    console.warn('CSV parsing warnings:', parseResult.errors.slice(0, 5));
+    
+    // If there are too many errors, the file is likely not a valid CSV
+    if (parseResult.errors.length > parseResult.data.length * 0.5 && parseResult.data.length > 0) {
+      throw new Error('Too many parsing errors. Please ensure the file is a valid CSV file.');
+    }
     
     if (!parseResult.data || parseResult.data.length === 0) {
-      throw new Error('CSV parsing failed: ' + parseResult.errors.map(e => e.message).join(', '));
+      throw new Error('CSV parsing failed: No valid data found. Please check the file format.');
     }
   }
   
   const rows = parseResult.data as any[];
   const headers = parseResult.meta.fields || [];
+  
+  // Final validation
+  if (rows.length === 0) {
+    throw new Error('No data rows found in the CSV file');
+  }
+  
+  if (headers.length === 0) {
+    throw new Error('No headers found in the CSV file');
+  }
   
   return { rows, headers };
 }

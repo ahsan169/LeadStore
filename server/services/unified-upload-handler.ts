@@ -195,30 +195,138 @@ export class UnifiedUploadHandler {
     const startTime = Date.now();
     const batchId = `batch-${crypto.randomUUID()}`;
     
-    // Detect file format
-    const format = this.detectFileFormat(fileName, file);
+    try {
+      // Validate file before processing
+      await this.validateFile(file, fileName);
+      
+      // Detect file format
+      const format = this.detectFileFormat(fileName, file);
+      
+      // Parse file into leads with error handling
+      const parsedLeads = await this.parseFile(file, format).catch(err => {
+        console.error('[UnifiedUploadHandler] Parse error:', err);
+        throw new Error(`Failed to parse file: ${err.message}. Please ensure the file is a valid CSV, Excel, or JSON file.`);
+      });
+      
+      // Validate we have valid leads
+      if (!parsedLeads || parsedLeads.length === 0) {
+        throw new Error('No valid leads found in the uploaded file');
+      }
+      
+      // Create batch record
+      const batch = await this.createBatch(batchId, userId, fileName, parsedLeads.length, options);
+      
+      // Process leads with intelligence
+      const result = await this.processLeadsIntelligently(
+        parsedLeads, 
+        batch, 
+        userId, 
+        options
+      );
+      
+      // Calculate processing time
+      result.processingTime = Date.now() - startTime;
+      
+      // Emit completion event
+      eventBus.emit('upload:completed', result);
+      
+      return result;
+    } catch (error: any) {
+      console.error('[UnifiedUploadHandler] Upload error:', error);
+      // Return error result
+      return {
+        batchId,
+        totalProcessed: 0,
+        successfulImports: 0,
+        enrichedCount: 0,
+        failedCount: 0,
+        duplicatesSkipped: 0,
+        validationErrors: [{
+          row: 0,
+          field: 'file',
+          error: error.message || 'Unknown error occurred during file upload'
+        }],
+        intelligenceDecisions: [],
+        estimatedCost: 0,
+        processingTime: Date.now() - startTime
+      };
+    }
+  }
+
+  private async validateFile(file: Buffer | string, fileName: string): Promise<void> {
+    // Check file size (max 50MB)
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    const fileSize = Buffer.isBuffer(file) ? file.length : Buffer.from(file).length;
     
-    // Parse file into leads
-    const parsedLeads = await this.parseFile(file, format);
+    if (fileSize > MAX_FILE_SIZE) {
+      throw new Error(`File size exceeds maximum limit of 50MB`);
+    }
     
-    // Create batch record
-    const batch = await this.createBatch(batchId, userId, fileName, parsedLeads.length, options);
+    // Check if file is binary (common binary signatures)
+    const buffer = Buffer.isBuffer(file) ? file : Buffer.from(file);
+    const firstBytes = buffer.slice(0, 8).toString('hex').toUpperCase();
     
-    // Process leads with intelligence
-    const result = await this.processLeadsIntelligently(
-      parsedLeads, 
-      batch, 
-      userId, 
-      options
-    );
+    // Common binary file signatures to reject
+    const binarySignatures = [
+      '504B0304', // ZIP files (including .xlsx, .docx)
+      '504B0506', // ZIP files (empty archive)
+      '504B0708', // ZIP files (spanned archive)
+      '89504E47', // PNG
+      'FFD8FF',   // JPEG
+      '47494638', // GIF
+      '25504446', // PDF
+      '52617221', // RAR
+      '7B5C7274', // RTF
+      'D0CF11E0', // MS Office
+    ];
     
-    // Calculate processing time
-    result.processingTime = Date.now() - startTime;
+    // Check for Excel files - they're ZIP-based but we allow them
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    const isExcel = extension === 'xlsx' || extension === 'xls';
     
-    // Emit completion event
-    eventBus.emit('upload:completed', result);
+    // If it's a binary file but not Excel, reject it
+    for (const signature of binarySignatures) {
+      if (firstBytes.startsWith(signature)) {
+        if (!isExcel || signature !== '504B0304') {
+          if (signature === '504B0304') {
+            throw new Error('This appears to be a ZIP or compressed file. Please extract the contents and upload a CSV, Excel, or JSON file.');
+          } else if (signature.startsWith('FFD8') || signature === '89504E47' || signature === '47494638') {
+            throw new Error('This appears to be an image file. Please upload a CSV, Excel, or JSON file containing lead data.');
+          } else if (signature === '25504446') {
+            throw new Error('This appears to be a PDF file. Please convert to CSV, Excel, or JSON format before uploading.');
+          } else {
+            throw new Error('This appears to be a binary file. Please upload a CSV, Excel, or JSON file.');
+          }
+        }
+      }
+    }
     
-    return result;
+    // For CSV and text files, check if content is readable text
+    if (extension === 'csv' || extension === 'txt' || !extension) {
+      const textContent = buffer.toString('utf8', 0, Math.min(1000, buffer.length));
+      
+      // Check for non-printable characters (except newlines, tabs, etc.)
+      const nonPrintableCount = (textContent.match(/[^\x20-\x7E\t\n\r]/g) || []).length;
+      const printableRatio = 1 - (nonPrintableCount / textContent.length);
+      
+      if (printableRatio < 0.95) {
+        throw new Error('File contains too many non-text characters. Please ensure the file is a valid CSV or text file.');
+      }
+      
+      // Check if it looks like CSV data
+      if (extension === 'csv') {
+        const lines = textContent.split('\n').filter(line => line.trim());
+        if (lines.length < 1) {
+          throw new Error('CSV file appears to be empty');
+        }
+        
+        // Check if first line could be headers
+        const firstLine = lines[0];
+        if (!firstLine.includes(',') && !firstLine.includes('\t') && !firstLine.includes('|')) {
+          throw new Error('CSV file does not appear to have properly delimited data');
+        }
+      }
+    }
   }
 
   private detectFileFormat(fileName: string, content: Buffer | string): FileFormat {
@@ -311,19 +419,61 @@ export class UnifiedUploadHandler {
 
   private async parseCsv(content: string, delimiter = ','): Promise<ParsedLead[]> {
     return new Promise((resolve, reject) => {
-      Papa.parse(content, {
-        delimiter,
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: (header) => header.trim(),  // Keep original header for better mapping
-        complete: async (results) => {
-          const leads = await Promise.all(
-            results.data.map(row => this.mapFieldsIntelligently(row))
-          );
-          resolve(leads);
-        },
-        error: reject
-      });
+      // Add timeout protection
+      const timeout = setTimeout(() => {
+        reject(new Error('CSV parsing timed out - file may be too large or malformed'));
+      }, 30000); // 30 second timeout
+      
+      try {
+        Papa.parse(content, {
+          delimiter,
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (header) => header.trim(),  // Keep original header for better mapping
+          maxRowCount: 10000, // Limit to 10000 rows for safety
+          complete: async (results) => {
+            clearTimeout(timeout);
+            
+            // Check for parsing errors
+            if (results.errors && results.errors.length > 0) {
+              console.error('[CSV Parser] Parsing errors:', results.errors.slice(0, 5));
+              
+              // If there are too many errors, the file is likely not a valid CSV
+              if (results.errors.length > results.data.length * 0.5) {
+                reject(new Error('Too many parsing errors. Please ensure the file is a valid CSV file.'));
+                return;
+              }
+            }
+            
+            // Filter out empty or invalid rows
+            const validRows = results.data.filter((row: any) => {
+              return row && typeof row === 'object' && Object.keys(row).length > 0;
+            });
+            
+            if (validRows.length === 0) {
+              reject(new Error('No valid data rows found in the CSV file'));
+              return;
+            }
+            
+            try {
+              const leads = await Promise.all(
+                validRows.slice(0, 5000).map(row => this.mapFieldsIntelligently(row)) // Limit processing to 5000 rows
+              );
+              resolve(leads);
+            } catch (mappingError: any) {
+              reject(new Error(`Failed to map CSV fields: ${mappingError.message}`));
+            }
+          },
+          error: (error: any) => {
+            clearTimeout(timeout);
+            console.error('[CSV Parser] Parse error:', error);
+            reject(new Error(`CSV parsing failed: ${error.message || 'Unknown error'}`));
+          }
+        });
+      } catch (error: any) {
+        clearTimeout(timeout);
+        reject(new Error(`Failed to parse CSV: ${error.message}`));
+      }
     });
   }
 
