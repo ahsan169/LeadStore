@@ -62,6 +62,7 @@ import { masterEnrichmentOrchestrator } from "./services/master-enrichment-orche
 import { registerBrainRoutes } from "./routes/brain";
 import rulesRouter from "./routes/rules";
 import { setupAdminRoutes } from "./routes/admin";
+import { setupAdminUploadRoutes } from "./routes/admin-upload";
 import entityRouter from "./routes/entity";
 import feedbackRouter from "./routes/feedback";
 import intelligenceRouter from "./routes/intelligence";
@@ -1064,6 +1065,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register admin routes
   setupAdminRoutes(app);
+  
+  // Register admin upload routes with fallback support
+  setupAdminUploadRoutes(app);
 
   // Register entity resolution routes
   app.use(entityRouter);
@@ -1438,18 +1442,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Upload original CSV to object storage (if configured)
-      let storageKey = `batches/${Date.now()}_${file.originalname}`;
+      // Upload original CSV to object storage (if configured) with fallback
+      const timestamp = Date.now();
+      let storageKey = `batches/${timestamp}_${file.originalname}`;
+      let storageType: 's3' | 'local' = 'local';
+      let localFilePath: string | undefined;
+      
       if (isObjectStorageConfigured() && s3Client) {
-        await s3Client.send(new PutObjectCommand({
-          Bucket: BUCKET_NAME,
-          Key: storageKey,
-          Body: file.buffer,
-          ContentType: 'text/csv',
-        }));
-      } else {
-        // If object storage not configured, just use a placeholder key
-        storageKey = `local_${storageKey}`;
+        try {
+          await s3Client.send(new PutObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: storageKey,
+            Body: file.buffer,
+            ContentType: 'text/csv',
+          }));
+          storageType = 's3';
+          console.log(`[Upload] File stored in S3: ${storageKey}`);
+        } catch (s3Error: any) {
+          console.error('[Upload] S3 storage failed, falling back to local:', {
+            error: s3Error.message,
+            code: s3Error.code,
+            statusCode: s3Error.$metadata?.httpStatusCode
+          });
+          // Continue with local storage fallback
+        }
+      }
+      
+      // Fallback to local storage if S3 failed or not configured
+      if (storageType === 'local') {
+        try {
+          const uploadsDir = path.join(process.cwd(), 'uploads', 'batches');
+          await fs.mkdir(uploadsDir, { recursive: true });
+          
+          const localFilename = `${timestamp}_${file.originalname}`;
+          localFilePath = path.join(uploadsDir, localFilename);
+          
+          await fs.writeFile(localFilePath, file.buffer);
+          storageKey = `local_${localFilename}`;
+          
+          console.log(`[Upload] File stored locally at: ${localFilePath}`);
+        } catch (localError: any) {
+          console.error('[Upload] Local storage failed:', localError);
+          // Use a placeholder key if all storage fails
+          storageKey = `temp_${storageKey}`;
+        }
       }
 
       // Create lead batch

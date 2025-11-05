@@ -478,51 +478,78 @@ export class BulkDataIngestionService extends EventEmitter {
   }
   
   /**
-   * Store raw data for audit trail
+   * Store raw data for audit trail with fallback mechanism
    */
   private async storeRawData(job: IngestionJob, data: any): Promise<string> {
     const timestamp = new Date().toISOString();
     const filename = `raw-data/${job.source.id}/${timestamp}-${job.id}.json`;
+    const jsonData = JSON.stringify({ job, data, timestamp }, null, 2);
+    let storagePath = filename;
+    let storageType: 'S3' | 'local' = 'local';
     
-    try {
-      // Store in S3 if configured
-      if (process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) {
+    // Try S3 first if configured
+    if (process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID) {
+      try {
         const command = new PutObjectCommand({
           Bucket: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID,
           Key: filename,
-          Body: JSON.stringify({
-            job,
-            data,
-            timestamp
-          }),
+          Body: jsonData,
           ContentType: 'application/json'
         });
         
         await s3Client.send(command);
         console.log(`[BulkIngestion] Raw data stored in S3: ${filename}`);
-      } else {
-        // Store locally as fallback
-        const localPath = path.join('data', 'raw', `${job.id}.json`);
-        await fs.mkdir(path.dirname(localPath), { recursive: true });
-        await fs.writeFile(localPath, JSON.stringify({ job, data, timestamp }, null, 2));
-        console.log(`[BulkIngestion] Raw data stored locally: ${localPath}`);
+        storageType = 'S3';
+      } catch (s3Error: any) {
+        console.error('[BulkIngestion] S3 storage failed, falling back to local storage:', {
+          error: s3Error.message,
+          code: s3Error.code,
+          statusCode: s3Error.$metadata?.httpStatusCode
+        });
+        // Continue to local storage fallback
       }
-      
-      // Store reference in database
+    }
+    
+    // Fallback to local storage if S3 failed or not configured
+    if (storageType === 'local') {
+      try {
+        const localPath = path.join('uploads', 'raw-data', job.source.id, `${job.id}.json`);
+        await fs.mkdir(path.dirname(localPath), { recursive: true });
+        await fs.writeFile(localPath, jsonData);
+        console.log(`[BulkIngestion] Raw data stored locally: ${localPath}`);
+        storagePath = `local:${localPath}`;
+      } catch (localError: any) {
+        console.error('[BulkIngestion] Local storage also failed:', localError);
+        // Last resort: store in temp directory
+        try {
+          const tempPath = path.join('/tmp', 'raw-data', `${job.id}.json`);
+          await fs.mkdir(path.dirname(tempPath), { recursive: true });
+          await fs.writeFile(tempPath, jsonData);
+          console.log(`[BulkIngestion] Raw data stored in temp: ${tempPath}`);
+          storagePath = `temp:${tempPath}`;
+        } catch (tempError: any) {
+          console.error('[BulkIngestion] All storage options failed:', tempError);
+          // Return empty string as originally done on failure
+          return '';
+        }
+      }
+    }
+    
+    // Store reference in database
+    try {
       await db.insert(rawDataDumps).values({
         jobId: job.id,
         source: job.source.id,
-        path: filename,
+        path: storagePath,
         recordCount: Array.isArray(data) ? data.length : 1,
-        sizeBytes: JSON.stringify(data).length,
+        sizeBytes: jsonData.length,
         createdAt: new Date()
       });
-      
-      return filename;
-    } catch (error) {
-      console.error('[BulkIngestion] Failed to store raw data:', error);
-      return '';
+    } catch (dbError) {
+      console.error('[BulkIngestion] Failed to store database reference:', dbError);
     }
+    
+    return storagePath;
   }
   
   /**
