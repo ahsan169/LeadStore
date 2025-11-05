@@ -531,33 +531,113 @@ class EnrichStage extends BaseStage {
         return context;
       }
       
-      // Perform enrichment
-      const enrichmentResult = await this.enricher.enrichLead(
-        context.normalizedData,
-        {
-          usePerplexity: analysis.missingFields.includes('industry'),
-          useHunter: analysis.missingFields.includes('email'),
-          useNumverify: analysis.missingFields.includes('phone'),
-          maxRetries: 2
-        }
-      );
+      // Import tiered intelligence services dynamically
+      const { fieldExtractor } = await import('./field-extractor');
+      const { tieredIntelligence } = await import('./tiered-intelligence');
       
-      if (enrichmentResult.success && enrichmentResult.enrichedData) {
+      // Define fields to extract/enrich based on missing fields
+      const fieldsToExtract = analysis.missingFields.length > 0 ? 
+        analysis.missingFields : 
+        ['businessName', 'ownerName', 'email', 'phone', 'industry', 'annualRevenue'];
+      
+      // Use tiered intelligence for field extraction
+      const extractionResult = await fieldExtractor.extractFields({
+        data: context.normalizedData,
+        fields: fieldsToExtract,
+        context: {
+          leadId: context.leadId,
+          userId: context.metadata?.userId,
+          batchId: context.metadata?.batchId,
+          source: context.metadata?.source
+        },
+        requirements: {
+          minConfidence: 0.7,
+          maxCost: 0.10,
+          maxLatency: 10000
+        },
+        options: {
+          parallel: true,
+          stopOnHighConfidence: true
+        }
+      });
+      
+      // Track intelligence metrics
+      const tierStats = {
+        totalCost: extractionResult.totalCost,
+        totalLatency: extractionResult.totalLatency,
+        averageConfidence: extractionResult.averageConfidence,
+        tiersUsed: Array.from(extractionResult.tiersUsed),
+        fieldsExtracted: Object.keys(extractionResult.fields).length
+      };
+      
+      console.log('[EnrichStage] Tiered intelligence results:', tierStats);
+      
+      // Build enriched data from extraction results
+      const enrichedData: any = {};
+      const enrichedFields: string[] = [];
+      
+      for (const [field, result] of Object.entries(extractionResult.fields)) {
+        if (result.extractedValue !== null && result.confidence > 0.5) {
+          enrichedData[field] = result.extractedValue;
+          enrichedFields.push(field);
+        }
+      }
+      
+      // If tiered intelligence didn't get enough data, fall back to traditional enrichment
+      if (enrichedFields.length < fieldsToExtract.length * 0.5) {
+        console.log('[EnrichStage] Falling back to traditional enrichment for additional fields');
+        const traditionalResult = await this.enricher.enrichLead(
+          context.normalizedData,
+          {
+            usePerplexity: analysis.missingFields.includes('industry'),
+            useHunter: analysis.missingFields.includes('email'),
+            useNumverify: analysis.missingFields.includes('phone'),
+            maxRetries: 2
+          }
+        );
+        
+        if (traditionalResult.success && traditionalResult.enrichedData) {
+          // Merge results, preferring tiered intelligence data
+          Object.assign(traditionalResult.enrichedData, enrichedData);
+          enrichedData = traditionalResult.enrichedData;
+          enrichedFields.push(...Object.keys(traditionalResult.enrichedData));
+        }
+        
+        context.enrichmentData = {
+          ...traditionalResult,
+          enrichedData,
+          enrichedFields,
+          tierStats,
+          method: 'hybrid'
+        };
+      } else {
+        // Use only tiered intelligence results
+        context.enrichmentData = {
+          success: true,
+          enrichedData,
+          enrichedFields,
+          confidence: extractionResult.averageConfidence * 100,
+          sources: [`tiered_intelligence_${tierStats.tiersUsed.join('_')}`],
+          tierStats,
+          method: 'tiered_intelligence'
+        } as any;
+      }
+      
+      if (context.enrichmentData && context.enrichmentData.enrichedData) {
         // Merge enriched data
         context.normalizedData = {
           ...context.normalizedData,
-          ...enrichmentResult.enrichedData
+          ...context.enrichmentData.enrichedData
         };
         
-        context.enrichmentData = enrichmentResult;
-        
         // Add lineage
+        const sources = context.enrichmentData.sources || [];
         context.lineage.push({
           stage: this.name,
           inputFields: Object.keys(context.normalizedData),
-          outputFields: Object.keys(enrichmentResult.enrichedData),
-          transformations: enrichmentResult.sources.map(s => `Enriched via ${s}`),
-          confidence: enrichmentResult.confidence
+          outputFields: enrichedFields,
+          transformations: sources.map((s: string) => `Enriched via ${s}`),
+          confidence: context.enrichmentData.confidence
         });
       }
       

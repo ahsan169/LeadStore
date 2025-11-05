@@ -1,0 +1,79 @@
+{
+  "tiers": {
+    "0": {
+      "name": "deterministic",
+      "maxLatency": 100,
+      "cost": 0,
+      "confidenceThreshold": 0.95,
+      "maxRetries": 1,
+      "retryDelay": 0
+    },
+    "1": {
+      "name": "embeddings",
+      "maxLatency": 500,
+      "cost": 0.001,
+      "confidenceThreshold": 0.85,
+      "maxRetries": 2,
+      "retryDelay": 100
+    },
+    "2": {
+      "name": "llm",
+      "maxLatency": 5000,
+      "cost": 0.02,
+      "confidenceThreshold": 0.70,
+      "maxRetries": 3,
+      "retryDelay": 500
+    }
+  },
+  "escalation": {
+    "minConfidenceForSkip": 0.90,
+    "maxCostPerLead": 0.10,
+    "maxLatencyPerField": 10000,
+    "confidenceDecayFactor": 0.95,
+    "costBudgetPerBatch": 100
+  },
+  "caching": {
+    "ttl": {
+      "0": 86400000,
+      "1": 604800000,
+      "2": 2592000000
+    },
+    "maxSize": {
+      "0": 10000,
+      "1": 5000,
+      "2": 1000
+    }
+  },
+  "rateLimit": {
+    "tier0": {
+      "requestsPerSecond": 1000
+    },
+    "tier1": {
+      "requestsPerSecond": 50
+    },
+    "tier2": {
+      "requestsPerSecond": 10
+    }
+  },
+  "fieldPriorities": {
+    "businessName": 1.0,
+    "ownerName": 0.95,
+    "email": 0.9,
+    "phone": 0.9,
+    "industry": 0.85,
+    "annualRevenue": 0.85,
+    "creditScore": 0.8,
+    "yearFounded": 0.7,
+    "websiteUrl": 0.65,
+    "businessDescription": 0.6
+  },
+  "industryMultipliers": {
+    "healthcare": 1.5,
+    "finance": 1.5,
+    "technology": 1.3,
+    "manufacturing": 1.2,
+    "retail": 1.0,
+    "restaurant": 0.8,
+    "unknown": 0.9
+  }
+}

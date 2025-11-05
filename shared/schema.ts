@@ -915,6 +915,153 @@ export const leadScoringModels = pgTable("lead_scoring_models", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// Embeddings table for cached text embeddings
+export const embeddings = pgTable("embeddings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cacheKey: text("cache_key").notNull().unique(),
+  text: text("text").notNull(),
+  embedding: jsonb("embedding").notNull(), // Vector array
+  model: text("model").notNull().default("text-embedding-ada-002"),
+  tokens: integer("tokens"),
+  category: text("category").notNull().default("general"), // 'general', 'business', 'industry', etc.
+  metadata: jsonb("metadata"), // Additional metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// LLM Cache table for LLM response caching
+export const llmCache = pgTable("llm_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  cacheKey: text("cache_key").notNull().unique(),
+  prompt: text("prompt").notNull(),
+  response: jsonb("response").notNull(),
+  model: text("model").notNull(),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  cost: decimal("cost", { precision: 10, scale: 6 }),
+  confidence: decimal("confidence", { precision: 5, scale: 2 }),
+  metadata: jsonb("metadata"), // Additional context
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Intelligence Metrics table for tracking usage
+export const intelligenceMetrics = pgTable("intelligence_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: text("session_id").notNull(),
+  leadId: varchar("lead_id").references(() => leads.id),
+  userId: varchar("user_id").references(() => users.id),
+  
+  // Tier usage
+  tierUsage: jsonb("tier_usage").notNull(), // { tier0: count, tier1: count, tier2: count }
+  
+  // Cost tracking
+  totalCost: decimal("total_cost", { precision: 10, scale: 6 }).notNull().default("0"),
+  costByTier: jsonb("cost_by_tier"), // { tier0: 0, tier1: 0.05, tier2: 0.10 }
+  
+  // Performance metrics
+  totalLatency: integer("total_latency"), // Total processing time in ms
+  latencyByTier: jsonb("latency_by_tier"), // { tier0: 10ms, tier1: 500ms, tier2: 2000ms }
+  
+  // Success metrics
+  fieldsExtracted: integer("fields_extracted").notNull().default(0),
+  fieldsWithHighConfidence: integer("fields_high_confidence").notNull().default(0),
+  averageConfidence: decimal("average_confidence", { precision: 5, scale: 2 }),
+  
+  // Escalation metrics
+  escalations: integer("escalations").notNull().default(0),
+  shortCircuits: integer("short_circuits").notNull().default(0),
+  
+  // Cost efficiency
+  avgCostPerField: decimal("avg_cost_per_field", { precision: 10, scale: 6 }),
+  avgCostPerLead: decimal("avg_cost_per_lead", { precision: 10, scale: 6 }),
+  
+  // Cache performance
+  cacheHits: integer("cache_hits").notNull().default(0),
+  cacheMisses: integer("cache_misses").notNull().default(0),
+  
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+});
+
+// Lead Processing History for audit trail
+export const leadProcessingHistory = pgTable("lead_processing_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  sessionId: text("session_id").notNull(),
+  batchId: text("batch_id"),
+  userId: varchar("user_id").references(() => users.id),
+  
+  // Processing stages
+  stages: jsonb("stages").notNull(), // Array of stage results
+  
+  // Results
+  finalScore: decimal("final_score", { precision: 5, scale: 2 }),
+  finalConfidence: decimal("final_confidence", { precision: 5, scale: 2 }),
+  enrichmentData: jsonb("enrichment_data"),
+  uccData: jsonb("ucc_data"),
+  
+  // Audit
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time"),
+  duration: integer("duration"), // milliseconds
+  errors: jsonb("errors"),
+  flags: text("flags").array(),
+  source: text("source"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Processing Metrics for aggregated statistics
+export const processingMetrics = pgTable("processing_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  period: text("period").notNull(), // 'hourly', 'daily', 'weekly', 'monthly'
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  
+  // Volume metrics
+  totalLeadsProcessed: integer("total_leads_processed").notNull().default(0),
+  successfulProcessing: integer("successful_processing").notNull().default(0),
+  failedProcessing: integer("failed_processing").notNull().default(0),
+  
+  // Cost metrics
+  totalCost: decimal("total_cost", { precision: 12, scale: 6 }).notNull().default("0"),
+  avgCostPerLead: decimal("avg_cost_per_lead", { precision: 10, scale: 6 }),
+  costBySource: jsonb("cost_by_source"), // { openai: 0.50, perplexity: 0.10, etc. }
+  
+  // Performance metrics
+  avgProcessingTime: integer("avg_processing_time"), // milliseconds
+  p95ProcessingTime: integer("p95_processing_time"),
+  p99ProcessingTime: integer("p99_processing_time"),
+  
+  // Intelligence metrics
+  tierDistribution: jsonb("tier_distribution"), // { tier0: %, tier1: %, tier2: % }
+  avgConfidenceScore: decimal("avg_confidence_score", { precision: 5, scale: 2 }),
+  enrichmentRate: decimal("enrichment_rate", { precision: 5, scale: 2 }), // % of fields enriched
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Legacy Rule Executions for tracking rule engine activity
+export const legacyRuleExecutions = pgTable("legacy_rule_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  sessionId: text("session_id"),
+  ruleSetId: text("rule_set_id"),
+  
+  // Rule details
+  rulesExecuted: jsonb("rules_executed").notNull(), // Array of executed rules
+  matchedRules: jsonb("matched_rules"), // Rules that matched
+  failedRules: jsonb("failed_rules"), // Rules that failed
+  
+  // Results
+  overallScore: decimal("overall_score", { precision: 5, scale: 2 }),
+  riskFlags: text("risk_flags").array(),
+  recommendations: text("recommendations").array(),
+  
+  // Performance
+  executionTime: integer("execution_time"), // milliseconds
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas with validation
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
