@@ -2021,6 +2021,66 @@ export const scorecardConfigs = pgTable("scorecard_configs", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Entity resolution tables
+export const entityMatches = pgTable("entity_matches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entity1Id: varchar("entity1_id").references(() => leads.id).notNull(),
+  entity2Id: varchar("entity2_id").references(() => leads.id).notNull(),
+  matchConfidence: integer("match_confidence").notNull(), // 0-100
+  matchType: text("match_type").notNull(), // 'exact', 'fuzzy', 'phonetic', 'token', 'business_variant', 'composite'
+  matchDetails: jsonb("match_details").notNull(), // Field-level scores and details
+  status: text("status").notNull().default("pending"), // 'pending', 'confirmed', 'rejected'
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const entityGroups = pgTable("entity_groups", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  groupId: varchar("group_id").notNull(),
+  masterEntityId: varchar("master_entity_id").references(() => leads.id).notNull(),
+  memberCount: integer("member_count").notNull().default(1),
+  groupType: text("group_type").notNull().default("duplicate"), // 'duplicate', 'family', 'network'
+  confidence: integer("confidence").notNull().default(0), // Average confidence of group
+  metadata: jsonb("metadata"), // Additional group metadata
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const entityRelationships = pgTable("entity_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  parentEntityId: varchar("parent_entity_id").references(() => leads.id).notNull(),
+  childEntityId: varchar("child_entity_id").references(() => leads.id).notNull(),
+  relationshipType: text("relationship_type").notNull(), // 'parent', 'subsidiary', 'affiliate', 'branch', 'franchise', 'partner', 'vendor', 'customer'
+  confidence: integer("confidence").notNull().default(0), // 0-100
+  source: text("source").notNull(), // 'user_defined', 'auto_detected', 'ucc_filing', 'entity_resolution', 'enrichment'
+  evidence: jsonb("evidence"), // Evidence supporting the relationship
+  bidirectional: boolean("bidirectional").notNull().default(false),
+  strength: integer("strength").notNull().default(0), // 0-100 relationship strength
+  establishedAt: timestamp("established_at"),
+  verifiedAt: timestamp("verified_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Insert schemas for Entity Resolution tables
+export const insertEntityMatchSchema = createInsertSchema(entityMatches).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertEntityGroupSchema = createInsertSchema(entityGroups).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertEntityRelationshipSchema = createInsertSchema(entityRelationships).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Insert schemas for UCC Intelligence tables
 export const insertUccStateFormatSchema = createInsertSchema(uccStateFormats).omit({
   id: true,
@@ -2177,3 +2237,12 @@ export type UccIntelligence = typeof uccIntelligence.$inferSelect;
 
 export type InsertUccRelationship = z.infer<typeof insertUccRelationshipSchema>;
 export type UccRelationship = typeof uccRelationships.$inferSelect;
+
+export type InsertEntityMatch = z.infer<typeof insertEntityMatchSchema>;
+export type EntityMatch = typeof entityMatches.$inferSelect;
+
+export type InsertEntityGroup = z.infer<typeof insertEntityGroupSchema>;
+export type EntityGroup = typeof entityGroups.$inferSelect;
+
+export type InsertEntityRelationship = z.infer<typeof insertEntityRelationshipSchema>;
+export type EntityRelationship = typeof entityRelationships.$inferSelect;
