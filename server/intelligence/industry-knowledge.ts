@@ -432,7 +432,7 @@ export class LeadQualityScorer {
     
     for (const tier of Object.values(BUSINESS_AGE_SCORING)) {
       if (years >= (tier.minYears || 0)) {
-        if (!tier.maxYears || years < tier.maxYears) {
+        if (!('maxYears' in tier) || years < tier.maxYears!) {
           return (tier.score / 100) * 15;
         }
       }
@@ -448,7 +448,7 @@ export class LeadQualityScorer {
     
     for (const tier of Object.values(REVENUE_TIERS)) {
       if (amount >= (tier.minAnnual || 0)) {
-        if (!tier.maxAnnual || amount < tier.maxAnnual) {
+        if (!('maxAnnual' in tier) || amount < tier.maxAnnual!) {
           return (tier.score / 100) * 10;
         }
       }

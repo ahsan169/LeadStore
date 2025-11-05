@@ -677,7 +677,8 @@ export class FieldMapper {
     let bestMatch: CanonicalField | null = null;
     let bestScore = 0;
     
-    for (const [synonym, canonical] of this.synonymMap.entries()) {
+    // Convert Map iterator to array to fix TypeScript error
+    for (const [synonym, canonical] of Array.from(this.synonymMap.entries())) {
       const score = this.calculateSimilarity(normalized, synonym);
       if (score > bestScore && score > 0.7) { // 70% similarity threshold
         bestScore = score;

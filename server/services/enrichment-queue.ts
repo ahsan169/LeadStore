@@ -3,6 +3,7 @@ import { storage } from "../storage";
 import { leadCompletionAnalyzer } from "./lead-completion-analyzer";
 import { ComprehensiveLeadEnricher, EnrichmentResult, EnrichmentOptions } from "./comprehensive-lead-enricher";
 import { eventBus } from "./event-bus";
+import { brainPipeline } from "../intelligence/brain-pipeline";
 
 interface QueueItem {
   id: string;
@@ -20,6 +21,7 @@ interface QueueItem {
   source: 'upload' | 'view' | 'manual' | 'scheduled' | 'api';
   userId?: string;
   batchId?: string;
+  useBrainPipeline?: boolean; // Option to use brain pipeline
 }
 
 interface RateLimitConfig {
@@ -242,12 +244,45 @@ export class EnrichmentQueue {
       
       let result: EnrichmentResult;
       
-      // Check if we should use master enrichment orchestrator
-      const useOrchestrator = item.enrichmentOptions?.useOrchestrator || 
-                             (item as any).useOrchestrator || 
-                             (item as any).metadata?.useOrchestrator;
-      
-      if (useOrchestrator) {
+      // Check if we should use brain pipeline
+      if (item.useBrainPipeline) {
+        console.log(`[EnrichmentQueue] Using Brain Pipeline for lead ${item.leadId}`);
+        
+        // Process through brain pipeline
+        const pipelineResult = await brainPipeline.process(item.leadData, {
+          source: item.source,
+          userId: item.userId,
+          batchId: item.batchId,
+          skipStages: item.enrichmentOptions?.skipStages as any
+        });
+        
+        // Convert pipeline result to EnrichmentResult format
+        result = {
+          success: pipelineResult.score !== undefined,
+          confidence: pipelineResult.confidence,
+          enrichedData: pipelineResult.normalizedData,
+          sources: pipelineResult.enrichmentData?.sources || [],
+          enrichedFields: Object.keys(pipelineResult.normalizedData),
+          metadata: {
+            sessionId: pipelineResult.metadata.sessionId,
+            score: pipelineResult.score,
+            flags: pipelineResult.flags,
+            recommendations: pipelineResult.recommendations
+          }
+        } as any;
+        
+        // Update lead with pipeline results
+        if (pipelineResult.leadId) {
+          await storage.updateLead(pipelineResult.leadId, pipelineResult.normalizedData);
+        }
+        
+      } else {
+        // Check if we should use master enrichment orchestrator
+        const useOrchestrator = item.enrichmentOptions?.useOrchestrator || 
+                               (item as any).useOrchestrator || 
+                               (item as any).metadata?.useOrchestrator;
+        
+        if (useOrchestrator) {
         console.log(`[EnrichmentQueue] Using Master Enrichment Orchestrator for lead ${item.leadId}`);
         
         // Import and use master orchestrator
@@ -313,13 +348,14 @@ export class EnrichmentQueue {
         
         console.log(`[EnrichmentQueue] Master Enrichment completed - Score: ${orchestratorResult.masterEnrichmentScore}`);
         
-      } else {
-        // Use standard enrichment
-        console.log(`[EnrichmentQueue] Using standard enrichment for lead ${item.leadId}`);
-        result = await this.enricher.enrichSingleLead(
-          item.leadData,
-          item.enrichmentOptions || {}
-        );
+        } else {
+          // Use standard enrichment
+          console.log(`[EnrichmentQueue] Using standard enrichment for lead ${item.leadId}`);
+          result = await this.enricher.enrichSingleLead(
+            item.leadData,
+            item.enrichmentOptions || {}
+          );
+        }
       }
       
       // Save enriched data
