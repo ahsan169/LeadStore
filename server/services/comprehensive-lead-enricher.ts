@@ -4,6 +4,17 @@ import { hunterService } from "./enrichment/hunter-service";
 import { numverifyService } from "../numverify-service";
 import OpenAI from "openai";
 import fetch from "node-fetch";
+import { 
+  fieldMapper, 
+  FIELD_VALIDATORS, 
+  BUSINESS_ENTITY_NORMALIZER,
+  CanonicalField 
+} from "../intelligence/ontology";
+import { 
+  leadQualityScorer, 
+  funderMatcher, 
+  riskAssessmentEngine 
+} from "../intelligence/industry-knowledge";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -93,6 +104,92 @@ export class ComprehensiveLeadEnricher {
     maxRetries: 2,
     timeout: 30000
   };
+  
+  /**
+   * Normalize and validate lead data using the intelligence ontology
+   */
+  private normalizeLeadData(data: any): any {
+    // Map fields to canonical names
+    const mapped = fieldMapper.mapObject(data);
+    
+    // Extract business entity type if present
+    if (mapped.businessName) {
+      const { name, entityType } = BUSINESS_ENTITY_NORMALIZER.extract(mapped.businessName);
+      mapped.businessName = name;
+      mapped.businessType = entityType;
+    }
+    
+    // Validate and normalize phone numbers
+    if (mapped.phone) {
+      const validation = fieldMapper.validateField(CanonicalField.PHONE, mapped.phone);
+      if (validation.valid) {
+        mapped.phone = FIELD_VALIDATORS.phone.normalize(mapped.phone);
+      }
+    }
+    
+    if (mapped.secondaryPhone) {
+      const validation = fieldMapper.validateField(CanonicalField.SECONDARY_PHONE, mapped.secondaryPhone);
+      if (validation.valid) {
+        mapped.secondaryPhone = FIELD_VALIDATORS.phone.normalize(mapped.secondaryPhone);
+      }
+    }
+    
+    // Validate email
+    if (mapped.email) {
+      const validation = fieldMapper.validateField(CanonicalField.EMAIL, mapped.email);
+      if (validation.valid) {
+        mapped.email = FIELD_VALIDATORS.email.normalize(mapped.email);
+      }
+    }
+    
+    // Normalize state
+    if (mapped.state) {
+      const validation = fieldMapper.validateField(CanonicalField.STATE, mapped.state);
+      if (validation.valid) {
+        mapped.state = FIELD_VALIDATORS.state.normalize(mapped.state);
+      }
+    }
+    
+    // Normalize currency fields
+    if (mapped.annualRevenue) {
+      mapped.annualRevenue = FIELD_VALIDATORS.currency.normalize(mapped.annualRevenue);
+    }
+    
+    if (mapped.requestedAmount) {
+      mapped.requestedAmount = FIELD_VALIDATORS.currency.normalize(mapped.requestedAmount);
+    }
+    
+    return mapped;
+  }
+  
+  /**
+   * Calculate comprehensive lead intelligence score
+   */
+  private calculateIntelligenceScore(result: EnrichmentResult): number {
+    // Use the quality scorer from industry knowledge
+    const qualityScore = leadQualityScorer.calculateQualityScore(result);
+    
+    // Assess risk
+    const riskAssessment = riskAssessmentEngine.assessRisk(result);
+    
+    // Combine scores (quality contributes positively, risk negatively)
+    const intelligenceScore = Math.round(
+      (qualityScore.score * 0.7) + 
+      ((100 - riskAssessment.riskScore) * 0.3)
+    );
+    
+    // Store detailed breakdown
+    result.researchInsights = {
+      qualityBreakdown: qualityScore.breakdown,
+      qualityFlags: qualityScore.flags,
+      recommendations: qualityScore.recommendations,
+      riskFactors: riskAssessment.factors,
+      riskMitigations: riskAssessment.mitigations,
+      riskLevel: riskAssessment.riskLevel
+    };
+    
+    return intelligenceScore;
+  }
 
   /**
    * Enrich a single lead with data from multiple sources
@@ -104,25 +201,28 @@ export class ComprehensiveLeadEnricher {
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     const startTime = Date.now();
     
-    console.log(`[ComprehensiveEnricher] Starting enrichment for: ${leadData.businessName || leadData.ownerName || 'Unknown'}`);
+    // First normalize the input data using the ontology
+    const normalizedData = this.normalizeLeadData(leadData);
     
-    // Initialize result with existing data
+    console.log(`[ComprehensiveEnricher] Starting enrichment for: ${normalizedData.businessName || normalizedData.ownerName || 'Unknown'}`);
+    
+    // Initialize result with normalized data
     const result: EnrichmentResult = {
-      businessName: leadData.businessName || '',
-      ownerName: leadData.ownerName,
-      email: leadData.email,
-      phone: leadData.phone,
-      secondaryPhone: leadData.secondaryPhone,
-      industry: leadData.industry,
-      annualRevenue: leadData.annualRevenue,
-      estimatedRevenue: leadData.estimatedRevenue,
-      requestedAmount: leadData.requestedAmount,
-      timeInBusiness: leadData.timeInBusiness,
-      creditScore: leadData.creditScore,
-      websiteUrl: leadData.websiteUrl,
-      linkedinUrl: leadData.linkedinUrl,
-      companySize: leadData.companySize,
-      employeeCount: leadData.employeeCount,
+      businessName: normalizedData.businessName || '',
+      ownerName: normalizedData.ownerName,
+      email: normalizedData.email,
+      phone: normalizedData.phone,
+      secondaryPhone: normalizedData.secondaryPhone,
+      industry: normalizedData.industry,
+      annualRevenue: normalizedData.annualRevenue,
+      estimatedRevenue: normalizedData.estimatedRevenue,
+      requestedAmount: normalizedData.requestedAmount,
+      timeInBusiness: normalizedData.timeInBusiness,
+      creditScore: normalizedData.creditScore,
+      websiteUrl: normalizedData.websiteUrl,
+      linkedinUrl: normalizedData.linkedinUrl,
+      companySize: normalizedData.companySize,
+      employeeCount: normalizedData.employeeCount,
       yearFounded: leadData.yearFounded,
       naicsCode: leadData.naicsCode,
       stateCode: leadData.stateCode,

@@ -1,0 +1,546 @@
+{
+  "funders": [
+    {
+      "name": "Rapid Advance",
+      "aliases": ["RapidAdvance", "Rapid Adv", "RA", "Rapid"],
+      "type": "mca",
+      "tier": "tier1",
+      "patterns": ["rapid.*advance", "rapidadv"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "OnDeck",
+      "aliases": ["On Deck", "OnDeck Capital", "ODC"],
+      "type": "mca",
+      "tier": "tier1",
+      "patterns": ["ondeck", "on.*deck"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Kabbage",
+      "aliases": ["Kabbage Inc", "KBG", "Kabbage Funding"],
+      "type": "mca",
+      "tier": "tier1",
+      "patterns": ["kabbage"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Fundbox",
+      "aliases": ["Fund Box", "Fundbox Inc", "FBX"],
+      "type": "mca",
+      "tier": "tier1",
+      "patterns": ["fundbox", "fund.*box"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "BlueVine",
+      "aliases": ["Blue Vine", "BlueVine Capital", "BV"],
+      "type": "mca",
+      "tier": "tier1",
+      "patterns": ["bluevine", "blue.*vine"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Square Capital",
+      "aliases": ["Square", "Square Inc", "Square Loans"],
+      "type": "mca",
+      "tier": "tier1",
+      "patterns": ["square.*capital", "square.*loans"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "PayPal Working Capital",
+      "aliases": ["PayPal", "PayPal Capital", "PPWC", "PayPal Business Loan"],
+      "type": "mca",
+      "tier": "tier1",
+      "patterns": ["paypal.*capital", "paypal.*working", "ppwc"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Credibly",
+      "aliases": ["Credibly Inc", "RetailCapital", "Retail Capital"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["credibly", "retail.*capital"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Fora Financial",
+      "aliases": ["Fora", "Fora Fin", "FF"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["fora.*financial", "fora.*fin"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "National Funding",
+      "aliases": ["National", "NF", "Nat Funding"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["national.*funding", "nat.*funding"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Yellowstone Capital",
+      "aliases": ["Yellowstone", "YC", "Yellow Stone", "Yellowstone Cap"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["yellowstone", "yellow.*stone"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Par Funding",
+      "aliases": ["Par", "Complete Business Solutions", "CBSG", "CBS"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["par.*funding", "complete.*business", "cbsg"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "World Business Lenders",
+      "aliases": ["WBL", "World Business", "World Biz Lenders"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["world.*business.*lenders", "wbl"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Capify",
+      "aliases": ["Capify Finance", "Capify Funding"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["capify"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Libertas Funding",
+      "aliases": ["Libertas", "LF", "Libertas Fund"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["libertas"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Mulligan Funding",
+      "aliases": ["Mulligan", "MF", "Mulligan Fund"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["mulligan.*funding"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Forward Financing",
+      "aliases": ["Forward", "Forward Fin", "FF"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["forward.*financing", "forward.*fin"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Clearbanc",
+      "aliases": ["Clear Banc", "Clearco", "CB"],
+      "type": "revenue_based",
+      "tier": "tier1",
+      "patterns": ["clearbanc", "clear.*banc", "clearco"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Lendio",
+      "aliases": ["Lendio Inc", "Lendio Funding"],
+      "type": "marketplace",
+      "tier": "tier1",
+      "patterns": ["lendio"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Fundera",
+      "aliases": ["Fundera Inc", "Fundera by NerdWallet"],
+      "type": "marketplace",
+      "tier": "tier1",
+      "patterns": ["fundera"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Biz2Credit",
+      "aliases": ["Biz 2 Credit", "B2C", "Biz2Credit Inc"],
+      "type": "marketplace",
+      "tier": "tier2",
+      "patterns": ["biz.*2.*credit", "b2c"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "CAN Capital",
+      "aliases": ["CAN", "CAN Cap", "CAN Capital Inc"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["can.*capital"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Everest Business Funding",
+      "aliases": ["Everest", "EBF", "Everest Funding"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["everest.*business", "everest.*funding"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Knight Capital Funding",
+      "aliases": ["Knight Capital", "Knight", "KCF"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["knight.*capital"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Reliant Funding",
+      "aliases": ["Reliant", "RF", "Reliant Fund"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["reliant.*funding"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Shield Funding",
+      "aliases": ["Shield", "SF", "Shield Fund"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["shield.*funding"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Fast Capital 360",
+      "aliases": ["Fast Capital", "FC360", "FastCap"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["fast.*capital"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Platinum Rapid Funding",
+      "aliases": ["Platinum Rapid", "PRF", "Platinum"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["platinum.*rapid"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "365 Business Finance",
+      "aliases": ["365 Business", "365BF", "365 Finance"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["365.*business.*finance"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Advance Funds Network",
+      "aliases": ["AFN", "Advance Funds", "Advance Network"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["advance.*funds.*network", "afn"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "American Capital Advance",
+      "aliases": ["ACA", "American Capital", "Am Cap Advance"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["american.*capital.*advance", "aca"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Balboa Capital",
+      "aliases": ["Balboa", "BC", "Balboa Cap"],
+      "type": "equipment_finance",
+      "tier": "tier1",
+      "patterns": ["balboa.*capital"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Currency Capital",
+      "aliases": ["Currency", "CC", "Currency Cap"],
+      "type": "equipment_finance",
+      "tier": "tier2",
+      "patterns": ["currency.*capital"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Direct Capital",
+      "aliases": ["Direct Cap", "DC", "Direct"],
+      "type": "equipment_finance",
+      "tier": "tier1",
+      "patterns": ["direct.*capital"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Excel Capital Management",
+      "aliases": ["Excel Capital", "ECM", "Excel"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["excel.*capital"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Funding Circle",
+      "aliases": ["Funding Circle US", "FC", "FundingCircle"],
+      "type": "term_loan",
+      "tier": "tier1",
+      "patterns": ["funding.*circle"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Global Financial",
+      "aliases": ["Global Fin", "GF", "Global"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["global.*financial"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Greenbox Capital",
+      "aliases": ["Greenbox", "GBC", "Green Box"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["greenbox", "green.*box"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "High Speed Capital",
+      "aliases": ["High Speed", "HSC", "HighSpeed"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["high.*speed.*capital"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "IOU Financial",
+      "aliases": ["IOU", "IOU Fin", "IOUF"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["iou.*financial"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Kapitus",
+      "aliases": ["Kapitus Inc", "Kap"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["kapitus"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "LoanBuilder",
+      "aliases": ["Loan Builder", "LB", "PayPal LoanBuilder"],
+      "type": "term_loan",
+      "tier": "tier1",
+      "patterns": ["loan.*builder"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Merchant Cash Group",
+      "aliases": ["MCG", "Merchant Cash", "MerchantCash"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["merchant.*cash.*group", "mcg"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Merchant Growth",
+      "aliases": ["MG", "Merchant Growth Inc"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["merchant.*growth"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Nova Capital",
+      "aliases": ["Nova", "NC", "Nova Cap"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["nova.*capital"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Pearl Capital",
+      "aliases": ["Pearl", "PC", "Pearl Cap"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["pearl.*capital"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Quikbridge",
+      "aliases": ["Quik Bridge", "QB", "QuikBridge Funding"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["quik.*bridge"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "RapidCFS",
+      "aliases": ["Rapid CFS", "RCFS", "Rapid Commercial Finance"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["rapid.*cfs", "rapidcfs"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Seek Capital",
+      "aliases": ["Seek", "SC", "SeekCapital"],
+      "type": "marketplace",
+      "tier": "tier2",
+      "patterns": ["seek.*capital"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Strategic Funding Source",
+      "aliases": ["SFS", "Strategic Funding", "Strategic"],
+      "type": "mca",
+      "tier": "tier2",
+      "patterns": ["strategic.*funding"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Triton Capital",
+      "aliases": ["Triton", "TC", "Triton Cap"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["triton.*capital"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "United Capital Source",
+      "aliases": ["UCS", "United Capital", "United"],
+      "type": "marketplace",
+      "tier": "tier2",
+      "patterns": ["united.*capital"],
+      "riskLevel": "moderate"
+    },
+    {
+      "name": "Vantage Capital",
+      "aliases": ["Vantage", "VC", "Vantage Cap"],
+      "type": "mca",
+      "tier": "tier3",
+      "patterns": ["vantage.*capital"],
+      "riskLevel": "high"
+    },
+    {
+      "name": "Wells Fargo",
+      "aliases": ["WF", "Wells", "Wells Fargo Bank"],
+      "type": "traditional_bank",
+      "tier": "bank",
+      "patterns": ["wells.*fargo"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Bank of America",
+      "aliases": ["BofA", "BOA", "Bank of America NA"],
+      "type": "traditional_bank",
+      "tier": "bank",
+      "patterns": ["bank.*of.*america", "bofa"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "JPMorgan Chase",
+      "aliases": ["Chase", "JP Morgan", "JPMC", "Chase Bank"],
+      "type": "traditional_bank",
+      "tier": "bank",
+      "patterns": ["jpmorgan", "jp.*morgan", "chase.*bank"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "Citibank",
+      "aliases": ["Citi", "Citigroup", "Citibank NA"],
+      "type": "traditional_bank",
+      "tier": "bank",
+      "patterns": ["citibank", "citigroup"],
+      "riskLevel": "low"
+    },
+    {
+      "name": "US Bank",
+      "aliases": ["USB", "U.S. Bank", "US Bank NA"],
+      "type": "traditional_bank",
+      "tier": "bank",
+      "patterns": ["us.*bank", "u\\.s\\..*bank"],
+      "riskLevel": "low"
+    }
+  ],
+  "patterns": {
+    "high_risk_indicators": [
+      "daily payment",
+      "daily ach",
+      "factor rate",
+      "merchant cash",
+      "revenue advance",
+      "working capital advance",
+      "business cash advance"
+    ],
+    "moderate_risk_indicators": [
+      "term loan",
+      "line of credit",
+      "business loan",
+      "equipment financing"
+    ],
+    "low_risk_indicators": [
+      "sba loan",
+      "bank loan",
+      "traditional financing",
+      "commercial loan",
+      "real estate loan"
+    ],
+    "stacking_indicators": [
+      "multiple positions",
+      "2nd position",
+      "3rd position",
+      "subordinated",
+      "junior lien",
+      "additional advance"
+    ]
+  },
+  "normalization": {
+    "suffixes_to_remove": [
+      "inc", "inc.", "incorporated",
+      "llc", "l.l.c.", "limited liability company",
+      "corp", "corp.", "corporation",
+      "ltd", "ltd.", "limited",
+      "co", "co.", "company",
+      "group", "grp",
+      "partners", "partnership",
+      "associates", "assoc"
+    ],
+    "common_abbreviations": {
+      "funding": ["fund", "fndg", "fin"],
+      "capital": ["cap", "cptl"],
+      "financial": ["fin", "finl"],
+      "business": ["biz", "bus"],
+      "merchant": ["merch", "mrchnt"],
+      "advance": ["adv", "advnc"],
+      "national": ["nat", "natl"],
+      "international": ["intl", "int"],
+      "american": ["amer", "am"],
+      "united": ["utd", "uni"]
+    }
+  },
+  "risk_scoring": {
+    "tier1": {
+      "base_score": 20,
+      "description": "Established, reputable funders with good track records"
+    },
+    "tier2": {
+      "base_score": 40,
+      "description": "Mid-tier funders with moderate risk profiles"
+    },
+    "tier3": {
+      "base_score": 70,
+      "description": "High-risk funders often associated with stacking"
+    },
+    "bank": {
+      "base_score": 10,
+      "description": "Traditional banks with lowest risk"
+    },
+    "unknown": {
+      "base_score": 50,
+      "description": "Unrecognized funders requiring investigation"
+    }
+  }
+}

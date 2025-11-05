@@ -35,6 +35,8 @@ import { leadEnrichmentService } from "./services/lead-enrichment";
 import { qualityGuaranteeService } from "./services/quality-guarantee";
 import { comprehensiveLeadEnricher } from "./services/comprehensive-lead-enricher";
 import { numverifyService } from "./numverify-service";
+import { fieldMapper, CanonicalField, FIELD_VALIDATORS } from "./intelligence/ontology";
+import { leadQualityScorer, funderMatcher } from "./intelligence/industry-knowledge";
 import { leadFreshnessService, FreshnessCategory } from "./services/lead-freshness";
 import { bulkOperationsService } from "./services/bulk-operations";
 import { perplexityResearch } from "./services/perplexity-research";
@@ -473,47 +475,36 @@ function extractPhoneNumbers(phoneString: string): { primary: string | null, sec
 }
 
 /**
- * Flexible column mapper that handles case-insensitive matching,
- * partial matching, and various formats
+ * Flexible column mapper that uses the intelligent field mapper from our ontology
  */
 function mapColumnToField(columnName: string): string | null {
   if (!columnName) return null;
   
-  // Normalize the column name: lowercase, remove extra spaces, replace separators
+  // Use the intelligent field mapper from our ontology
+  const canonicalField = fieldMapper.mapToCanonical(columnName);
+  
+  // Debug logging for specific problematic columns - REDUCED TO PREVENT EXCESSIVE LOGGING
+  const debugEnabled = false;
+  if (debugEnabled) {
+    console.log(`Mapping column "${columnName}" -> canonical field: "${canonicalField}"`);
+  }
+  
+  // If the field mapper found a match, return it
+  if (canonicalField) {
+    return canonicalField;
+  }
+  
+  // Fall back to old mapping for backward compatibility (temporarily)
+  // This ensures nothing breaks while we transition
   const normalized = columnName
     .toLowerCase()
     .trim()
-    .replace(/[\s\-_\.]+/g, ' ')  // Replace separators with space
-    .replace(/\s+/g, ' ');  // Remove multiple spaces
+    .replace(/[\s\-_\.]+/g, ' ')
+    .replace(/\s+/g, ' ');
   
-  // Debug logging for specific problematic columns - REDUCED TO PREVENT EXCESSIVE LOGGING
-  // Only log for debugging when explicitly enabled
-  const debugEnabled = false;
-  if (debugEnabled && (columnName.toLowerCase().includes('company') || columnName.toLowerCase().includes('owner'))) {
-    console.log(`Mapping column "${columnName}" -> normalized: "${normalized}"`);
-  }
-  
-  // DIRECT MAPPING for user's exact column names
-  const directMap: Record<string, string> = {
-    'company name': 'businessName',
-    'owner name': 'ownerName',
-    'phone1': 'phone',
-    'phone2': 'phone'
-  };
-  
-  if (directMap[normalized]) {
-    if (debugEnabled) {
-      console.log(`  -> Direct mapping: "${normalized}" to "${directMap[normalized]}"`);
-    }
-    return directMap[normalized];
-  }
-  
-  // Check exact matches first
+  // Check old exact matches
   for (const [field, patterns] of Object.entries(COLUMN_MAPPINGS)) {
     if (patterns.includes(normalized)) {
-      if (debugEnabled && (columnName.toLowerCase().includes('company') || columnName.toLowerCase().includes('owner'))) {
-        console.log(`  -> Matched to field: ${field}`);
-      }
       return field;
     }
   }
@@ -696,34 +687,57 @@ function parseCSVFile(buffer: Buffer, filename: string): { rows: any[], headers:
 }
 
 /**
- * Normalize and map lead data with flexible column detection
+ * Normalize and map lead data with intelligent field mapping and validation
  */
 function normalizeLeadData(row: any, debug: boolean = false): any {
   const normalized: any = {};
   const unmappedFields: any = {};
   let phoneFieldsFound: string[] = [];
   
-  for (const [originalKey, value] of Object.entries(row)) {
+  // First, use the field mapper to normalize all fields at once
+  const mappedData = fieldMapper.mapObject(row);
+  
+  // Process the mapped data
+  for (const [field, value] of Object.entries(mappedData)) {
     if (!value || String(value).trim() === '') continue;
     
-    const mappedField = mapColumnToField(originalKey);
-    
-    if (mappedField) {
-      // Special handling for phone fields - collect all phone columns
-      if (mappedField === 'phone') {
-        phoneFieldsFound.push(String(value).trim());
-      } 
-      // Special handling for boolean fields
-      else if (mappedField === 'dailyBankDeposits') {
-        const strValue = String(value).toLowerCase();
-        normalized[mappedField] = strValue === 'true' || strValue === 'yes' || 
-                                  strValue === '1' || strValue === 'y';
-      } else {
-        normalized[mappedField] = String(value).trim();
+    // Special handling for phone fields - collect all phone columns
+    if (field === 'phone' || field === 'secondaryPhone' || field === 'mobilePhone' || field === 'workPhone') {
+      if (FIELD_VALIDATORS.phone.validate(String(value))) {
+        phoneFieldsFound.push(FIELD_VALIDATORS.phone.normalize(String(value)));
       }
-    } else {
-      // Keep unmapped fields for potential use
-      unmappedFields[originalKey] = value;
+    } 
+    // Special handling for boolean fields
+    else if (field === 'dailyBankDeposits') {
+      const strValue = String(value).toLowerCase();
+      normalized[field] = strValue === 'true' || strValue === 'yes' || 
+                                strValue === '1' || strValue === 'y';
+    } 
+    // Use validators for standardization
+    else if (field === 'email' && FIELD_VALIDATORS.email.validate(String(value))) {
+      normalized[field] = FIELD_VALIDATORS.email.normalize(String(value));
+    }
+    else if ((field === 'state' || field === 'stateCode' || field === 'filingState') && FIELD_VALIDATORS.state.validate(String(value))) {
+      normalized[field] = FIELD_VALIDATORS.state.normalize(String(value));
+    }
+    else if ((field === 'annualRevenue' || field === 'requestedAmount' || field === 'monthlyRevenue') && String(value)) {
+      normalized[field] = String(FIELD_VALIDATORS.currency.normalize(String(value)));
+    }
+    else if (field === 'creditScore' && FIELD_VALIDATORS.creditScore.validate(value)) {
+      normalized[field] = String(FIELD_VALIDATORS.creditScore.normalize(value));
+    }
+    else if (field === 'zipCode' && FIELD_VALIDATORS.zipCode.validate(String(value))) {
+      normalized[field] = FIELD_VALIDATORS.zipCode.normalize(String(value));
+    }
+    else {
+      normalized[field] = String(value).trim();
+    }
+  }
+  
+  // Keep track of any unmapped fields for debugging
+  for (const [key, value] of Object.entries(row)) {
+    if (!mappedData.hasOwnProperty(key) && value) {
+      unmappedFields[key] = value;
     }
   }
   

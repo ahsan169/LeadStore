@@ -1,0 +1,183 @@
+1) Monorepo & structure (keep existing code working)
+
+Create/ensure pnpm-workspace.yaml. Organize files into:
+
+/apps/api        # external API & webhooks
+/apps/admin      # Admin Control Plane (Next.js/React)
+/apps/worker     # ingestion/enrichment jobs
+/apps/brain      # NEW: control-plane logic, rules, scoring, learning
+/packages/shared # types, ontology, validators, utilities
+/packages/rules  # rules DSL + executor + scorecards
+/packages/models # NER/LLM/embeddings adapters (provider-agnostic)
+/packages/evals  # golden data + eval runner
+
+
+Keep public inputs/outputs stable. Where we must move code, add shims/adapters. Delete dead code. Add path aliases via tsconfig.json.
+
+2) Admin “Brain” service (apps/brain)
+
+Event pipeline with audit trails:
+
+Stages: ingest → normalize → resolve → enrich → ucc_aggregate → score → export.
+
+Each stage implements:
+
+export interface Stage<I,O> { name: string; run(input: I, ctx: Ctx): Promise<O>; }
+
+
+Persist lineage (source → transforms → outputs) with timestamps and stage confidences.
+
+Expose endpoints:
+
+POST /brain/plan (return normalized/enriched lead + explanations)
+
+POST /brain/feedback (operator corrections)
+
+GET /brain/metrics (dashboard summaries; no PII)
+
+3) Seed industry knowledge
+
+Create /packages/shared/ontology.ts with canonical fields + synonyms + validators for MCA & UCC:
+
+Business: legal_name, dba, state_of_incorp, sos_id, naics, website, phone, email, street, unit, city, region, postal_code, country, ein.
+
+Contact: owner_first, owner_last, title, contact_phone, contact_email.
+
+UCC: ucc_state, ucc_filing_number, ucc_filing_date, ucc_type, ucc_status, secured_party_name, secured_party_address, debtor_names[], collateral_text, continuation_count, lien_position_guess.
+
+Include synonyms/aliases (e.g., “Filing #”, “File No.”; “Secured Party”/“SP”; LLC/L.L.C.; ZIP/Postcode) and regex validators (USPS address, phone E.164, EIN‑like).
+
+Add /packages/shared/funders.json with seed MCA funder names + common variants/aliases and a simple normalizer.
+
+4) Rules engine & scorecard (packages/rules)
+
+Implement a YAML/JSON DSL with precedence: Admin > Tenant > Learned > Heuristics > AI.
+
+Add scorecard.yaml (Value Score 0–100) with weights for recency, active status, known funder match, continuation_count, multi_lien_flag, data quality, contact validity.
+
+Provide a dry‑run method to test rules against stored samples and show diffs.
+
+5) Intelligence execution policy (cheap‑first)
+
+Tier 0: deterministic heuristics + rules + ontology synonyms.
+
+Tier 1: embeddings for fuzzy label/field mapping and name/address similarity.
+
+Tier 2: constrained LLM/NER calls for hard cases (collateral parsing, party extraction, NAICS guess). Always return structured JSON and store rationale + confidence.
+
+Fuse confidences; short‑circuit when high.
+
+6) Eval harness (packages/evals)
+
+Create a golden set folder with ~100 representative filings/leads across states.
+
+Build pnpm run eval to output precision/recall/F1 per field and overall coverage; save eval-report.json and human‑readable summary.
+
+CI gate: PR fails if key metrics drop (e.g., core UCC fields F1 < 0.90; MCA signals F1 < 0.85) or latency budgets break.
+
+7) Admin Control Plane (apps/admin)
+
+Views: Dashboard, Queue/Inspector (lineage + explanations + confidences), Rules (CRUD + dry‑run diffs + rollback), Knowledge (funder dictionary, ontology synonyms), Evals (run/compare), Exports (schema mapping).
+
+Keep it simple: single‑screen actions, keyboard shortcuts, clear tooltips.
+
+8) PR workflow (iterate until green)
+
+Open small PRs in this order:
+
+Monorepo refactor (no behavior change)
+
+Brain skeleton + pipeline interface
+
+Ontology + funders seed + validators
+
+Rules DSL + scorecard + dry‑run
+
+Eval harness + golden set + CI gate
+
+UCC aggregation & secured‑party/ debtor extraction (NER where needed)
+
+Scoring + explanations
+
+Admin UI (Dashboard, Inspector, Rules, Evals, Exports)
+
+Learning loop (operator feedback → suggested rules/synonyms)
+
+Each PR must include:
+
+A test plan, passing unit tests, and an eval-report attachment.
+
+Before/after examples on 3–5 golden records.
+
+A rollback note (how to revert safely).
+
+9) Acceptance criteria (must pass before merge to main)
+
+Core UCC fields (filing number, date, secured party, status): ≥90% F1 on goldens.
+
+MCA‑specific signals (known funder detection, continuation_count, multi_lien_flag): ≥85% F1.
+
+Entity resolution F1 ≥0.90 with ≤2% false merges.
+
+Value Score is explainable (visible breakdown) and tunable in scorecard.yaml.
+
+No regressions to existing features; logs contain no PII.
+
+10) Guardrails
+
+Respect data source TOS; prefer uploads/licensed feeds; flag any connector that requires scraping with CAPTCHAs.
+
+Encrypt sensitive data at rest; redact logs.
+
+Never auto‑submit anything; operator must confirm exports.
+
+Deliverables: Updated repo with the new structure, Brain service, Admin UI, seeded ontology/funders, rules/scorecard, eval harness + CI gate, and a series of PRs that iterate until the acceptance criteria are met.
+
+Tiny examples (so the agent knows what to create)
+
+/packages/shared/ontology.ts (excerpt)
+
+export type CanonicalKey =
+  | "legal_name" | "dba" | "sos_id" | "naics" | "website"
+  | "phone" | "email" | "street" | "unit" | "city" | "region" | "postal_code" | "country"
+  | "ucc_state" | "ucc_filing_number" | "ucc_filing_date" | "ucc_type" | "ucc_status"
+  | "secured_party_name" | "secured_party_address" | "debtor_names" | "collateral_text"
+  | "continuation_count" | "lien_position_guess";
+
+export const synonyms: Record<CanonicalKey, string[]> = {
+  ucc_filing_number: ["filing #","file no.","ucc no","ucc#"],
+  secured_party_name: ["secured party","sp","lender","assignee"],
+  // ...
+};
+
+
+/packages/rules/scorecard.yaml (excerpt)
+
+weights:
+  recency: 0.18
+  status_active: 0.18
+  known_mca_funder: 0.16
+  continuation_count: 0.12
+  multi_lien_flag: -0.08
+  data_quality: 0.18
+  contact_validity: 0.10
+thresholds:
+  pass_core_f1: 0.90
+  pass_mca_f1: 0.85
+
+
+PR template (excerpt)
+
+### What changed
+- ...
+
+### Test plan
+- `pnpm test` → all green
+- `pnpm run eval` → attached `eval-report.json` + summary
+
+### Metrics
+- Core UCC F1: from 0.88 → 0.91
+- MCA signals F1: from 0.82 → 0.87
+
+### Rollback
+- Revert commit <sha> or disable new stage via feature flag `BRAIN_UCC_AGG=false`
