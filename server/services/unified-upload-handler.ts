@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { IntelligenceBrainService } from "./intelligence-brain";
+import { IntelligenceBrain } from "./intelligence-brain";
 import { MasterDatabaseService } from "./master-database";
 import { costOptimization } from "./cost-optimization";
 import { eventBus } from "./event-bus";
@@ -7,7 +7,9 @@ import type { Lead, InsertLead, LeadBatch } from "@shared/schema";
 import Papa from 'papaparse';
 import XLSX from 'xlsx';
 import { z } from "zod";
-import { v4 as uuidv4 } from 'crypto';
+import crypto from 'crypto';
+import { FieldMapper, CanonicalField, FIELD_VALIDATORS, fieldMapper } from '../intelligence/ontology';
+import { openAIService } from './openai-service';
 
 interface UploadResult {
   batchId: string;
@@ -130,12 +132,11 @@ const FIELD_MAPPINGS = {
 };
 
 export class UnifiedUploadHandler {
-  private intelligenceBrain: IntelligenceBrainService;
+  private intelligenceBrain: IntelligenceBrain;
   private masterDatabase: MasterDatabaseService;
-  private eventBus = EventBus.getInstance();
   
   constructor() {
-    this.intelligenceBrain = new IntelligenceBrainService();
+    this.intelligenceBrain = new IntelligenceBrain();
     this.masterDatabase = new MasterDatabaseService();
   }
 
@@ -152,7 +153,7 @@ export class UnifiedUploadHandler {
     } = {}
   ): Promise<UploadResult> {
     const startTime = Date.now();
-    const batchId = `batch-${uuidv4()}`;
+    const batchId = `batch-${crypto.randomUUID()}`;
     
     // Detect file format
     const format = this.detectFileFormat(fileName, file);
@@ -274,9 +275,11 @@ export class UnifiedUploadHandler {
         delimiter,
         header: true,
         skipEmptyLines: true,
-        transformHeader: (header) => header.toLowerCase().replace(/\s+/g, '_'),
-        complete: (results) => {
-          const leads = results.data.map(row => this.mapFieldsIntelligently(row));
+        transformHeader: (header) => header.trim(),  // Keep original header for better mapping
+        complete: async (results) => {
+          const leads = await Promise.all(
+            results.data.map(row => this.mapFieldsIntelligently(row))
+          );
           resolve(leads);
         },
         error: reject
@@ -295,14 +298,14 @@ export class UnifiedUploadHandler {
       dateNF: 'yyyy-mm-dd'
     });
     
-    return jsonData.map(row => this.mapFieldsIntelligently(row));
+    return await Promise.all(jsonData.map(row => this.mapFieldsIntelligently(row)));
   }
 
   private async parseJson(content: string): Promise<ParsedLead[]> {
     try {
       const data = JSON.parse(content);
       const array = Array.isArray(data) ? data : [data];
-      return array.map(row => this.mapFieldsIntelligently(row));
+      return await Promise.all(array.map(row => this.mapFieldsIntelligently(row)));
     } catch (error) {
       throw new Error(`Invalid JSON format: ${error}`);
     }
@@ -312,16 +315,18 @@ export class UnifiedUploadHandler {
     // Parse delimited text or unstructured text
     if (delimiter) {
       const lines = content.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+      const headers = lines[0].split(delimiter).map(h => h.trim());
       
-      return lines.slice(1).map(line => {
+      const rows = await Promise.all(lines.slice(1).map(async line => {
         const values = line.split(delimiter);
         const row: Record<string, any> = {};
         headers.forEach((header, index) => {
           row[header] = values[index]?.trim() || '';
         });
         return this.mapFieldsIntelligently(row);
-      });
+      }));
+      
+      return rows;
     } else {
       // Attempt to extract structured data from unstructured text
       return this.parseUnstructuredText(content);
@@ -329,18 +334,22 @@ export class UnifiedUploadHandler {
   }
 
   private async parseUnstructuredText(content: string): Promise<ParsedLead[]> {
-    // Use AI to extract lead information from unstructured text
-    const blocks = content.split(/\n\n+/);
     const leads: ParsedLead[] = [];
+    const blocks = content.split(/\n\n+/);
     
     for (const block of blocks) {
-      const extractedData = this.extractDataFromText(block);
+      // First try AI extraction for better results
+      let extractedData = await openAIService.extractLeadFromText(block);
+      
+      // If AI didn't find much, try pattern matching
+      if (Object.keys(extractedData).length < 3) {
+        extractedData = { ...this.extractDataFromText(block), ...extractedData };
+      }
+      
       if (Object.keys(extractedData).length > 2) {
-        leads.push({
-          rawData: { text: block },
-          mappedData: extractedData,
-          confidence: 0.6
-        });
+        // Map the extracted data through our intelligent mapper
+        const mapped = await this.mapFieldsIntelligently(extractedData);
+        leads.push(mapped);
       }
     }
     
@@ -421,53 +430,92 @@ export class UnifiedUploadHandler {
     return data;
   }
 
-  private mapFieldsIntelligently(rawData: Record<string, any>): ParsedLead {
+  private async mapFieldsIntelligently(rawData: Record<string, any>): Promise<ParsedLead> {
+    const mapper = new FieldMapper();
     const mapped: Partial<InsertLead> = {};
     const unmapped: Record<string, any> = {};
-    let confidence = 0;
+    const fieldMappingConfidence: Record<string, number> = {};
+    let overallConfidence = 0;
     let matchedFields = 0;
     const totalFields = Object.keys(rawData).length;
     
-    // Normalize keys
-    const normalizedData: Record<string, any> = {};
+    // First pass: Use FieldMapper from ontology
     for (const [key, value] of Object.entries(rawData)) {
-      const normalizedKey = key.toLowerCase().replace(/[\s\-\.]/g, '_');
-      normalizedData[normalizedKey] = value;
-    }
-    
-    // Try to map each field
-    for (const [targetField, patterns] of Object.entries(FIELD_MAPPINGS)) {
-      for (const pattern of patterns) {
-        if (normalizedData[pattern] !== undefined && normalizedData[pattern] !== null && normalizedData[pattern] !== '') {
-          mapped[targetField as keyof InsertLead] = this.sanitizeValue(normalizedData[pattern], targetField);
-          matchedFields++;
-          delete normalizedData[pattern];
-          break;
+      if (value === null || value === undefined || value === '') continue;
+      
+      const canonicalField = mapper.mapToCanonical(key);
+      
+      if (canonicalField) {
+        // Map canonical field to InsertLead field name
+        const leadFieldName = this.canonicalToLeadField(canonicalField);
+        if (leadFieldName) {
+          // Apply validation and normalization from ontology
+          const normalized = mapper.normalizeValue(canonicalField, value);
+          const validation = mapper.validateField(canonicalField, normalized);
+          
+          if (validation.valid) {
+            mapped[leadFieldName] = normalized;
+            fieldMappingConfidence[leadFieldName] = 1.0;
+            matchedFields++;
+          } else {
+            // Try to fix invalid data
+            const fixed = await this.attemptDataFix(canonicalField, value);
+            if (fixed.success) {
+              mapped[leadFieldName] = fixed.value;
+              fieldMappingConfidence[leadFieldName] = fixed.confidence;
+              matchedFields++;
+            } else {
+              unmapped[key] = value;
+            }
+          }
         }
-      }
-    }
-    
-    // Store unmapped fields for potential AI processing
-    for (const [key, value] of Object.entries(normalizedData)) {
-      if (value !== undefined && value !== null && value !== '') {
+      } else {
         unmapped[key] = value;
       }
     }
     
-    // Calculate confidence based on matched fields
-    confidence = matchedFields / Math.min(totalFields, Object.keys(FIELD_MAPPINGS).length);
-    
-    // Use AI to improve mapping for low confidence
-    if (confidence < 0.5 && Object.keys(unmapped).length > 0) {
-      const aiMapped = this.useAiForMapping(unmapped);
-      Object.assign(mapped, aiMapped);
-      confidence = Math.min(0.9, confidence + 0.3);
+    // Second pass: Handle compound fields
+    const compoundResults = await this.detectAndSplitCompoundFields(unmapped);
+    for (const result of compoundResults) {
+      if (result.fields) {
+        for (const field of result.fields) {
+          const leadFieldName = this.canonicalToLeadField(field.field);
+          if (leadFieldName && !mapped[leadFieldName]) {
+            mapped[leadFieldName] = field.value;
+            fieldMappingConfidence[leadFieldName] = result.confidence;
+            matchedFields++;
+            delete unmapped[result.originalKey];
+          }
+        }
+      }
     }
+    
+    // Third pass: Use AI for remaining unmapped fields with low confidence
+    if (Object.keys(unmapped).length > 0) {
+      const aiMappings = await this.mapFieldsWithAI(unmapped, mapped);
+      for (const aiMapping of aiMappings) {
+        const leadFieldName = this.canonicalToLeadField(aiMapping.field);
+        if (leadFieldName && !mapped[leadFieldName]) {
+          mapped[leadFieldName] = aiMapping.value;
+          fieldMappingConfidence[leadFieldName] = aiMapping.confidence;
+          if (aiMapping.confidence > 0.5) {
+            matchedFields++;
+          }
+          delete unmapped[aiMapping.originalKey];
+        }
+      }
+    }
+    
+    // Calculate overall confidence
+    const avgFieldConfidence = Object.values(fieldMappingConfidence).reduce((a, b) => a + b, 0) / 
+                               (Object.keys(fieldMappingConfidence).length || 1);
+    const coverageScore = matchedFields / totalFields;
+    overallConfidence = (avgFieldConfidence * 0.7) + (coverageScore * 0.3);
     
     return {
       rawData,
       mappedData: mapped,
-      confidence
+      confidence: overallConfidence
     };
   }
 
@@ -552,28 +600,416 @@ export class UnifiedUploadHandler {
     return stateMap[normalized] || state.toUpperCase().slice(0, 2);
   }
 
-  private useAiForMapping(unmapped: Record<string, any>): Partial<InsertLead> {
-    const mapped: Partial<InsertLead> = {};
+  /**
+   * Map canonical field to InsertLead field name
+   */
+  private canonicalToLeadField(canonical: CanonicalField): keyof InsertLead | null {
+    const mapping: Partial<Record<CanonicalField, keyof InsertLead>> = {
+      [CanonicalField.BUSINESS_NAME]: 'businessName',
+      [CanonicalField.OWNER_NAME]: 'ownerName',
+      [CanonicalField.FIRST_NAME]: 'ownerName', // Will combine with lastName
+      [CanonicalField.LAST_NAME]: 'ownerName', // Will combine with firstName
+      [CanonicalField.EMAIL]: 'email',
+      [CanonicalField.PHONE]: 'phone',
+      [CanonicalField.SECONDARY_PHONE]: 'secondaryPhone',
+      [CanonicalField.INDUSTRY]: 'industry',
+      [CanonicalField.ANNUAL_REVENUE]: 'annualRevenue',
+      [CanonicalField.MONTHLY_REVENUE]: 'annualRevenue', // Will convert
+      [CanonicalField.REQUESTED_AMOUNT]: 'requestedAmount',
+      [CanonicalField.CREDIT_SCORE]: 'creditScore',
+      [CanonicalField.YEAR_FOUNDED]: 'yearFounded',
+      [CanonicalField.YEARS_IN_BUSINESS]: 'yearsInBusiness',
+      [CanonicalField.TIME_IN_BUSINESS]: 'timeInBusiness',
+      [CanonicalField.STREET]: 'fullAddress',
+      [CanonicalField.CITY]: 'city',
+      [CanonicalField.STATE]: 'stateCode',
+      [CanonicalField.ZIP_CODE]: 'zipCode',
+      [CanonicalField.UCC_NUMBER]: 'uccNumber',
+      [CanonicalField.FILING_DATE]: 'filingDate',
+      [CanonicalField.SECURED_PARTY]: 'securedParties',
+      [CanonicalField.EIN]: 'ein',
+      [CanonicalField.NAICS_CODE]: 'naicsCode',
+      [CanonicalField.SIC_CODE]: 'sicCode',
+      [CanonicalField.DAILY_BANK_DEPOSITS]: 'dailyBankDeposits',
+      [CanonicalField.URGENCY_LEVEL]: 'urgencyLevel',
+      [CanonicalField.FUNDING_PURPOSE]: 'fundingPurpose',
+      [CanonicalField.LEAD_SOURCE]: 'leadSource',
+      [CanonicalField.BUSINESS_TYPE]: 'businessType',
+      [CanonicalField.BUSINESS_DESCRIPTION]: 'businessDescription'
+    };
     
-    // Use pattern matching and heuristics for unmapped fields
-    for (const [key, value] of Object.entries(unmapped)) {
-      const lowerKey = key.toLowerCase();
+    return mapping[canonical] || null;
+  }
+
+  /**
+   * Attempt to fix invalid data using AI and validation rules
+   */
+  private async attemptDataFix(field: CanonicalField, value: any): Promise<{
+    success: boolean;
+    value?: any;
+    confidence: number;
+  }> {
+    // First try rule-based fixes
+    const ruleFixed = this.applyRuleBasedFixes(field, value);
+    if (ruleFixed.success) {
+      return ruleFixed;
+    }
+    
+    // If rules fail, try AI-based fixes
+    const aiFixed = await openAIService.validateAndFixData(field, String(value));
+    if (aiFixed.valid && aiFixed.fixedValue) {
+      return {
+        success: true,
+        value: aiFixed.fixedValue,
+        confidence: aiFixed.confidence
+      };
+    }
+    
+    return { success: false, confidence: 0 };
+  }
+
+  /**
+   * Apply rule-based fixes for common data issues
+   */
+  private applyRuleBasedFixes(field: CanonicalField, value: any): {
+    success: boolean;
+    value?: any;
+    confidence: number;
+  } {
+    const stringValue = String(value).trim();
+    
+    switch (field) {
+      case CanonicalField.PHONE:
+        // Try to extract phone number from text
+        const phoneDigits = stringValue.replace(/\D/g, '');
+        if (phoneDigits.length === 10) {
+          return {
+            success: true,
+            value: FIELD_VALIDATORS.phone.normalize(phoneDigits),
+            confidence: 0.9
+          };
+        } else if (phoneDigits.length === 11 && phoneDigits.startsWith('1')) {
+          return {
+            success: true,
+            value: FIELD_VALIDATORS.phone.normalize(phoneDigits.substring(1)),
+            confidence: 0.9
+          };
+        }
+        break;
       
-      // Check for partial matches
-      if (lowerKey.includes('name') && !lowerKey.includes('business')) {
-        if (!mapped.ownerName) mapped.ownerName = value;
-      } else if (lowerKey.includes('company') || lowerKey.includes('business')) {
-        if (!mapped.businessName) mapped.businessName = value;
-      } else if (lowerKey.includes('revenue') || lowerKey.includes('sales')) {
-        if (!mapped.annualRevenue) mapped.annualRevenue = value;
-      } else if (lowerKey.includes('employee') || lowerKey.includes('staff')) {
-        if (!mapped.employeeCount) mapped.employeeCount = value;
-      } else if (lowerKey.includes('industry') || lowerKey.includes('sector')) {
-        if (!mapped.industry) mapped.industry = value;
+      case CanonicalField.EMAIL:
+        // Fix common email typos
+        const emailFix = stringValue
+          .toLowerCase()
+          .replace(/\s+/g, '')
+          .replace(/\[at\]/g, '@')
+          .replace(/\[dot\]/g, '.');
+        if (FIELD_VALIDATORS.email.validate(emailFix)) {
+          return {
+            success: true,
+            value: emailFix,
+            confidence: 0.8
+          };
+        }
+        break;
+      
+      case CanonicalField.STATE:
+        // Try to normalize state
+        const normalized = FIELD_VALIDATORS.state.normalize(stringValue);
+        if (FIELD_VALIDATORS.state.validate(normalized)) {
+          return {
+            success: true,
+            value: normalized,
+            confidence: 1.0
+          };
+        }
+        break;
+      
+      case CanonicalField.ZIP_CODE:
+        // Extract ZIP from address-like strings
+        const zipMatch = stringValue.match(/\b(\d{5}(-\d{4})?)\b/);
+        if (zipMatch && FIELD_VALIDATORS.zipCode.validate(zipMatch[1])) {
+          return {
+            success: true,
+            value: zipMatch[1],
+            confidence: 0.9
+          };
+        }
+        break;
+    }
+    
+    return { success: false, confidence: 0 };
+  }
+
+  /**
+   * Detect and split compound fields
+   */
+  private async detectAndSplitCompoundFields(unmapped: Record<string, any>): Promise<Array<{
+    originalKey: string;
+    confidence: number;
+    fields?: Array<{ field: CanonicalField; value: any }>;
+  }>> {
+    const results = [];
+    
+    for (const [key, value] of Object.entries(unmapped)) {
+      if (!value || typeof value !== 'string') continue;
+      
+      // Check for common compound patterns
+      const compoundResult = this.checkCommonCompoundPatterns(key, value);
+      if (compoundResult.fields) {
+        results.push({
+          originalKey: key,
+          confidence: compoundResult.confidence,
+          fields: compoundResult.fields
+        });
+        continue;
+      }
+      
+      // If no pattern matches, try AI understanding
+      const aiResult = await openAIService.understandCompoundField(key, [value]);
+      if (aiResult.fields && aiResult.fields.length > 0) {
+        const extractedFields = this.extractFieldsFromCompound(value, aiResult.fields);
+        if (extractedFields.length > 0) {
+          results.push({
+            originalKey: key,
+            confidence: aiResult.confidence,
+            fields: extractedFields
+          });
+        }
       }
     }
     
-    return mapped;
+    return results;
+  }
+
+  /**
+   * Check for common compound field patterns
+   */
+  private checkCommonCompoundPatterns(key: string, value: string): {
+    fields?: Array<{ field: CanonicalField; value: any }>;
+    confidence: number;
+  } {
+    const lowerKey = key.toLowerCase();
+    
+    // Full name pattern
+    if (lowerKey.includes('name') && !lowerKey.includes('business') && !lowerKey.includes('company')) {
+      const nameParts = value.trim().split(/\s+/);
+      if (nameParts.length === 2) {
+        return {
+          fields: [
+            { field: CanonicalField.FIRST_NAME, value: nameParts[0] },
+            { field: CanonicalField.LAST_NAME, value: nameParts[1] }
+          ],
+          confidence: 0.9
+        };
+      } else if (nameParts.length === 3) {
+        return {
+          fields: [
+            { field: CanonicalField.FIRST_NAME, value: nameParts[0] },
+            { field: CanonicalField.LAST_NAME, value: nameParts[2] }
+          ],
+          confidence: 0.8
+        };
+      }
+    }
+    
+    // Full address pattern
+    if (lowerKey.includes('address') && value.includes(',')) {
+      const parts = value.split(',').map(p => p.trim());
+      if (parts.length >= 3) {
+        const fields = [];
+        const stateZipMatch = parts[parts.length - 1].match(/([A-Z]{2})\s+(\d{5}(-\d{4})?)/);
+        
+        if (stateZipMatch) {
+          fields.push({ field: CanonicalField.STATE, value: stateZipMatch[1] });
+          fields.push({ field: CanonicalField.ZIP_CODE, value: stateZipMatch[2] });
+          fields.push({ field: CanonicalField.CITY, value: parts[parts.length - 2] });
+          fields.push({ field: CanonicalField.STREET, value: parts.slice(0, -2).join(', ') });
+          
+          return { fields, confidence: 0.85 };
+        }
+      }
+    }
+    
+    // City, State ZIP pattern
+    if (lowerKey.includes('location') || lowerKey.includes('city')) {
+      const cityStateZip = value.match(/^(.+),\s*([A-Z]{2})\s+(\d{5}(-\d{4})?)$/);
+      if (cityStateZip) {
+        return {
+          fields: [
+            { field: CanonicalField.CITY, value: cityStateZip[1] },
+            { field: CanonicalField.STATE, value: cityStateZip[2] },
+            { field: CanonicalField.ZIP_CODE, value: cityStateZip[3] }
+          ],
+          confidence: 0.9
+        };
+      }
+    }
+    
+    return { confidence: 0 };
+  }
+
+  /**
+   * Extract fields from compound value based on AI understanding
+   */
+  private extractFieldsFromCompound(
+    value: string,
+    fieldDefinitions: Array<{ field: CanonicalField; extractionLogic: string }>
+  ): Array<{ field: CanonicalField; value: any }> {
+    const extracted = [];
+    
+    for (const def of fieldDefinitions) {
+      let extractedValue: any = null;
+      
+      // Apply extraction logic
+      if (def.extractionLogic.includes('split')) {
+        const delimiter = def.extractionLogic.match(/split by (.+)/)?.[1] || ' ';
+        const parts = value.split(delimiter);
+        const partIndex = def.extractionLogic.match(/take (\w+) part/)?.[1];
+        
+        if (partIndex === 'first') extractedValue = parts[0];
+        else if (partIndex === 'last') extractedValue = parts[parts.length - 1];
+        else if (partIndex === 'second') extractedValue = parts[1];
+      } else if (def.extractionLogic.includes('regex')) {
+        // Handle regex extraction
+        const pattern = def.extractionLogic.match(/regex: (.+)/)?.[1];
+        if (pattern) {
+          const match = value.match(new RegExp(pattern));
+          if (match) extractedValue = match[1] || match[0];
+        }
+      }
+      
+      if (extractedValue) {
+        extracted.push({ field: def.field, value: extractedValue.trim() });
+      }
+    }
+    
+    return extracted;
+  }
+
+  /**
+   * Use AI to map unmapped fields
+   */
+  private async mapFieldsWithAI(
+    unmapped: Record<string, any>,
+    alreadyMapped: Partial<InsertLead>
+  ): Promise<Array<{
+    field: CanonicalField;
+    value: any;
+    originalKey: string;
+    confidence: number;
+  }>> {
+    const mappings = [];
+    
+    for (const [key, value] of Object.entries(unmapped)) {
+      if (!value) continue;
+      
+      // Get sample values for better understanding
+      const sampleValues = Array.isArray(value) ? value : [value];
+      
+      // Use AI to understand the field
+      const understanding = await openAIService.understandField({
+        fieldName: key,
+        sampleValues: sampleValues.map(v => String(v)).slice(0, 5),
+        context: `Processing MCA/business lead data. Already mapped fields: ${Object.keys(alreadyMapped).join(', ')}`
+      });
+      
+      if (understanding.canonicalField && understanding.confidence > 0.4) {
+        mappings.push({
+          field: understanding.canonicalField,
+          value: value,
+          originalKey: key,
+          confidence: understanding.confidence
+        });
+      }
+    }
+    
+    return mappings;
+  }
+
+  /**
+   * Analyze data completeness for a lead
+   */
+  async analyzeDataCompleteness(lead: Partial<InsertLead>): Promise<{
+    overallScore: number;
+    criticalFieldsScore: number;
+    enrichmentOpportunities: string[];
+    missingCriticalFields: string[];
+    dataQualityIssues: string[];
+    fieldCompleteness: Record<string, boolean>;
+  }> {
+    const criticalFields = ['businessName', 'ownerName', 'phone', 'email'];
+    const importantFields = ['industry', 'annualRevenue', 'city', 'stateCode', 'creditScore'];
+    const enrichableFields = ['websiteUrl', 'linkedinUrl', 'yearFounded', 'employeeCount', 'businessDescription'];
+    
+    const fieldCompleteness: Record<string, boolean> = {};
+    const missingCriticalFields: string[] = [];
+    const dataQualityIssues: string[] = [];
+    const enrichmentOpportunities: string[] = [];
+    
+    // Check critical fields
+    let criticalComplete = 0;
+    for (const field of criticalFields) {
+      const value = lead[field as keyof InsertLead];
+      if (value && String(value).trim()) {
+        fieldCompleteness[field] = true;
+        criticalComplete++;
+        
+        // Validate data quality
+        if (field === 'email' && !FIELD_VALIDATORS.email.validate(String(value))) {
+          dataQualityIssues.push(`Invalid email format: ${value}`);
+        } else if (field === 'phone' && !FIELD_VALIDATORS.phone.validate(String(value))) {
+          dataQualityIssues.push(`Invalid phone format: ${value}`);
+        }
+      } else {
+        fieldCompleteness[field] = false;
+        missingCriticalFields.push(field);
+      }
+    }
+    
+    // Check important fields
+    let importantComplete = 0;
+    for (const field of importantFields) {
+      const value = lead[field as keyof InsertLead];
+      if (value && String(value).trim()) {
+        fieldCompleteness[field] = true;
+        importantComplete++;
+      } else {
+        fieldCompleteness[field] = false;
+      }
+    }
+    
+    // Check enrichable fields
+    for (const field of enrichableFields) {
+      const value = lead[field as keyof InsertLead];
+      if (!value || !String(value).trim()) {
+        fieldCompleteness[field] = false;
+        enrichmentOpportunities.push(field);
+      } else {
+        fieldCompleteness[field] = true;
+      }
+    }
+    
+    // Calculate scores
+    const criticalFieldsScore = (criticalComplete / criticalFields.length) * 100;
+    const importantFieldsScore = (importantComplete / importantFields.length) * 100;
+    const enrichableFieldsScore = 
+      ((enrichableFields.length - enrichmentOpportunities.length) / enrichableFields.length) * 100;
+    
+    // Overall score weighted by importance
+    const overallScore = 
+      (criticalFieldsScore * 0.5) + 
+      (importantFieldsScore * 0.3) + 
+      (enrichableFieldsScore * 0.2);
+    
+    return {
+      overallScore,
+      criticalFieldsScore,
+      enrichmentOpportunities,
+      missingCriticalFields,
+      dataQualityIssues,
+      fieldCompleteness
+    };
   }
 
   private async createBatch(
