@@ -113,6 +113,15 @@ import {
   searchSuggestions,
   type SearchSuggestion,
   type InsertSearchSuggestion,
+  masterDatabaseCache,
+  type MasterDatabaseCache,
+  type InsertMasterDatabaseCache,
+  intelligenceDecisions,
+  type IntelligenceDecision,
+  type InsertIntelligenceDecision,
+  learnedPatterns,
+  type LearnedPattern,
+  type InsertLearnedPattern,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -3072,6 +3081,560 @@ export class DbStorage implements IStorage {
       lastUccFilingDate: summary.lastUccFilingDate,
       uccRiskLevel: summary.uccRiskLevel,
     }).where(eq(leads.id, leadId)).returning();
+    return result[0];
+  }
+
+  // ============================================================================
+  // NEW IMPLEMENTATIONS FOR INTELLIGENT LEAD SYSTEM
+  // ============================================================================
+
+  // ------------------------------------------------------------------------
+  // Master Database Cache Operations
+  // ------------------------------------------------------------------------
+  
+  async getMasterDatabaseCache(key?: string): Promise<MasterDatabaseCache | MasterDatabaseCache[] | undefined> {
+    if (key) {
+      const result = await db.select()
+        .from(masterDatabaseCache)
+        .where(eq(masterDatabaseCache.entityId, key))
+        .limit(1);
+      return result[0];
+    }
+    return db.select().from(masterDatabaseCache);
+  }
+
+  async setMasterDatabaseCache(key: string, data: InsertMasterDatabaseCache): Promise<MasterDatabaseCache> {
+    const cacheData = {
+      ...data,
+      entityId: key,
+      lastVerified: data.lastVerified || new Date(),
+    };
+    
+    const result = await db.insert(masterDatabaseCache)
+      .values(cacheData)
+      .returning();
+    return result[0];
+  }
+
+  async updateMasterDatabaseCache(key: string, data: Partial<InsertMasterDatabaseCache>): Promise<MasterDatabaseCache | undefined> {
+    const result = await db.update(masterDatabaseCache)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(masterDatabaseCache.entityId, key))
+      .returning();
+    return result[0];
+  }
+
+  async searchMasterDatabase(query: { 
+    businessName?: string; 
+    ownerName?: string; 
+    uccNumber?: string; 
+    state?: string;
+    phone?: string;
+    email?: string;
+  }): Promise<MasterDatabaseCache[]> {
+    const conditions = [];
+    
+    // Build search conditions using JSONB operators
+    if (query.businessName) {
+      conditions.push(
+        sql`${masterDatabaseCache.businessData}->>'businessName' ILIKE ${'%' + query.businessName + '%'}`
+      );
+    }
+    
+    if (query.ownerName) {
+      conditions.push(
+        sql`${masterDatabaseCache.businessData}->>'ownerName' ILIKE ${'%' + query.ownerName + '%'}`
+      );
+    }
+    
+    if (query.uccNumber) {
+      conditions.push(
+        sql`${masterDatabaseCache.businessData}->>'uccNumber' = ${query.uccNumber}`
+      );
+    }
+    
+    if (query.state) {
+      conditions.push(
+        sql`${masterDatabaseCache.businessData}->>'state' = ${query.state}`
+      );
+    }
+    
+    if (query.phone) {
+      conditions.push(
+        sql`${masterDatabaseCache.businessData}->>'phone' LIKE ${'%' + query.phone.replace(/\D/g, '') + '%'}`
+      );
+    }
+    
+    if (query.email) {
+      conditions.push(
+        sql`${masterDatabaseCache.businessData}->>'email' ILIKE ${'%' + query.email + '%'}`
+      );
+    }
+    
+    if (conditions.length === 0) {
+      return db.select()
+        .from(masterDatabaseCache)
+        .limit(100);
+    }
+    
+    return db.select()
+      .from(masterDatabaseCache)
+      .where(or(...conditions))
+      .orderBy(desc(masterDatabaseCache.dataQuality))
+      .limit(100);
+  }
+
+  async saveMasterDatabaseCache(entities: any[]): Promise<void> {
+    if (entities.length === 0) return;
+    
+    const cacheEntries = entities.map(entity => ({
+      entityId: entity.id || sql`gen_random_uuid()`,
+      businessData: entity,
+      searchIndexes: this.generateSearchIndexes(entity),
+      completeness: this.calculateCompleteness(entity).toString(),
+      dataQuality: this.calculateDataQuality(entity).toString(),
+      lastVerified: new Date(),
+      sources: entity.sources || [],
+    }));
+    
+    // Upsert in batches of 100
+    const batchSize = 100;
+    for (let i = 0; i < cacheEntries.length; i += batchSize) {
+      const batch = cacheEntries.slice(i, i + batchSize);
+      await db.insert(masterDatabaseCache)
+        .values(batch)
+        .onConflictDoUpdate({
+          target: masterDatabaseCache.entityId,
+          set: {
+            businessData: sql`excluded.business_data`,
+            searchIndexes: sql`excluded.search_indexes`,
+            completeness: sql`excluded.completeness`,
+            dataQuality: sql`excluded.data_quality`,
+            lastVerified: sql`excluded.last_verified`,
+            sources: sql`excluded.sources`,
+            updatedAt: new Date(),
+          },
+        });
+    }
+  }
+
+  // Helper methods for Master Database Cache
+  private generateSearchIndexes(entity: any): any {
+    const indexes: any = {};
+    
+    // Create normalized search terms
+    if (entity.businessName) {
+      indexes.businessNameNormalized = entity.businessName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+    if (entity.ownerName) {
+      indexes.ownerNameNormalized = entity.ownerName.toLowerCase().replace(/[^a-z]/g, '');
+    }
+    if (entity.phone) {
+      indexes.phoneNormalized = entity.phone.replace(/\D/g, '');
+    }
+    if (entity.email) {
+      indexes.emailDomain = entity.email.split('@')[1]?.toLowerCase();
+    }
+    
+    return indexes;
+  }
+
+  private calculateCompleteness(entity: any): number {
+    const requiredFields = [
+      'businessName', 'ownerName', 'phone', 'email', 'address',
+      'city', 'state', 'industry', 'annualRevenue'
+    ];
+    
+    const filledFields = requiredFields.filter(field => entity[field]);
+    return filledFields.length / requiredFields.length;
+  }
+
+  private calculateDataQuality(entity: any): number {
+    let score = 0;
+    const maxScore = 10;
+    
+    // Check data freshness
+    if (entity.lastVerified) {
+      const daysSinceVerified = (Date.now() - new Date(entity.lastVerified).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceVerified < 30) score += 2;
+      else if (daysSinceVerified < 90) score += 1;
+    }
+    
+    // Check source count
+    if (entity.sources?.length >= 3) score += 2;
+    else if (entity.sources?.length >= 2) score += 1;
+    
+    // Check data completeness
+    const completeness = this.calculateCompleteness(entity);
+    score += completeness * 3;
+    
+    // Check for enriched data
+    if (entity.linkedinUrl) score += 1;
+    if (entity.websiteUrl) score += 1;
+    if (entity.dunsNumber) score += 1;
+    
+    return score / maxScore;
+  }
+
+  async updateMasterDatabaseEntity(entityId: string, data: any): Promise<void> {
+    await this.updateMasterDatabaseCache(entityId, {
+      businessData: data,
+      searchIndexes: this.generateSearchIndexes(data),
+      completeness: this.calculateCompleteness(data).toString(),
+      dataQuality: this.calculateDataQuality(data).toString(),
+      lastVerified: new Date(),
+    });
+  }
+
+  async getMasterDatabaseStats(): Promise<{
+    totalEntities: number;
+    avgCompleteness: number;
+    topIndustries: Array<[string, number]>;
+    topStates: Array<[string, number]>;
+  }> {
+    const [countResult, avgResult] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` }).from(masterDatabaseCache),
+      db.select({ avg: sql<number>`avg(${masterDatabaseCache.completeness})::numeric` }).from(masterDatabaseCache),
+    ]);
+    
+    // Get top industries
+    const industries = await db.execute(sql`
+      SELECT ${masterDatabaseCache.businessData}->>'industry' as industry, count(*) as count
+      FROM ${masterDatabaseCache}
+      WHERE ${masterDatabaseCache.businessData}->>'industry' IS NOT NULL
+      GROUP BY ${masterDatabaseCache.businessData}->>'industry'
+      ORDER BY count DESC
+      LIMIT 5
+    `);
+    
+    // Get top states
+    const states = await db.execute(sql`
+      SELECT ${masterDatabaseCache.businessData}->>'state' as state, count(*) as count
+      FROM ${masterDatabaseCache}
+      WHERE ${masterDatabaseCache.businessData}->>'state' IS NOT NULL
+      GROUP BY ${masterDatabaseCache.businessData}->>'state'
+      ORDER BY count DESC
+      LIMIT 5
+    `);
+    
+    return {
+      totalEntities: countResult[0]?.count || 0,
+      avgCompleteness: Number(avgResult[0]?.avg || 0),
+      topIndustries: industries.rows.map((r: any) => [r.industry, parseInt(r.count)]),
+      topStates: states.rows.map((r: any) => [r.state, parseInt(r.count)]),
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // Intelligence Decision Operations
+  // ------------------------------------------------------------------------
+  
+  async logIntelligenceDecision(decision: InsertIntelligenceDecision): Promise<IntelligenceDecision> {
+    const result = await db.insert(intelligenceDecisions)
+      .values(decision)
+      .returning();
+    return result[0];
+  }
+
+  async createIntelligenceDecision(decision: {
+    leadId: string;
+    strategy: string;
+    priority: number;
+    services: string[];
+    estimatedCost: number;
+    confidence: number;
+    reasoning: string;
+    skipReasons?: string[];
+  }): Promise<any> {
+    return this.logIntelligenceDecision({
+      leadId: decision.leadId,
+      strategy: decision.strategy as 'minimal' | 'standard' | 'comprehensive' | 'maximum',
+      priority: decision.priority,
+      services: decision.services,
+      estimatedCost: decision.estimatedCost.toString(),
+      confidence: decision.confidence.toString(),
+      reasoning: decision.reasoning,
+      skipReasons: decision.skipReasons,
+    });
+  }
+
+  async getIntelligenceDecision(id: string): Promise<IntelligenceDecision | undefined> {
+    const result = await db.select()
+      .from(intelligenceDecisions)
+      .where(eq(intelligenceDecisions.id, id))
+      .limit(1);
+    return result[0];
+  }
+
+  async getIntelligenceDecisions(limit: number = 100): Promise<IntelligenceDecision[]> {
+    return db.select()
+      .from(intelligenceDecisions)
+      .orderBy(desc(intelligenceDecisions.createdAt))
+      .limit(limit);
+  }
+
+  async getIntelligenceDecisionsByLeadId(leadId: string): Promise<any[]> {
+    return this.getDecisionsByLeadId(leadId);
+  }
+
+  async getDecisionsByLeadId(leadId: string): Promise<IntelligenceDecision[]> {
+    return db.select()
+      .from(intelligenceDecisions)
+      .where(eq(intelligenceDecisions.leadId, leadId))
+      .orderBy(desc(intelligenceDecisions.createdAt));
+  }
+
+  async updateIntelligenceDecision(id: string, data: {
+    actualCost?: number;
+    success?: boolean;
+    errorMessage?: string;
+    resultMetrics?: any;
+    executionTime?: number;
+  }): Promise<any | undefined> {
+    const updateData: any = {};
+    
+    if (data.actualCost !== undefined) updateData.actualCost = data.actualCost.toString();
+    if (data.success !== undefined) updateData.success = data.success;
+    if (data.errorMessage !== undefined) updateData.errorMessage = data.errorMessage;
+    if (data.resultMetrics !== undefined) updateData.resultMetrics = data.resultMetrics;
+    if (data.executionTime !== undefined) updateData.executionTime = data.executionTime;
+    
+    const result = await db.update(intelligenceDecisions)
+      .set(updateData)
+      .where(eq(intelligenceDecisions.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getIntelligenceMetrics(timeRange: string): Promise<{
+    totalDecisions: number;
+    averageCost: number;
+    averageConfidence: number;
+    successRate: number;
+    strategyCounts: Record<string, number>;
+  }> {
+    // Parse time range
+    let dateFilter = new Date();
+    switch (timeRange) {
+      case 'day':
+        dateFilter.setDate(dateFilter.getDate() - 1);
+        break;
+      case 'week':
+        dateFilter.setDate(dateFilter.getDate() - 7);
+        break;
+      case 'month':
+        dateFilter.setMonth(dateFilter.getMonth() - 1);
+        break;
+      case 'year':
+        dateFilter.setFullYear(dateFilter.getFullYear() - 1);
+        break;
+      default:
+        dateFilter = new Date(0); // All time
+    }
+    
+    // Get aggregate metrics
+    const metricsResult = await db.select({
+      totalDecisions: sql<number>`count(*)::int`,
+      averageCost: sql<number>`avg(COALESCE(${intelligenceDecisions.actualCost}, ${intelligenceDecisions.estimatedCost}))::numeric`,
+      averageConfidence: sql<number>`avg(${intelligenceDecisions.confidence})::numeric`,
+      successCount: sql<number>`count(*) filter (where ${intelligenceDecisions.success} = true)::int`,
+    })
+    .from(intelligenceDecisions)
+    .where(gte(intelligenceDecisions.createdAt, dateFilter));
+    
+    // Get strategy counts
+    const strategyResult = await db.select({
+      strategy: intelligenceDecisions.strategy,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(intelligenceDecisions)
+    .where(gte(intelligenceDecisions.createdAt, dateFilter))
+    .groupBy(intelligenceDecisions.strategy);
+    
+    const metrics = metricsResult[0];
+    const strategyCounts: Record<string, number> = {};
+    strategyResult.forEach(row => {
+      strategyCounts[row.strategy] = row.count;
+    });
+    
+    return {
+      totalDecisions: metrics?.totalDecisions || 0,
+      averageCost: Number(metrics?.averageCost || 0),
+      averageConfidence: Number(metrics?.averageConfidence || 0),
+      successRate: metrics?.totalDecisions > 0 
+        ? (metrics.successCount / metrics.totalDecisions) * 100 
+        : 0,
+      strategyCounts,
+    };
+  }
+
+  async getIntelligenceBrainMetrics(): Promise<{
+    totalDecisions: number;
+    averageCost: number;
+    accuracyScore: number;
+    creditsSaved: number;
+    enrichmentSuccessRate: number;
+  }> {
+    const metrics = await this.getIntelligenceMetrics('all');
+    
+    // Calculate credits saved by comparing estimated vs actual costs
+    const savingsResult = await db.select({
+      totalSaved: sql<number>`sum(${intelligenceDecisions.estimatedCost} - COALESCE(${intelligenceDecisions.actualCost}, ${intelligenceDecisions.estimatedCost}))::numeric`,
+    })
+    .from(intelligenceDecisions)
+    .where(isNotNull(intelligenceDecisions.actualCost));
+    
+    return {
+      totalDecisions: metrics.totalDecisions,
+      averageCost: metrics.averageCost,
+      accuracyScore: metrics.averageConfidence,
+      creditsSaved: Number(savingsResult[0]?.totalSaved || 0),
+      enrichmentSuccessRate: metrics.successRate,
+    };
+  }
+
+  // ------------------------------------------------------------------------
+  // ML/AI Support Operations
+  // ------------------------------------------------------------------------
+  
+  async getLearnedPatterns(): Promise<LearnedPattern[]> {
+    return db.select()
+      .from(learnedPatterns)
+      .where(eq(learnedPatterns.isActive, true))
+      .orderBy(desc(learnedPatterns.confidence), desc(learnedPatterns.usageCount));
+  }
+
+  async getRecentConvertedLeads(limit: number): Promise<Lead[]> {
+    // Get leads that have been marked as closed won in lead performance
+    const convertedLeadIds = await db.select({
+      leadId: leadPerformance.leadId,
+    })
+    .from(leadPerformance)
+    .where(eq(leadPerformance.status, 'closed_won'))
+    .orderBy(desc(leadPerformance.closedAt))
+    .limit(limit);
+    
+    if (convertedLeadIds.length === 0) return [];
+    
+    const leadIds = convertedLeadIds.map(r => r.leadId);
+    
+    return db.select()
+      .from(leads)
+      .where(inArray(leads.id, leadIds));
+  }
+
+  async storeMLPrediction(prediction: any): Promise<void> {
+    // Store ML prediction in intelligence decisions for now
+    // In a full implementation, you might want a separate mlPredictions table
+    const decision: InsertIntelligenceDecision = {
+      leadId: prediction.leadId,
+      strategy: 'standard',
+      priority: Math.round(prediction.qualityScore / 10),
+      services: [],
+      estimatedCost: '0',
+      confidence: prediction.confidence?.toString() || '0',
+      reasoning: `ML Prediction: Quality=${prediction.qualityScore}, Conversion Probability=${prediction.conversionProbability}`,
+      resultMetrics: prediction,
+    };
+    
+    await this.logIntelligenceDecision(decision);
+  }
+
+  async getMLPrediction(leadId: string): Promise<any | undefined> {
+    // Retrieve the most recent ML prediction from intelligence decisions
+    const result = await db.select()
+      .from(intelligenceDecisions)
+      .where(and(
+        eq(intelligenceDecisions.leadId, leadId),
+        sql`${intelligenceDecisions.reasoning} LIKE 'ML Prediction:%'`
+      ))
+      .orderBy(desc(intelligenceDecisions.createdAt))
+      .limit(1);
+    
+    return result[0]?.resultMetrics;
+  }
+
+  async storeMLOutcome(leadId: string, outcome: any, prediction: any): Promise<void> {
+    // Find the prediction decision and update it with the outcome
+    const predictionDecision = await db.select()
+      .from(intelligenceDecisions)
+      .where(and(
+        eq(intelligenceDecisions.leadId, leadId),
+        sql`${intelligenceDecisions.reasoning} LIKE 'ML Prediction:%'`
+      ))
+      .orderBy(desc(intelligenceDecisions.createdAt))
+      .limit(1);
+    
+    if (predictionDecision[0]) {
+      // Update with outcome data
+      await db.update(intelligenceDecisions)
+        .set({
+          success: outcome.success,
+          resultMetrics: {
+            ...predictionDecision[0].resultMetrics,
+            outcome,
+            predictionAccuracy: this.calculatePredictionAccuracy(prediction, outcome),
+          },
+        })
+        .where(eq(intelligenceDecisions.id, predictionDecision[0].id));
+    }
+    
+    // Also update lead performance if it exists
+    await this.updateLeadPerformance(leadId, {
+      status: outcome.status || 'closed_won',
+      dealAmount: outcome.dealAmount?.toString(),
+      notes: `ML Outcome: ${JSON.stringify(outcome)}`,
+    });
+  }
+
+  private calculatePredictionAccuracy(prediction: any, outcome: any): number {
+    if (!prediction || !outcome) return 0;
+    
+    // Simple accuracy calculation - can be enhanced
+    let accuracy = 0;
+    let factors = 0;
+    
+    // Check if conversion prediction was correct
+    if (prediction.conversionProbability !== undefined && outcome.converted !== undefined) {
+      const predictedConverted = prediction.conversionProbability > 0.5;
+      if (predictedConverted === outcome.converted) {
+        accuracy += 1;
+      }
+      factors += 1;
+    }
+    
+    // Check if deal size prediction was close
+    if (prediction.expectedDealSize !== undefined && outcome.dealAmount !== undefined) {
+      const difference = Math.abs(prediction.expectedDealSize - outcome.dealAmount);
+      const percentDiff = difference / outcome.dealAmount;
+      if (percentDiff < 0.2) accuracy += 1;
+      else if (percentDiff < 0.5) accuracy += 0.5;
+      factors += 1;
+    }
+    
+    return factors > 0 ? accuracy / factors : 0;
+  }
+
+  // ------------------------------------------------------------------------
+  // Enhanced Lead Operations (already exist but ensuring they're available)
+  // ------------------------------------------------------------------------
+  
+  async getLead(leadId: string): Promise<Lead | undefined> {
+    const result = await db.select()
+      .from(leads)
+      .where(eq(leads.id, leadId))
+      .limit(1);
+    return result[0];
+  }
+
+  async updateLead(leadId: string, updates: Partial<InsertLead>): Promise<Lead | undefined> {
+    const result = await db.update(leads)
+      .set(updates)
+      .where(eq(leads.id, leadId))
+      .returning();
     return result[0];
   }
 }

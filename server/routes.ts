@@ -64,6 +64,7 @@ import rulesRouter from "./routes/rules";
 import { setupAdminRoutes } from "./routes/admin";
 import entityRouter from "./routes/entity";
 import feedbackRouter from "./routes/feedback";
+import intelligenceRouter from "./routes/intelligence";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1069,6 +1070,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register feedback and learning routes
   app.use('/api/feedback', feedbackRouter);
+  
+  // Register intelligence routes
+  app.use('/api/intelligence', intelligenceRouter);
   
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {

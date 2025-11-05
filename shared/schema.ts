@@ -1239,6 +1239,33 @@ export const insertEnhancedVerificationSchema = createInsertSchema(enhancedVerif
   overallConfidenceScore: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
 });
 
+// Master Database Cache schema
+export const insertMasterDatabaseCacheSchema = createInsertSchema(masterDatabaseCache).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  completeness: z.string().regex(/^\d+(\.\d{1,4})?$/),
+  dataQuality: z.string().regex(/^\d+(\.\d{1,4})?$/),
+  lastVerified: z.date(),
+});
+
+// Intelligence Decision schema
+export const insertIntelligenceDecisionSchema = createInsertSchema(intelligenceDecisions).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  strategy: z.enum(['minimal', 'standard', 'comprehensive', 'maximum']),
+  priority: z.number().min(1).max(10),
+  services: z.array(z.string()).optional(),
+  estimatedCost: z.string().regex(/^\d+(\.\d{1,4})?$/),
+  actualCost: z.string().regex(/^\d+(\.\d{1,4})?$/).optional(),
+  confidence: z.string().regex(/^\d+(\.\d{1,4})?$/),
+  skipReasons: z.array(z.string()).optional(),
+  executionTime: z.number().optional(),
+  success: z.boolean().optional(),
+});
+
 export const insertPricingStrategySchema = createInsertSchema(pricingStrategies).omit({
   id: true,
   createdAt: true,
@@ -2537,7 +2564,10 @@ export type InsertUccRelationship = z.infer<typeof insertUccRelationshipSchema>;
 export type UccRelationship = typeof uccRelationships.$inferSelect;
 
 // Master Database and Intelligence Brain type exports
+export type InsertMasterDatabaseCache = z.infer<typeof insertMasterDatabaseCacheSchema>;
 export type MasterDatabaseCache = typeof masterDatabaseCache.$inferSelect;
+
+export type InsertIntelligenceDecision = z.infer<typeof insertIntelligenceDecisionSchema>;
 export type IntelligenceDecision = typeof intelligenceDecisions.$inferSelect;
 
 export type InsertEntityMatch = z.infer<typeof insertEntityMatchSchema>;
