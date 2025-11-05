@@ -63,6 +63,7 @@ import { registerBrainRoutes } from "./routes/brain";
 import rulesRouter from "./routes/rules";
 import { setupAdminRoutes } from "./routes/admin";
 import { setupAdminUploadRoutes } from "./routes/admin-upload";
+import { setupEnhancedEnrichmentRoutes } from "./routes/enhanced-enrichment";
 import entityRouter from "./routes/entity";
 import feedbackRouter from "./routes/feedback";
 import intelligenceRouter from "./routes/intelligence";
@@ -1139,6 +1140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register admin upload routes with fallback support
   setupAdminUploadRoutes(app);
+  
+  // Register enhanced enrichment routes
+  setupEnhancedEnrichmentRoutes(app);
 
   // Register entity resolution routes
   app.use(entityRouter);
