@@ -643,32 +643,51 @@ function parseExcelFile(buffer: Buffer, filename: string): { rows: any[], header
 /**
  * Parse CSV file with multiple encoding support
  */
-function parseCSVFile(buffer: Buffer, filename: string): { rows: any[], headers: string[] } {
-  // First, validate this is not a binary file
+async function parseCSVFile(buffer: Buffer, filename: string): Promise<{ rows: any[], headers: string[] }> {
+  // First, check if this might be an Apple Numbers file
   const firstBytes = buffer.slice(0, 8).toString('hex').toUpperCase();
   
-  // Check for common binary file signatures
+  // If it's a ZIP file, it might be Numbers or Excel
+  if (firstBytes.startsWith('504B0304')) {
+    const isNumbers = filename.toLowerCase().endsWith('.numbers') || 
+                     filename.toLowerCase().includes('numbers');
+    
+    if (isNumbers || filename.toLowerCase().endsWith('.csv')) {
+      // Try to parse as Numbers file
+      try {
+        console.log('[parseCSVFile] Detected potential Numbers file, attempting to parse...');
+        const { NumbersFileParser } = await import('./services/numbers-file-parser.js');
+        const parser = new NumbersFileParser();
+        const result = await parser.parseNumbersFile(buffer, filename);
+        console.log(`[parseCSVFile] Successfully parsed Numbers file: ${result.rows.length} rows`);
+        return result;
+      } catch (numbersError: any) {
+        console.error('[parseCSVFile] Numbers parsing failed:', numbersError.message);
+        // If it fails and filename suggests CSV, throw appropriate error
+        if (filename.toLowerCase().endsWith('.csv')) {
+          throw new Error('This appears to be an Apple Numbers file renamed as CSV. Please export it as CSV from Numbers or upload the original .numbers file.');
+        }
+        throw numbersError;
+      }
+    }
+    
+    // Not Numbers, check other ZIP-based formats
+    throw new Error('This appears to be a ZIP or compressed file. Please extract the contents and upload a CSV file, or if this is an Apple Numbers file, please include .numbers in the filename.');
+  }
+  
+  // Check for other binary file signatures
   const binarySignatures = [
-    '504B0304', // ZIP files
-    '89504E47', // PNG
-    'FFD8FF',   // JPEG
-    '47494638', // GIF
-    '25504446', // PDF
-    '52617221', // RAR
-    'D0CF11E0', // MS Office
+    { sig: '89504E47', type: 'PNG image' },
+    { sig: 'FFD8FF', type: 'JPEG image' },
+    { sig: '47494638', type: 'GIF image' },
+    { sig: '25504446', type: 'PDF' },
+    { sig: '52617221', type: 'RAR archive' },
+    { sig: 'D0CF11E0', type: 'MS Office document' },
   ];
   
-  for (const signature of binarySignatures) {
-    if (firstBytes.startsWith(signature)) {
-      if (signature === '504B0304') {
-        throw new Error('This appears to be a ZIP or compressed file. Please extract the contents and upload a CSV file.');
-      } else if (signature.startsWith('FFD8') || signature === '89504E47' || signature === '47494638') {
-        throw new Error('This appears to be an image file. Please upload a CSV file containing lead data.');
-      } else if (signature === '25504446') {
-        throw new Error('This appears to be a PDF file. Please convert to CSV format before uploading.');
-      } else {
-        throw new Error('This appears to be a binary file. Please upload a CSV file.');
-      }
+  for (const { sig, type } of binarySignatures) {
+    if (firstBytes.startsWith(sig)) {
+      throw new Error(`This appears to be a ${type}. Please upload a CSV file containing lead data.`);
     }
   }
   
@@ -1352,7 +1371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rows = result.rows;
           headers = result.headers;
         } else {
-          const result = parseCSVFile(file.buffer, file.originalname);
+          const result = await parseCSVFile(file.buffer, file.originalname);
           rows = result.rows;
           headers = result.headers;
         }
@@ -1725,7 +1744,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rows = result.rows;
           headers = result.headers;
         } else {
-          const result = parseCSVFile(file.buffer, file.originalname);
+          const result = await parseCSVFile(file.buffer, file.originalname);
           rows = result.rows;
           headers = result.headers;
         }
@@ -1874,7 +1893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           headers = result.headers;
         } else {
           console.log('Using CSV parser for file');
-          const result = parseCSVFile(file.buffer, file.originalname);
+          const result = await parseCSVFile(file.buffer, file.originalname);
           rows = result.rows;
           headers = result.headers;
         }
@@ -2862,7 +2881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           headers = result.headers;
         } else {
           parseInfo.fileType = 'CSV';
-          const result = parseCSVFile(file.buffer, file.originalname);
+          const result = await parseCSVFile(file.buffer, file.originalname);
           rows = result.rows;
           headers = result.headers;
         }
