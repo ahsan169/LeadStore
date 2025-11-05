@@ -108,9 +108,39 @@ async function storeFileWithFallback(
 }
 
 /**
- * Parse CSV file
+ * Parse CSV or Numbers file
  */
-function parseCSVFile(buffer: Buffer, filename: string): Promise<{ rows: any[], headers: string[] }> {
+async function parseCSVFile(buffer: Buffer, filename: string): Promise<{ rows: any[], headers: string[] }> {
+  // Check if this might be an Apple Numbers file (ZIP-based)
+  const firstBytes = buffer.slice(0, 8).toString('hex').toUpperCase();
+  
+  if (firstBytes.startsWith('504B0304')) {
+    const isNumbers = filename.toLowerCase().endsWith('.numbers') || 
+                     filename.toLowerCase().includes('numbers');
+    
+    if (isNumbers || filename.toLowerCase().endsWith('.csv')) {
+      // Try to parse as Numbers file
+      try {
+        console.log('[parseCSVFile] Detected potential Numbers file, attempting to parse...');
+        const { NumbersFileParser } = await import('../services/numbers-file-parser.js');
+        const parser = new NumbersFileParser();
+        const result = await parser.parseNumbersFile(buffer, filename);
+        console.log(`[parseCSVFile] Successfully parsed Numbers file: ${result.rows.length} rows`);
+        return result;
+      } catch (numbersError: any) {
+        console.error('[parseCSVFile] Numbers parsing failed:', numbersError.message);
+        // If it fails and filename suggests CSV, throw appropriate error
+        if (filename.toLowerCase().endsWith('.csv')) {
+          throw new Error('This appears to be an Apple Numbers file renamed as CSV. Please export it as CSV from Numbers or upload the original .numbers file.');
+        }
+        throw numbersError;
+      }
+    }
+    
+    throw new Error('This appears to be a ZIP or compressed file. Please upload a CSV file, or if this is an Apple Numbers file, please include .numbers in the filename.');
+  }
+  
+  // Parse as regular CSV
   return new Promise((resolve, reject) => {
     const text = buffer.toString('utf-8');
     

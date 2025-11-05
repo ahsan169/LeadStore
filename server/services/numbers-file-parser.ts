@@ -1,10 +1,10 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 interface NumbersParseResult {
   success: boolean;
@@ -39,22 +39,24 @@ export class NumbersFileParser {
     fileBuffer: Buffer,
     fileName: string
   ): Promise<{ headers: string[]; rows: Record<string, any>[] }> {
-    // Create temporary file
+    // Create temporary file with SAFE name (no user input)
     const tempDir = path.join(process.cwd(), 'temp');
     await fs.mkdir(tempDir, { recursive: true });
     
-    const tempFileName = `${crypto.randomBytes(8).toString('hex')}_${fileName}`;
-    const tempFilePath = path.join(tempDir, tempFileName);
+    // Generate completely safe filename - no user input included
+    const safeFileName = `numbers_${crypto.randomBytes(16).toString('hex')}.numbers`;
+    const tempFilePath = path.join(tempDir, safeFileName);
     
     try {
       // Write buffer to temp file
       await fs.writeFile(tempFilePath, fileBuffer);
       
-      console.log(`[NumbersParser] Parsing Numbers file: ${fileName}`);
+      console.log(`[NumbersParser] Parsing Numbers file: ${fileName} (safe temp: ${safeFileName})`);
       
-      // Call Python parser
-      const { stdout, stderr } = await execAsync(
-        `python3 "${this.pythonScriptPath}" "${tempFilePath}" json`,
+      // Call Python parser using execFile (no shell, safe from injection)
+      const { stdout, stderr } = await execFileAsync(
+        'python3',
+        [this.pythonScriptPath, tempFilePath, 'json'],
         { maxBuffer: 50 * 1024 * 1024 } // 50MB buffer for large files
       );
       
