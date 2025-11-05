@@ -19,6 +19,12 @@ import {
 } from "lucide-react";
 import type { User, Lead, LeadBatch, Purchase, ProductTier } from "@shared/schema";
 import { AdminEnrichmentConfig } from "@/components/AdminEnrichmentConfig";
+import IntelligenceDashboard from "@/components/admin/intelligence-dashboard";
+import PipelineInspector from "@/components/admin/pipeline-inspector";
+import RulesManager from "@/components/admin/rules-manager";
+import KnowledgeManager from "@/components/admin/knowledge-manager";
+import EntityResolution from "@/components/admin/entity-resolution";
+import LearningCenter from "@/components/admin/learning-center";
 
 export default function SimplifiedAdminPage() {
   const { toast } = useToast();
@@ -342,18 +348,55 @@ export default function SimplifiedAdminPage() {
       </div>
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="upload" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-9">
+      <Tabs defaultValue="intelligence" className="space-y-6">
+        <TabsList className="flex flex-wrap h-auto p-1 gap-1">
+          <TabsTrigger value="intelligence" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            Intelligence
+          </TabsTrigger>
+          <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
+          <TabsTrigger value="rules">Rules</TabsTrigger>
+          <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
+          <TabsTrigger value="resolution">Resolution</TabsTrigger>
+          <TabsTrigger value="learning">Learning</TabsTrigger>
           <TabsTrigger value="upload">Upload</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
           <TabsTrigger value="ucc">UCC</TabsTrigger>
           <TabsTrigger value="customers">Customers</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
           <TabsTrigger value="enrichment">Enrichment</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
+
+        {/* Intelligence Dashboard Tab */}
+        <TabsContent value="intelligence" className="space-y-4">
+          <IntelligenceDashboard />
+        </TabsContent>
+
+        {/* Pipeline Inspector Tab */}
+        <TabsContent value="pipeline" className="space-y-4">
+          <PipelineInspector />
+        </TabsContent>
+
+        {/* Rules Manager Tab */}
+        <TabsContent value="rules" className="space-y-4">
+          <RulesManager />
+        </TabsContent>
+
+        {/* Knowledge Manager Tab */}
+        <TabsContent value="knowledge" className="space-y-4">
+          <KnowledgeManager />
+        </TabsContent>
+
+        {/* Entity Resolution Tab */}
+        <TabsContent value="resolution" className="space-y-4">
+          <EntityResolution />
+        </TabsContent>
+
+        {/* Learning Center Tab */}
+        <TabsContent value="learning" className="space-y-4">
+          <LearningCenter />
+        </TabsContent>
 
         {/* Upload Tab */}
         <TabsContent value="upload" className="space-y-4">
