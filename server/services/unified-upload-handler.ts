@@ -10,6 +10,7 @@ import { z } from "zod";
 import crypto from 'crypto';
 import { FieldMapper, CanonicalField, FIELD_VALIDATORS, fieldMapper } from '../intelligence/ontology';
 import { openAIService } from './openai-service';
+import { DataCompletenessAnalyzer, type AnalysisReport, type BatchAnalysisReport } from './data-completeness-analyzer';
 
 interface UploadResult {
   batchId: string;
@@ -30,6 +31,20 @@ interface UploadResult {
   }>;
   estimatedCost: number;
   processingTime: number;
+  // Data completeness analysis
+  analysisReport?: BatchAnalysisReport;
+  dataQualityMetrics?: {
+    avgCompletenessScore: number;
+    avgQualityScore: number;
+    avgFreshnessScore: number;
+    leadsNeedingEnrichment: number;
+    leadsReadyToSell: number;
+  };
+  enrichmentOpportunities?: {
+    totalEstimatedCost: number;
+    expectedQualityGain: number;
+    priorityBreakdown: Record<string, number>;
+  };
 }
 
 interface FileFormat {
@@ -134,10 +149,12 @@ const FIELD_MAPPINGS = {
 export class UnifiedUploadHandler {
   private intelligenceBrain: IntelligenceBrain;
   private masterDatabase: MasterDatabaseService;
+  private dataAnalyzer: DataCompletenessAnalyzer;
   
   constructor() {
     this.intelligenceBrain = new IntelligenceBrain();
     this.masterDatabase = new MasterDatabaseService();
+    this.dataAnalyzer = new DataCompletenessAnalyzer();
   }
 
   async processUpload(
@@ -1050,11 +1067,15 @@ export class UnifiedUploadHandler {
       processingTime: 0
     };
     
+    // Store all processed leads for analysis
+    const processedLeads: Array<Partial<InsertLead>> = [];
+    
     // Process leads in batches for efficiency
     const batchSize = 50;
     for (let i = 0; i < parsedLeads.length; i += batchSize) {
       const batch = parsedLeads.slice(i, i + batchSize);
-      const processedBatch = await this.processBatch(batch, result, userId, options);
+      const batchLeads = await this.processBatch(batch, result, userId, options);
+      processedLeads.push(...batchLeads);
       
       // Update batch status periodically
       if (i % 100 === 0) {
@@ -1065,9 +1086,78 @@ export class UnifiedUploadHandler {
       }
     }
     
+    // Perform comprehensive data completeness analysis
+    console.log(`[UnifiedUploadHandler] Analyzing ${processedLeads.length} leads for completeness...`);
+    const analysisReport = await this.dataAnalyzer.batchAnalyze(processedLeads, result.batchId);
+    
+    // Add analysis report to result
+    result.analysisReport = analysisReport;
+    result.dataQualityMetrics = {
+      avgCompletenessScore: analysisReport.overallStats.avgCompletenessScore,
+      avgQualityScore: analysisReport.overallStats.avgQualityScore,
+      avgFreshnessScore: analysisReport.overallStats.avgFreshnessScore,
+      leadsNeedingEnrichment: analysisReport.overallStats.leadsNeedingEnrichment,
+      leadsReadyToSell: analysisReport.overallStats.leadsReadyToSell
+    };
+    result.enrichmentOpportunities = {
+      totalEstimatedCost: analysisReport.enrichmentOpportunities.totalEstimatedCost,
+      expectedQualityGain: analysisReport.enrichmentOpportunities.expectedQualityGain,
+      priorityBreakdown: analysisReport.enrichmentOpportunities.priorityBreakdown
+    };
+    
+    // Update leads with analysis results
+    for (let i = 0; i < processedLeads.length; i++) {
+      const lead = processedLeads[i];
+      const analysis = analysisReport.leadAnalyses[i];
+      
+      if (lead.id && analysis) {
+        // Update lead with quality scores and enrichment plan
+        await storage.updateLead(lead.id, {
+          dataCompleteness: {
+            overall: analysis.qualityMetrics.completenessScore,
+            businessInfo: analysis.qualityMetrics.categoryCoverage.business,
+            contactInfo: analysis.qualityMetrics.categoryCoverage.contact,
+            financialInfo: analysis.qualityMetrics.categoryCoverage.financial,
+            uccInfo: analysis.qualityMetrics.categoryCoverage.ucc,
+            verificationInfo: analysis.qualityMetrics.confidenceScore
+          },
+          qualityScore: analysis.qualityMetrics.overallQualityScore,
+          intelligenceScore: analysis.leadValue.currentValue,
+          enrichmentStatus: analysis.enrichmentPlan.priority === 'none' ? 'completed' : 'pending',
+          masterEnrichmentScore: analysis.leadValue.potentialValue
+        });
+        
+        // Pass enrichment recommendations to Intelligence Brain if needed
+        if (options.autoEnrich && analysis.enrichmentPlan.priority !== 'none') {
+          const enrichmentDecision = await this.intelligenceBrain.analyzeAndDecide({
+            id: lead.id,
+            ...lead
+          } as Lead);
+          
+          // Store enhanced decision with our analysis insights
+          result.intelligenceDecisions.push({
+            leadId: lead.id,
+            strategy: analysis.enrichmentPlan.priority === 'urgent' ? 'comprehensive' : 
+                     analysis.enrichmentPlan.priority === 'high' ? 'standard' : 'minimal',
+            confidence: analysis.enrichmentPlan.confidenceLevel
+          });
+          
+          result.estimatedCost += analysis.enrichmentPlan.totalEstimatedCost;
+        }
+      }
+    }
+    
+    // Log analysis summary
+    console.log(`[UnifiedUploadHandler] Analysis complete:`);
+    console.log(`  - Average Quality Score: ${result.dataQualityMetrics?.avgQualityScore}%`);
+    console.log(`  - Leads Ready to Sell: ${result.dataQualityMetrics?.leadsReadyToSell}`);
+    console.log(`  - Needs Enrichment: ${result.dataQualityMetrics?.leadsNeedingEnrichment}`);
+    console.log(`  - Estimated Enrichment Cost: $${result.enrichmentOpportunities?.totalEstimatedCost}`);
+    
     // Finalize batch
     await storage.updateLeadBatch(result.batchId, {
       processedLeads: result.successfulImports,
+      averageQualityScore: result.dataQualityMetrics?.avgQualityScore,
       status: 'completed'
     });
     
@@ -1079,8 +1169,9 @@ export class UnifiedUploadHandler {
     result: UploadResult,
     userId: string,
     options: any
-  ): Promise<void> {
+  ): Promise<Array<Partial<InsertLead>>> {
     const leadsToCreate: InsertLead[] = [];
+    const processedLeads: Array<Partial<InsertLead>> = [];
     
     for (const [index, parsedLead] of leads.entries()) {
       try {
@@ -1114,7 +1205,7 @@ export class UnifiedUploadHandler {
         }
         
         // Prepare lead for creation
-        const leadId = `lead-${uuidv4()}`;
+        const leadId = `lead-${crypto.randomUUID()}`;
         const leadData: InsertLead = {
           id: leadId,
           batchId: result.batchId,
@@ -1127,6 +1218,7 @@ export class UnifiedUploadHandler {
         };
         
         leadsToCreate.push(leadData);
+        processedLeads.push(leadData);
         
         // Get intelligence decision for enrichment
         if (options.autoEnrich || options.intelligentProcessing) {
@@ -1170,6 +1262,8 @@ export class UnifiedUploadHandler {
         result.failedCount += leadsToCreate.length;
       }
     }
+    
+    return processedLeads;
   }
 
   private validateLead(lead: Partial<InsertLead>, rowIndex: number): { 
