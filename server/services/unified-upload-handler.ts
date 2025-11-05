@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { IntelligenceBrain } from "./intelligence-brain";
+import { IntelligenceBrain, intelligenceBrain } from "./intelligence-brain";
 import { MasterDatabaseService } from "./master-database";
 import { costOptimization } from "./cost-optimization";
 import { eventBus } from "./event-bus";
@@ -11,6 +11,7 @@ import crypto from 'crypto';
 import { FieldMapper, CanonicalField, FIELD_VALIDATORS, fieldMapper } from '../intelligence/ontology';
 import { openAIService } from './openai-service';
 import { DataCompletenessAnalyzer, type AnalysisReport, type BatchAnalysisReport } from './data-completeness-analyzer';
+import type { EnrichmentDecision } from "./intelligence-brain";
 
 interface UploadResult {
   batchId: string;
@@ -44,6 +45,27 @@ interface UploadResult {
     totalEstimatedCost: number;
     expectedQualityGain: number;
     priorityBreakdown: Record<string, number>;
+  };
+  // Intelligence Brain analysis
+  brainAnalysis?: {
+    totalDecisions: number;
+    estimatedTotalCost: number;
+    expectedQualityGain: number;
+    groupedStrategies: Record<string, string[]>;
+    costOptimizations: string[];
+    priorityOrder: string[];
+    enrichmentJobs: Array<{
+      leadId: string;
+      priority: number;
+      estimatedTime: number;
+    }>;
+  };
+  // Automatic enrichment summary
+  automaticEnrichmentSummary?: {
+    totalQueued: number;
+    totalSkipped: number;
+    totalFailed: number;
+    estimatedCompletionTime: number;
   };
 }
 
@@ -152,7 +174,8 @@ export class UnifiedUploadHandler {
   private dataAnalyzer: DataCompletenessAnalyzer;
   
   constructor() {
-    this.intelligenceBrain = new IntelligenceBrain();
+    // Use singleton instance to ensure consistent state across the application
+    this.intelligenceBrain = intelligenceBrain;
     this.masterDatabase = new MasterDatabaseService();
     this.dataAnalyzer = new DataCompletenessAnalyzer();
   }
@@ -1127,38 +1150,150 @@ export class UnifiedUploadHandler {
           masterEnrichmentScore: analysis.leadValue.potentialValue
         });
         
-        // Pass enrichment recommendations to Intelligence Brain if needed
-        if (options.autoEnrich && analysis.enrichmentPlan.priority !== 'none') {
-          const enrichmentDecision = await this.intelligenceBrain.analyzeAndDecide({
-            id: lead.id,
-            ...lead
-          } as Lead);
-          
-          // Store enhanced decision with our analysis insights
-          result.intelligenceDecisions.push({
-            leadId: lead.id,
-            strategy: analysis.enrichmentPlan.priority === 'urgent' ? 'comprehensive' : 
-                     analysis.enrichmentPlan.priority === 'high' ? 'standard' : 'minimal',
-            confidence: analysis.enrichmentPlan.confidenceLevel
+        // Store lead temporarily for batch processing
+        result.successfulImports++;
+      }
+    }
+    
+    // INTELLIGENCE BRAIN BATCH PROCESSING
+    console.log(`[UnifiedUploadHandler] Sending ${processedLeads.length} leads to Intelligence Brain for batch decision making...`);
+    
+    // Prepare leads with analysis for Brain evaluation  
+    const leadsWithAnalysis: Array<{ lead: Partial<Lead>; analysis?: AnalysisReport }> = [];
+    for (let i = 0; i < processedLeads.length; i++) {
+      const lead = processedLeads[i];
+      const analysis = analysisReport.leadAnalyses[i];
+      if (lead && analysis) {
+        leadsWithAnalysis.push({ lead: lead as Partial<Lead>, analysis });
+      }
+    }
+    
+    // Get batch enrichment decisions from Intelligence Brain
+    const brainDecisions = await this.intelligenceBrain.evaluateBatch(
+      leadsWithAnalysis,
+      {
+        totalBudget: options.enrichmentBudget || 10.0, // Default $10 budget for batch
+        strategy: options.enrichmentStrategy || 'balanced',
+        groupSimilar: true,
+        batchId: result.batchId
+      }
+    );
+    
+    // Store Brain decisions in result
+    result.intelligenceDecisions = brainDecisions.decisions
+      .filter(d => d.leadId && !d.leadId.startsWith('temp-'))
+      .map(d => ({
+        leadId: d.leadId,
+        strategy: d.strategy,
+        confidence: d.confidence
+      }));
+    
+    // Add Brain analysis to result
+    result.brainAnalysis = {
+      totalDecisions: brainDecisions.decisions.length,
+      estimatedTotalCost: brainDecisions.batchPlan.totalEstimatedCost,
+      expectedQualityGain: brainDecisions.batchPlan.expectedQualityGain,
+      groupedStrategies: Object.fromEntries(brainDecisions.batchPlan.groupedStrategies),
+      costOptimizations: brainDecisions.batchPlan.costOptimizations,
+      priorityOrder: brainDecisions.batchPlan.priorityOrder.slice(0, 10), // Top 10
+      enrichmentJobs: brainDecisions.batchPlan.enrichmentJobs.slice(0, 10) // Top 10
+    };
+    
+    // Update enrichment opportunities with Brain's enhanced analysis
+    result.enrichmentOpportunities = {
+      totalEstimatedCost: brainDecisions.batchPlan.totalEstimatedCost,
+      expectedQualityGain: brainDecisions.batchPlan.expectedQualityGain,
+      priorityBreakdown: analysisReport.enrichmentOpportunities.priorityBreakdown
+    };
+    
+    // Update each lead with its Brain decision
+    for (const decision of brainDecisions.decisions) {
+      if (decision.leadId && !decision.leadId.startsWith('temp-')) {
+        const lead = processedLeads.find(l => l.id === decision.leadId);
+        if (lead && lead.id) {
+          await storage.updateLead(lead.id, {
+            enrichmentPlan: {
+              strategy: decision.strategy,
+              services: decision.services,
+              estimatedCost: decision.estimatedCost,
+              priority: decision.priority,
+              decisionReasoning: decision.reasoning,
+              confidence: decision.confidence
+            },
+            intelligenceScore: Math.round(decision.confidence * 100)
           });
-          
-          result.estimatedCost += analysis.enrichmentPlan.totalEstimatedCost;
         }
       }
     }
     
-    // Log analysis summary
-    console.log(`[UnifiedUploadHandler] Analysis complete:`);
+    // AUTO-ENRICHMENT: Trigger automatic enrichment if enabled
+    if (options.autoEnrich && options.intelligentProcessing) {
+      console.log(`[UnifiedUploadHandler] Triggering automatic enrichment for high-priority leads...`);
+      
+      // Filter decisions that should be enriched
+      const enrichmentDecisions = brainDecisions.decisions.filter(d => 
+        d.services.length > 0 && 
+        d.confidence > 0.5 &&
+        !d.skipReasons?.length
+      );
+      
+      // Process batch enrichment through the Brain
+      const enrichmentResults = await this.intelligenceBrain.processBatchEnrichment(
+        enrichmentDecisions
+      );
+      
+      result.enrichedCount = enrichmentResults.success;
+      result.estimatedCost = brainDecisions.batchPlan.totalEstimatedCost;
+      
+      // Add automatic enrichment summary
+      result.automaticEnrichmentSummary = {
+        totalQueued: enrichmentResults.success,
+        totalSkipped: enrichmentResults.skipped,
+        totalFailed: enrichmentResults.failed,
+        estimatedCompletionTime: brainDecisions.batchPlan.enrichmentJobs
+          .reduce((sum, job) => sum + job.estimatedTime, 0)
+      };
+      
+      console.log(`[UnifiedUploadHandler] Automatic enrichment summary:
+        - Queued: ${enrichmentResults.success} leads
+        - Skipped: ${enrichmentResults.skipped} leads
+        - Failed: ${enrichmentResults.failed} leads
+        - Estimated completion time: ${result.automaticEnrichmentSummary.estimatedCompletionTime}s
+      `);
+    }
+    
+    // Log enhanced analysis summary
+    console.log(`[UnifiedUploadHandler] Analysis complete with Intelligence Brain:`);
     console.log(`  - Average Quality Score: ${result.dataQualityMetrics?.avgQualityScore}%`);
     console.log(`  - Leads Ready to Sell: ${result.dataQualityMetrics?.leadsReadyToSell}`);
     console.log(`  - Needs Enrichment: ${result.dataQualityMetrics?.leadsNeedingEnrichment}`);
-    console.log(`  - Estimated Enrichment Cost: $${result.enrichmentOpportunities?.totalEstimatedCost}`);
+    console.log(`  - Brain Decisions: ${result.intelligenceDecisions.length}`);
+    console.log(`  - Estimated Total Cost: $${result.brainAnalysis?.estimatedTotalCost.toFixed(2)}`);
+    console.log(`  - Expected Quality Gain: ${result.brainAnalysis?.expectedQualityGain.toFixed(1)}%`);
+    console.log(`  - Cost Optimizations: ${result.brainAnalysis?.costOptimizations.length} opportunities`);
     
-    // Finalize batch
+    // Finalize batch with enhanced metadata
     await storage.updateLeadBatch(result.batchId, {
       processedLeads: result.successfulImports,
       averageQualityScore: result.dataQualityMetrics?.avgQualityScore,
+      metadata: {
+        brainAnalysis: result.brainAnalysis,
+        dataQualityMetrics: result.dataQualityMetrics,
+        enrichmentOpportunities: result.enrichmentOpportunities,
+        automaticEnrichmentSummary: result.automaticEnrichmentSummary,
+        intelligenceDecisionCount: result.intelligenceDecisions.length
+      },
       status: 'completed'
+    });
+    
+    // Emit event for monitoring and downstream processing
+    eventBus.emit('upload:batch:intelligent:complete', {
+      batchId: result.batchId,
+      leadCount: result.successfulImports,
+      brainDecisions: result.intelligenceDecisions.length,
+      enrichmentQueued: result.enrichedCount,
+      totalCost: result.estimatedCost,
+      expectedQualityGain: result.brainAnalysis?.expectedQualityGain
     });
     
     return result;

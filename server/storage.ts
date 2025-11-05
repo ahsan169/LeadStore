@@ -3501,10 +3501,16 @@ export class DbStorage implements IStorage {
   // ------------------------------------------------------------------------
   
   async getLearnedPatterns(): Promise<LearnedPattern[]> {
-    return db.select()
-      .from(learnedPatterns)
-      .where(eq(learnedPatterns.isActive, true))
-      .orderBy(desc(learnedPatterns.confidence), desc(learnedPatterns.usageCount));
+    try {
+      return await db.select()
+        .from(learnedPatterns)
+        .where(eq(learnedPatterns.status, 'active'))
+        .orderBy(desc(learnedPatterns.confidence), desc(learnedPatterns.applicationsCount));
+    } catch (error) {
+      console.warn('[Storage] getLearnedPatterns error - table may not exist yet:', error);
+      // Return empty array if table doesn't exist
+      return [];
+    }
   }
 
   async getRecentConvertedLeads(limit: number): Promise<Lead[]> {

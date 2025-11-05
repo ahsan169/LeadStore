@@ -1,35 +1,58 @@
 import { storage } from "../storage";
 import { eventBus } from "./event-bus";
 import OpenAI from 'openai';
-import type { Lead, EnrichmentLog } from "@shared/schema";
+import type { Lead, EnrichmentLog, InsertIntelligenceDecision } from "@shared/schema";
 import { WaterfallEnrichmentOrchestrator } from "./waterfall-enrichment-orchestrator";
 import { MLScoringService } from "./ml-scoring";
 import { MasterDatabaseService } from "./master-database";
 import { EntityGraphBuilder } from "../intelligence/entity-graph";
 import memoizee from 'memoizee';
 import { db } from "../db";
-import { uccFilings, uccIntelligence } from "@shared/schema";
+import { uccFilings, uccIntelligence, intelligenceDecisions } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
+import { EnrichmentQueue } from "./enrichment-queue";
+import { MasterEnrichmentOrchestrator } from "./master-enrichment-orchestrator";
+import type { AnalysisReport, DataQualityMetrics, EnrichmentPlan } from "./data-completeness-analyzer";
 
-interface EnrichmentDecision {
+export interface EnrichmentDecision {
   leadId: string;
   strategy: 'minimal' | 'standard' | 'comprehensive' | 'maximum';
   priority: number;
   services: string[];
   estimatedCost: number;
+  actualCost?: number;
   confidence: number;
   reasoning: string;
   skipReasons?: string[];
+  batchContext?: {
+    batchId: string;
+    totalLeads: number;
+    remainingBudget: number;
+  };
+  executionDetails?: {
+    triggeredAt?: Date;
+    completedAt?: Date;
+    enrichmentJobId?: string;
+  };
 }
 
 interface LeadContext {
-  lead: Lead;
+  lead: Lead | Partial<Lead>;
   existingData: any;
   historicalPerformance?: any;
   industryInsights?: any;
   relatedEntities?: any;
   uccData?: any;
   masterDbData?: any;
+  dataCompletenessAnalysis?: AnalysisReport;
+  qualityMetrics?: DataQualityMetrics;
+  enrichmentPlan?: EnrichmentPlan;
+  batchContext?: {
+    batchId: string;
+    totalLeads: number;
+    remainingBudget: number;
+    similarLeadsCount: number;
+  };
 }
 
 interface IntelligenceMetrics {
@@ -43,6 +66,8 @@ interface IntelligenceMetrics {
 export class IntelligenceBrain {
   private openai: OpenAI | null = null;
   private orchestrator: WaterfallEnrichmentOrchestrator;
+  private masterEnrichmentOrchestrator: MasterEnrichmentOrchestrator;
+  private enrichmentQueue: EnrichmentQueue;
   private scoringService: MLScoringService;
   private entityGraph: EntityGraphBuilder;
   private masterDb: MasterDatabaseService;
@@ -67,6 +92,8 @@ export class IntelligenceBrain {
       });
     }
     this.orchestrator = new WaterfallEnrichmentOrchestrator();
+    this.masterEnrichmentOrchestrator = new MasterEnrichmentOrchestrator();
+    this.enrichmentQueue = new EnrichmentQueue();
     this.scoringService = new MLScoringService();
     this.entityGraph = new EntityGraphBuilder();
     this.masterDb = new MasterDatabaseService();
@@ -93,7 +120,505 @@ export class IntelligenceBrain {
     return decision;
   }
 
-  private async gatherContext(lead: Lead): Promise<LeadContext> {
+  /**
+   * Evaluate a lead with data completeness analysis for upload processing
+   */
+  async evaluateLead(
+    lead: Partial<Lead>,
+    analysisReport?: AnalysisReport,
+    options?: {
+      costBudget?: number;
+      urgency?: 'immediate' | 'high' | 'medium' | 'low';
+      batchContext?: {
+        batchId: string;
+        totalLeads: number;
+        remainingBudget: number;
+        similarLeadsCount: number;
+      };
+    }
+  ): Promise<EnrichmentDecision> {
+    // Create a temporary lead object if no ID exists
+    const tempLead = {
+      ...lead,
+      id: lead.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    } as Lead;
+
+    // Gather context with analysis report
+    const context = await this.gatherContext(tempLead);
+    
+    // Enhance context with analysis report data
+    if (analysisReport) {
+      context.dataCompletenessAnalysis = analysisReport;
+      context.qualityMetrics = analysisReport.qualityMetrics;
+      context.enrichmentPlan = analysisReport.enrichmentPlan;
+    }
+
+    // Apply batch context if available
+    if (options?.batchContext) {
+      context.batchContext = options.batchContext;
+    }
+
+    // Make intelligent decision with enhanced context
+    const decision = await this.makeIntelligentDecisionWithAnalysis(context, options);
+    
+    // Store decision in database if we have a real lead ID
+    if (lead.id && !lead.id.startsWith('temp-')) {
+      await this.storeDecision(lead.id, decision);
+    }
+    
+    // Track metrics
+    this.metrics.totalDecisions++;
+    this.updateMetrics(decision);
+    
+    return decision;
+  }
+
+  /**
+   * Batch evaluate multiple leads for optimized decision making
+   */
+  async evaluateBatch(
+    leads: Array<{ lead: Partial<Lead>; analysis?: AnalysisReport }>,
+    options?: {
+      totalBudget?: number;
+      strategy?: 'cost_optimize' | 'quality_maximize' | 'balanced';
+      groupSimilar?: boolean;
+      batchId?: string;
+    }
+  ): Promise<{
+    decisions: EnrichmentDecision[];
+    batchPlan: {
+      totalEstimatedCost: number;
+      groupedStrategies: Map<string, string[]>; // strategy -> leadIds
+      priorityOrder: string[]; // leadIds in priority order
+      costOptimizations: string[];
+      expectedQualityGain: number;
+      enrichmentJobs: Array<{
+        leadId: string;
+        priority: number;
+        estimatedTime: number;
+      }>;
+    };
+  }> {
+    const totalBudget = options?.totalBudget || Infinity;
+    let remainingBudget = totalBudget;
+    const decisions: EnrichmentDecision[] = [];
+    const groupedStrategies = new Map<string, string[]>();
+    const priorityOrder: string[] = [];
+    const enrichmentJobs: Array<{ leadId: string; priority: number; estimatedTime: number }> = [];
+
+    console.log(`[IntelligenceBrain] Evaluating batch of ${leads.length} leads with budget: ${totalBudget}`);
+
+    // First pass: evaluate all leads individually
+    const evaluations = await Promise.all(
+      leads.map(async ({ lead, analysis }) => {
+        const tempId = lead.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const evaluation = await this.evaluateLead(
+          { ...lead, id: tempId },
+          analysis,
+          {
+            costBudget: remainingBudget / leads.length, // Initial fair share
+            urgency: 'medium',
+            batchContext: {
+              batchId: options?.batchId || `batch-${Date.now()}`,
+              totalLeads: leads.length,
+              remainingBudget,
+              similarLeadsCount: 0
+            }
+          }
+        );
+        return { ...evaluation, lead };
+      })
+    );
+
+    // Sort by priority and value
+    evaluations.sort((a, b) => {
+      const scoreA = a.priority * (a.confidence || 0.5);
+      const scoreB = b.priority * (b.confidence || 0.5);
+      return scoreB - scoreA;
+    });
+
+    // Second pass: optimize budget allocation based on strategy
+    const strategy = options?.strategy || 'balanced';
+    
+    for (const evaluation of evaluations) {
+      let allocated = false;
+      
+      if (strategy === 'cost_optimize') {
+        // Prefer minimal enrichment to stay within budget
+        if (remainingBudget > 0.01) {
+          const minimalDecision: EnrichmentDecision = {
+            ...evaluation,
+            strategy: 'minimal',
+            services: ['validation'],
+            estimatedCost: 0.01,
+            reasoning: `Cost optimization strategy - minimal enrichment (budget: ${remainingBudget.toFixed(2)})`
+          };
+          decisions.push(minimalDecision);
+          remainingBudget -= 0.01;
+          allocated = true;
+        }
+      } else if (strategy === 'quality_maximize' && evaluation.estimatedCost <= remainingBudget) {
+        // Use full enrichment when possible
+        decisions.push(evaluation);
+        remainingBudget -= evaluation.estimatedCost;
+        allocated = true;
+      } else if (strategy === 'balanced' && evaluation.estimatedCost <= remainingBudget) {
+        // Balanced approach - use recommended enrichment if budget allows
+        decisions.push(evaluation);
+        remainingBudget -= evaluation.estimatedCost;
+        allocated = true;
+      }
+
+      if (allocated) {
+        priorityOrder.push(evaluation.leadId);
+        
+        // Group by strategy
+        const strategyKey = decisions[decisions.length - 1].strategy;
+        if (!groupedStrategies.has(strategyKey)) {
+          groupedStrategies.set(strategyKey, []);
+        }
+        groupedStrategies.get(strategyKey)!.push(evaluation.leadId);
+        
+        // Add to enrichment jobs
+        enrichmentJobs.push({
+          leadId: evaluation.leadId,
+          priority: evaluation.priority,
+          estimatedTime: this.estimateProcessingTime(evaluation.services)
+        });
+      } else {
+        // No budget - skip enrichment
+        decisions.push({
+          ...evaluation,
+          strategy: 'minimal',
+          services: [],
+          estimatedCost: 0,
+          reasoning: 'Budget exhausted - no enrichment applied',
+          skipReasons: ['Budget exhausted']
+        });
+      }
+    }
+
+    // Calculate optimizations and expected gains
+    const totalEstimatedCost = decisions.reduce((sum, d) => sum + d.estimatedCost, 0);
+    const expectedQualityGain = this.calculateExpectedQualityGain(decisions);
+    const costOptimizations = this.identifyCostOptimizations(groupedStrategies);
+
+    console.log(`[IntelligenceBrain] Batch evaluation complete:
+      - Total leads: ${leads.length}
+      - Decisions made: ${decisions.length}
+      - Total cost: ${totalEstimatedCost.toFixed(2)}
+      - Expected quality gain: ${expectedQualityGain.toFixed(1)}%
+      - Strategies: ${Array.from(groupedStrategies.keys()).join(', ')}
+    `);
+
+    return {
+      decisions,
+      batchPlan: {
+        totalEstimatedCost,
+        groupedStrategies,
+        priorityOrder,
+        costOptimizations,
+        expectedQualityGain,
+        enrichmentJobs
+      }
+    };
+  }
+
+  /**
+   * Make intelligent decision with data completeness analysis
+   */
+  private async makeIntelligentDecisionWithAnalysis(
+    context: LeadContext, 
+    options?: {
+      costBudget?: number;
+      urgency?: 'immediate' | 'high' | 'medium' | 'low';
+    }
+  ): Promise<EnrichmentDecision> {
+    // If we have high-quality data from completeness analysis, use it
+    if (context.dataCompletenessAnalysis && context.enrichmentPlan) {
+      const plan = context.enrichmentPlan;
+      const metrics = context.qualityMetrics;
+      
+      // Check master database first
+      if (context.masterDbData && context.masterDbData.completeness > 0.85) {
+        return {
+          leadId: context.lead.id as string,
+          strategy: 'minimal',
+          priority: 3,
+          services: ['validation'],
+          estimatedCost: 0.01,
+          confidence: 0.95,
+          reasoning: 'Lead already exists in master database with high completeness',
+          skipReasons: ['Data already available in master database']
+        };
+      }
+      
+      // Use enrichment plan recommendations
+      const recommendedServices = plan.recommendedServices.map(s => s.service);
+      const totalCost = plan.totalEstimatedCost;
+      
+      // Apply budget constraints if specified
+      const budget = options?.costBudget || Infinity;
+      let selectedServices = recommendedServices;
+      let adjustedCost = totalCost;
+      
+      if (totalCost > budget) {
+        // Prioritize services within budget
+        selectedServices = [];
+        adjustedCost = 0;
+        for (const service of plan.recommendedServices) {
+          if (adjustedCost + service.estimatedCost <= budget) {
+            selectedServices.push(service.service);
+            adjustedCost += service.estimatedCost;
+          }
+        }
+      }
+      
+      // Determine strategy based on plan priority
+      let strategy: 'minimal' | 'standard' | 'comprehensive' | 'maximum' = 'standard';
+      if (plan.priority === 'urgent' || plan.priority === 'high') {
+        strategy = metrics?.completenessScore < 40 ? 'maximum' : 'comprehensive';
+      } else if (plan.priority === 'medium') {
+        strategy = 'standard';
+      } else {
+        strategy = 'minimal';
+      }
+      
+      // Calculate priority based on urgency and quality metrics
+      let priority = 5;
+      if (options?.urgency === 'immediate') priority = 10;
+      else if (options?.urgency === 'high') priority = 8;
+      else if (plan.priority === 'urgent') priority = 9;
+      else if (plan.priority === 'high') priority = 7;
+      
+      return {
+        leadId: context.lead.id as string,
+        strategy,
+        priority,
+        services: selectedServices,
+        estimatedCost: adjustedCost,
+        confidence: plan.confidenceLevel / 100,
+        reasoning: `Based on data analysis: ${metrics?.completenessScore.toFixed(0)}% complete, ${plan.expectedQualityImprovement.toFixed(0)}% expected improvement. ${plan.recommendations?.[0] || 'Targeted enrichment recommended'}`
+      };
+    }
+    
+    // Fallback to original decision logic
+    return this.makeIntelligentDecision(context as LeadContext);
+  }
+
+  /**
+   * Store enrichment decision in the database for tracking
+   */
+  private async storeDecision(leadId: string, decision: EnrichmentDecision): Promise<void> {
+    try {
+      const decisionData: InsertIntelligenceDecision = {
+        leadId,
+        strategy: decision.strategy,
+        priority: decision.priority,
+        services: decision.services,
+        estimatedCost: decision.estimatedCost.toFixed(4),
+        actualCost: decision.actualCost ? decision.actualCost.toFixed(4) : undefined,
+        confidence: decision.confidence.toFixed(4),
+        reasoning: decision.reasoning,
+        skipReasons: decision.skipReasons,
+        metadata: {
+          batchContext: decision.batchContext,
+          executionDetails: decision.executionDetails,
+          timestamp: new Date().toISOString(),
+          source: 'intelligence_brain'
+        }
+      };
+
+      await db.insert(intelligenceDecisions).values(decisionData);
+      
+      console.log(`[IntelligenceBrain] Stored decision for lead ${leadId}: ${decision.strategy} strategy`);
+    } catch (error) {
+      console.error('Error storing intelligence decision:', error);
+      // Don't throw - continue processing even if storage fails
+    }
+  }
+
+  /**
+   * Calculate expected quality improvement from enrichment decisions
+   */
+  private calculateExpectedQualityGain(decisions: EnrichmentDecision[]): number {
+    if (decisions.length === 0) return 0;
+    
+    let totalGain = 0;
+    for (const decision of decisions) {
+      // Estimate quality gain based on strategy and services
+      let gain = 0;
+      switch (decision.strategy) {
+        case 'maximum':
+          gain = 40; // 40% improvement expected
+          break;
+        case 'comprehensive':
+          gain = 30; // 30% improvement
+          break;
+        case 'standard':
+          gain = 20; // 20% improvement
+          break;
+        case 'minimal':
+          gain = 5; // 5% improvement
+          break;
+      }
+      
+      // Adjust based on confidence
+      gain *= decision.confidence;
+      totalGain += gain;
+    }
+    
+    return totalGain / decisions.length;
+  }
+
+  /**
+   * Identify cost optimization opportunities for batch processing
+   */
+  private identifyCostOptimizations(groupedStrategies: Map<string, string[]>): string[] {
+    const optimizations: string[] = [];
+    
+    for (const [strategy, leadIds] of groupedStrategies.entries()) {
+      const count = leadIds.length;
+      
+      if (count >= 10) {
+        optimizations.push(`Batch discount opportunity: ${count} leads with ${strategy} strategy`);
+      }
+      
+      if (count >= 5 && (strategy === 'standard' || strategy === 'comprehensive')) {
+        optimizations.push(`Consider bulk API calls for ${count} ${strategy} enrichments`);
+      }
+    }
+    
+    // Check for deduplication opportunities
+    if (groupedStrategies.size > 1) {
+      optimizations.push('Group similar leads to reuse enrichment data');
+    }
+    
+    return optimizations;
+  }
+
+  /**
+   * Estimate processing time for enrichment services
+   */
+  private estimateProcessingTime(services: string[]): number {
+    const serviceTimes: Record<string, number> = {
+      'numverify': 1,
+      'hunter': 2,
+      'clearbit': 3,
+      'proxycurl': 3,
+      'abstractapi': 2,
+      'peopledatalabs': 5,
+      'perplexity': 4,
+      'openai': 3,
+      'validation': 0.5
+    };
+    
+    return services.reduce((total, service) => total + (serviceTimes[service] || 2), 0);
+  }
+
+  /**
+   * Trigger automatic enrichment based on decisions
+   */
+  async triggerAutomaticEnrichment(
+    leadId: string, 
+    decision: EnrichmentDecision
+  ): Promise<{ jobId: string; status: string }> {
+    if (decision.services.length === 0 || decision.skipReasons?.length > 0) {
+      console.log(`[IntelligenceBrain] Skipping enrichment for lead ${leadId}: ${decision.skipReasons?.join(', ')}`);
+      return { jobId: 'skipped', status: 'skipped' };
+    }
+    
+    // Get lead data from storage
+    const lead = await storage.getLead(leadId);
+    if (!lead) {
+      console.warn(`[IntelligenceBrain] Lead ${leadId} not found for enrichment`);
+      return { jobId: 'failed', status: 'failed' };
+    }
+    
+    // Map priority to enrichment queue priority
+    const queuePriority = decision.priority >= 8 ? 'high' : 
+                         decision.priority >= 5 ? 'medium' : 'low';
+    
+    // Queue for enrichment using the correct method
+    const jobId = await this.enrichmentQueue.addToQueue(
+      lead,
+      queuePriority,
+      'api', // source
+      {
+        batchId: decision.batchContext?.batchId,
+        enrichmentOptions: {
+          services: decision.services,
+          strategy: decision.strategy,
+          maxCost: decision.estimatedCost * 1.2, // Allow 20% overrun
+          skipVerification: false,
+          includeEmailDiscovery: decision.services.includes('hunter'),
+          includePhoneDiscovery: decision.services.includes('numverify'),
+          includeCompanyData: decision.services.includes('clearbit'),
+          includeSocialProfiles: decision.services.includes('proxycurl'),
+          includeRevenueEstimates: decision.services.includes('perplexity'),
+          useBrainPipeline: true
+        },
+        maxRetries: 3
+      }
+    );
+    
+    // Update decision with execution details
+    decision.executionDetails = {
+      triggeredAt: new Date(),
+      enrichmentJobId: jobId
+    };
+    
+    // Store updated decision
+    if (!leadId.startsWith('temp-')) {
+      await this.storeDecision(leadId, decision);
+    }
+    
+    console.log(`[IntelligenceBrain] Queued enrichment job ${jobId} for lead ${leadId} with priority ${queuePriority}`);
+    
+    return { jobId, status: 'queued' };
+  }
+
+  /**
+   * Process batch enrichment jobs
+   */
+  async processBatchEnrichment(
+    decisions: EnrichmentDecision[]
+  ): Promise<{ success: number; failed: number; skipped: number }> {
+    const results = { success: 0, failed: 0, skipped: 0 };
+    
+    // Sort by priority
+    const sortedDecisions = [...decisions].sort((a, b) => b.priority - a.priority);
+    
+    // Process in parallel batches
+    const batchSize = 10;
+    for (let i = 0; i < sortedDecisions.length; i += batchSize) {
+      const batch = sortedDecisions.slice(i, i + batchSize);
+      
+      const batchResults = await Promise.all(
+        batch.map(async (decision) => {
+          try {
+            const result = await this.triggerAutomaticEnrichment(decision.leadId, decision);
+            if (result.status === 'skipped') {
+              results.skipped++;
+            } else {
+              results.success++;
+            }
+            return result;
+          } catch (error) {
+            console.error(`Error triggering enrichment for ${decision.leadId}:`, error);
+            results.failed++;
+            return { jobId: 'failed', status: 'failed' };
+          }
+        })
+      );
+      
+      console.log(`[IntelligenceBrain] Processed batch ${Math.floor(i/batchSize) + 1}: ${batchResults.filter(r => r.status !== 'failed').length} successful`);
+    }
+    
+    return results;
+  }
+
+  private async gatherContext(lead: Lead | Partial<Lead>): Promise<LeadContext> {
     // Parallel gather all context data
     const [
       masterDbData,
