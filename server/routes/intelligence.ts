@@ -5,12 +5,24 @@ import { intelligenceBrain } from '../services/intelligence-brain';
 import { masterDatabase } from '../services/master-database';
 import { costOptimization } from '../services/cost-optimization';
 import { mlEnhancedDecision } from '../services/ml-enhanced-decision';
-import { isAdmin } from '../auth';
 
 const router = Router();
 
 // Middleware to ensure only admins can access intelligence endpoints
-router.use(isAdmin);
+function requireAdmin(req: any, res: any, next: any) {
+  // Check if user is authenticated (passport stores user in req.user)
+  if (!req.user) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  
+  // Check if user has admin role
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: "Admin access required" });
+  }
+  next();
+}
+
+router.use(requireAdmin);
 
 // Get intelligence metrics
 router.get('/metrics', async (req: Request, res: Response) => {
@@ -239,7 +251,7 @@ router.post('/analyze', async (req: Request, res: Response) => {
     }
     
     // Run intelligence analysis
-    const decision = await intelligenceBrain.makeEnrichmentDecision(lead);
+    const decision = await intelligenceBrain.analyzeAndDecide(lead);
     
     // Store decision
     await storage.logIntelligenceDecision({
@@ -248,8 +260,30 @@ router.post('/analyze', async (req: Request, res: Response) => {
       confidence: decision.confidence,
       servicesUsed: decision.services,
       estimatedCost: decision.estimatedCost,
-      reason: decision.reason
+      reason: decision.reasoning
     });
+    
+    // Execute enrichment based on decision
+    if (decision.services.length > 0 && !decision.skipReasons?.length) {
+      // Import enrichment orchestrator
+      const { masterEnrichmentOrchestrator } = await import('../services/master-enrichment-orchestrator');
+      
+      // Execute enrichment with the decided strategy
+      const enrichmentResult = await masterEnrichmentOrchestrator.enrichLead(lead, {
+        source: 'intelligence',
+        priority: decision.priority > 7 ? 'high' : decision.priority > 4 ? 'medium' : 'low',
+        forceRefresh: true
+      });
+      
+      // Update decision with actual cost and results
+      if (decision.leadId) {
+        await storage.updateIntelligenceDecision(decision.leadId, {
+          actualCost: enrichmentResult.enrichmentMetadata.apiCallCount * 0.01, // Estimate cost per API call
+          success: enrichmentResult.masterEnrichmentScore > 50,
+          enrichmentResults: enrichmentResult.finalData
+        });
+      }
+    }
     
     res.json({
       success: true,

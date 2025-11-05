@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { EventBus } from "./event-bus";
+import { eventBus } from "./event-bus";
 import type { Lead, ApiKey, ApiUsage } from "@shared/schema";
 import memoizee from 'memoizee';
 
@@ -36,7 +36,6 @@ export class CostOptimizationService {
   private monthlyBudget = 2000; // Default monthly budget in dollars
   private currentDailySpend = 0;
   private currentMonthlySpend = 0;
-  private eventBus = EventBus.getInstance();
 
   // Cache for cost calculations
   private costCache = memoizee(
@@ -167,8 +166,8 @@ export class CostOptimizationService {
   }
 
   private setupEventListeners() {
-    this.eventBus.on('enrichment:started', this.handleEnrichmentStarted.bind(this));
-    this.eventBus.on('enrichment:completed', this.handleEnrichmentCompleted.bind(this));
+    eventBus.on('enrichment:started', this.handleEnrichmentStarted.bind(this));
+    eventBus.on('enrichment:completed', this.handleEnrichmentCompleted.bind(this));
     
     // Reset daily/monthly counters
     setInterval(() => this.resetDailyCounters(), 24 * 60 * 60 * 1000); // Daily
@@ -449,7 +448,7 @@ export class CostOptimizationService {
     });
     
     // Emit event for monitoring
-    this.eventBus.emit('cost:tracked', {
+    eventBus.emit('cost:tracked', {
       service,
       cost,
       remainingDaily: this.dailyBudget - this.currentDailySpend,

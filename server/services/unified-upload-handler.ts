@@ -2,7 +2,7 @@ import { storage } from "../storage";
 import { IntelligenceBrainService } from "./intelligence-brain";
 import { MasterDatabaseService } from "./master-database";
 import { costOptimization } from "./cost-optimization";
-import { EventBus } from "./event-bus";
+import { eventBus } from "./event-bus";
 import type { Lead, InsertLead, LeadBatch } from "@shared/schema";
 import Papa from 'papaparse';
 import XLSX from 'xlsx';
@@ -175,7 +175,7 @@ export class UnifiedUploadHandler {
     result.processingTime = Date.now() - startTime;
     
     // Emit completion event
-    this.eventBus.emit('upload:completed', result);
+    eventBus.emit('upload:completed', result);
     
     return result;
   }
@@ -710,7 +710,7 @@ export class UnifiedUploadHandler {
           // Queue for enrichment if high priority
           if (decision.priority > 0.7) {
             result.enrichedCount++;
-            this.eventBus.emit('enrichment:queue', {
+            eventBus.emit('enrichment:queue', {
               leadId,
               services: decision.services,
               priority: decision.priority

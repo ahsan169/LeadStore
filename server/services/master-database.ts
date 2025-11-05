@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { EventBus } from "./event-bus";
+import { eventBus } from "./event-bus";
 import type { Lead } from "@shared/schema";
 import fetch from 'node-fetch';
 import OpenAI from 'openai';
@@ -146,7 +146,6 @@ export class MasterDatabaseService {
   private crawlQueue: CrawlTask[] = [];
   private isProcessingQueue = false;
   private openai: OpenAI | null = null;
-  private eventBus = EventBus.getInstance();
 
   // Cache for search results
   private searchCache = memoizee(
@@ -181,20 +180,30 @@ export class MasterDatabaseService {
     try {
       // Load cached master database from storage
       const cachedData = await storage.getMasterDatabaseCache();
-      if (cachedData) {
-        cachedData.forEach((entity: BusinessEntity) => {
-          this.addToDatabase(entity);
+      if (cachedData && Array.isArray(cachedData) && cachedData.length > 0) {
+        console.log(`[MasterDatabase] Loading ${cachedData.length} entities from storage`);
+        cachedData.forEach((cacheEntry: any) => {
+          // Extract entity from businessData JSONB column
+          const entity = cacheEntry.businessData as BusinessEntity;
+          if (entity) {
+            entity.id = cacheEntry.entityId || entity.id;
+            this.database.set(entity.id, entity);
+            this.updateIndexes(entity);
+          }
         });
+        console.log(`[MasterDatabase] Loaded ${this.database.size} entities into memory`);
+      } else {
+        console.log('[MasterDatabase] No cached data found, starting with empty database');
       }
     } catch (error) {
-      console.error('Error loading master database:', error);
+      console.error('[MasterDatabase] Error loading from storage:', error);
     }
   }
 
   private setupEventListeners() {
-    this.eventBus.on('lead:created', this.handleNewLead.bind(this));
-    this.eventBus.on('enrichment:completed', this.handleEnrichmentData.bind(this));
-    this.eventBus.on('ucc:processed', this.handleUccData.bind(this));
+    eventBus.on('lead:created', this.handleNewLead.bind(this));
+    eventBus.on('enrichment:completed', this.handleEnrichmentData.bind(this));
+    eventBus.on('ucc:processed', this.handleUccData.bind(this));
   }
 
   async search(query: SearchQuery): Promise<SearchResult | null> {
@@ -205,7 +214,25 @@ export class MasterDatabaseService {
   private async performSearch(query: SearchQuery): Promise<SearchResult | null> {
     const results: SearchResult[] = [];
     
-    // Search by business name
+    // First, try to search in the database (storage)
+    const dbResults = await storage.searchMasterDatabase(query);
+    if (dbResults && dbResults.length > 0) {
+      // Add database results to our in-memory cache
+      for (const dbResult of dbResults) {
+        const entity = dbResult.businessData as BusinessEntity;
+        if (entity) {
+          entity.id = dbResult.entityId || entity.id;
+          // Add to in-memory database if not already there
+          if (!this.database.has(entity.id)) {
+            this.database.set(entity.id, entity);
+            this.updateIndexes(entity);
+          }
+          results.push(this.createSearchResult(entity, query));
+        }
+      }
+    }
+    
+    // Also search in memory cache
     if (query.businessName) {
       const normalized = this.normalizeString(query.businessName);
       const entities = this.nameIndex.get(normalized) || new Set();
@@ -213,7 +240,10 @@ export class MasterDatabaseService {
       for (const entityId of entities) {
         const entity = this.database.get(entityId);
         if (entity) {
-          results.push(this.createSearchResult(entity, query));
+          // Check if not already in results
+          if (!results.some(r => r.entity.id === entity.id)) {
+            results.push(this.createSearchResult(entity, query));
+          }
         }
       }
     }
@@ -681,9 +711,14 @@ export class MasterDatabaseService {
   private async persistToStorage() {
     try {
       const entities = Array.from(this.database.values());
+      console.log(`[MasterDatabase] Persisting ${entities.length} entities to storage`);
+      
+      // Use the existing saveMasterDatabaseCache method which handles batch upserts
       await storage.saveMasterDatabaseCache(entities);
+      
+      console.log(`[MasterDatabase] Successfully persisted ${entities.length} entities`);
     } catch (error) {
-      console.error('Error persisting master database:', error);
+      console.error('[MasterDatabase] Error persisting to storage:', error);
     }
   }
 

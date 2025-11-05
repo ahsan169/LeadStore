@@ -1,13 +1,15 @@
 import { storage } from "../storage";
-import { EventBus } from "./event-bus";
+import { eventBus } from "./event-bus";
 import OpenAI from 'openai';
 import type { Lead, EnrichmentLog } from "@shared/schema";
 import { WaterfallEnrichmentOrchestrator } from "./waterfall-enrichment-orchestrator";
-import { LeadScoringService } from "./ml-scoring";
-import { EntityGraphService } from "./entity-graph";
-import { UccAnalysisService } from "./ucc-intelligence-analyzer";
+import { MLScoringService } from "./ml-scoring";
 import { MasterDatabaseService } from "./master-database";
+import { EntityGraphBuilder } from "../intelligence/entity-graph";
 import memoizee from 'memoizee';
+import { db } from "../db";
+import { uccFilings, uccIntelligence } from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 interface EnrichmentDecision {
   leadId: string;
@@ -41,11 +43,9 @@ interface IntelligenceMetrics {
 export class IntelligenceBrain {
   private openai: OpenAI | null = null;
   private orchestrator: WaterfallEnrichmentOrchestrator;
-  private scoringService: LeadScoringService;
-  private entityGraph: EntityGraphService;
-  private uccAnalyzer: UccAnalysisService;
+  private scoringService: MLScoringService;
+  private entityGraph: EntityGraphBuilder;
   private masterDb: MasterDatabaseService;
-  private eventBus = EventBus.getInstance();
   private metrics: IntelligenceMetrics = {
     totalDecisions: 0,
     averageCost: 0,
@@ -67,17 +67,16 @@ export class IntelligenceBrain {
       });
     }
     this.orchestrator = new WaterfallEnrichmentOrchestrator();
-    this.scoringService = new LeadScoringService();
-    this.entityGraph = new EntityGraphService();
-    this.uccAnalyzer = new UccAnalysisService();
+    this.scoringService = new MLScoringService();
+    this.entityGraph = new EntityGraphBuilder();
     this.masterDb = new MasterDatabaseService();
     this.setupEventListeners();
   }
 
   private setupEventListeners() {
-    this.eventBus.on('lead:created', this.handleNewLead.bind(this));
-    this.eventBus.on('lead:updated', this.handleLeadUpdate.bind(this));
-    this.eventBus.on('enrichment:completed', this.handleEnrichmentComplete.bind(this));
+    eventBus.on('lead:created', this.handleNewLead.bind(this));
+    eventBus.on('lead:updated', this.handleLeadUpdate.bind(this));
+    eventBus.on('enrichment:completed', this.handleEnrichmentComplete.bind(this));
   }
 
   async analyzeAndDecide(lead: Lead): Promise<EnrichmentDecision> {
@@ -89,7 +88,7 @@ export class IntelligenceBrain {
     this.updateMetrics(decision);
     
     // Emit decision event
-    this.eventBus.emit('brain:decision', { lead, decision });
+    eventBus.emit('brain:decision', { lead, decision });
     
     return decision;
   }
@@ -109,8 +108,8 @@ export class IntelligenceBrain {
         phone: lead.phone,
         email: lead.email
       }),
-      lead.businessName ? this.uccAnalyzer.analyzeByBusinessName(lead.businessName) : null,
-      this.entityGraph.findRelatedEntities(lead.id),
+      lead.businessName ? this.getUccDataForLead(lead) : null,
+      this.getRelatedEntitiesForLead(lead.id),
       this.getHistoricalPerformance(lead),
       this.getIndustryInsights(lead)
     ]);
@@ -533,12 +532,38 @@ Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is 
       processingTime: 0
     });
     
-    // Execute enrichment through orchestrator
-    const results = await this.orchestrator.enrichLeadSelective(lead, decision.services);
+    // Execute enrichment through orchestrator with proper method
+    const results = await this.orchestrator.enrichLead(lead);
     
     // Update master database with new data
-    if (results.success) {
-      await this.masterDb.updateFromEnrichment(lead.id, results.data);
+    if (results && results.enrichedData) {
+      await this.masterDb.addToDatabase({
+        id: lead.id,
+        businessName: lead.businessName || '',
+        ownerName: lead.ownerName,
+        phone: lead.phone,
+        email: lead.email,
+        address: lead.address,
+        city: lead.city,
+        state: lead.state,
+        zipCode: lead.zipCode,
+        industry: lead.industry,
+        annualRevenue: lead.annualRevenue,
+        timeInBusiness: lead.timeInBusiness,
+        dataQuality: {
+          completeness: results.completenessScore || 0,
+          accuracy: 0.8,
+          lastVerified: new Date(),
+          sources: decision.services
+        },
+        metadata: {
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          lastEnriched: new Date(),
+          enrichmentCount: 1,
+          manuallyVerified: false
+        }
+      });
     }
     
     return results;
@@ -617,6 +642,54 @@ Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is 
     });
     
     return rates;
+  }
+
+  private async getUccDataForLead(lead: Lead): Promise<any> {
+    try {
+      // Fetch UCC filings for this lead
+      const filings = await db
+        .select()
+        .from(uccFilings)
+        .where(eq(uccFilings.leadId, lead.id))
+        .orderBy(desc(uccFilings.filingDate));
+
+      // Fetch UCC intelligence if available
+      const intelligence = await db
+        .select()
+        .from(uccIntelligence)
+        .where(eq(uccIntelligence.leadId, lead.id))
+        .orderBy(desc(uccIntelligence.createdAt))
+        .limit(1);
+
+      return {
+        filings: filings || [],
+        intelligence: intelligence[0] || null,
+        riskScore: intelligence[0]?.riskScore || null
+      };
+    } catch (error) {
+      console.error('Error fetching UCC data:', error);
+      return null;
+    }
+  }
+
+  private async getRelatedEntitiesForLead(leadId: string): Promise<any[]> {
+    try {
+      // Build graph for this lead
+      const leadData = await storage.getLeadById(leadId);
+      if (!leadData) return [];
+      
+      // Simple related entities lookup based on common attributes
+      const relatedLeads = await storage.searchSimilarLeads({
+        businessName: leadData.businessName,
+        state: leadData.state,
+        phone: leadData.phone
+      });
+
+      return relatedLeads || [];
+    } catch (error) {
+      console.error('Error fetching related entities:', error);
+      return [];
+    }
   }
 }
 

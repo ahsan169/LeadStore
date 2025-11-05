@@ -1,5 +1,5 @@
 import { storage } from "../storage";
-import { EventBus } from "./event-bus";
+import { eventBus } from "./event-bus";
 import type { Lead } from "@shared/schema";
 import memoizee from "memoizee";
 
@@ -30,7 +30,6 @@ interface PatternInsight {
 }
 
 export class MLEnhancedDecisionService {
-  private eventBus = EventBus.getInstance();
   private modelVersion = '2.1.0';
   
   // Feature weights learned from historical data
@@ -85,9 +84,9 @@ export class MLEnhancedDecisionService {
   }
 
   private setupEventListeners() {
-    this.eventBus.on('lead:created', this.handleNewLead.bind(this));
-    this.eventBus.on('lead:enriched', this.handleEnrichedLead.bind(this));
-    this.eventBus.on('lead:converted', this.handleConvertedLead.bind(this));
+    eventBus.on('lead:created', this.handleNewLead.bind(this));
+    eventBus.on('lead:enriched', this.handleEnrichedLead.bind(this));
+    eventBus.on('lead:converted', this.handleConvertedLead.bind(this));
   }
 
   async predictLeadQuality(lead: Lead): Promise<MLPrediction> {
@@ -566,7 +565,7 @@ export class MLEnhancedDecisionService {
     await this.storeOutcome(leadId, outcome, prediction);
     
     // Emit learning event
-    this.eventBus.emit('ml:learning', {
+    eventBus.emit('ml:learning', {
       leadId,
       prediction,
       outcome,
