@@ -1,0 +1,43 @@
+# Scorecard Configuration
+# MCA Lead Scoring Weights and Thresholds
+
+weights:
+  recency: 0.18
+  status_active: 0.18
+  known_mca_funder: 0.16
+  continuation_count: 0.12
+  multi_lien_flag: -0.08
+  data_quality: 0.18
+  contact_validity: 0.10
+  business_age: 0.08
+  revenue_range: 0.10
+  industry_risk: 0.12
+  credit_score: 0.08
+  ucc_status: 0.14
+  enrichment_level: 0.06
+  verification_confidence: 0.08
+
+thresholds:
+  pass_core_f1: 0.90
+  pass_mca_f1: 0.85
+  high_quality_lead: 80
+  medium_quality_lead: 60
+  low_quality_lead: 40
+  premium_lead: 90
+  reject_lead: 30
+
+marketAdjustments:
+  enabled: false
+  factors:
+    market_volatility: 1.0
+    seasonal_adjustment: 1.0
+    competition_level: 1.0
+    industry_trends:
+      Healthcare: 1.2
+      Restaurant: 0.8
+      Retail: 0.9
+      Technology: 1.1
+      Construction: 1.0
+
+version: 1
+description: Default scorecard configuration for MCA lead scoring

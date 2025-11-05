@@ -12,8 +12,10 @@ import { comprehensiveLeadEnricher, EnrichmentResult } from '../services/compreh
 import { leadCompletionAnalyzer } from '../services/lead-completion-analyzer';
 import { eventBus } from '../services/event-bus';
 import { db } from '../db';
-import { leads, uccFilings } from '@shared/schema';
+import { leads, uccFilings, ruleExecutions } from '@shared/schema';
 import { eq, and, or, sql } from 'drizzle-orm';
+import { rulesEngine, RuleContext, RuleType } from './rules-engine';
+import { scorecardManager, LeadMetrics } from './scorecard';
 
 /**
  * Pipeline stage names
@@ -24,6 +26,7 @@ export enum PipelineStage {
   RESOLVE = 'resolve',
   ENRICH = 'enrich',
   UCC_AGGREGATE = 'ucc_aggregate',
+  RULES = 'rules',
   SCORE = 'score',
   EXPORT = 'export'
 }
@@ -707,35 +710,135 @@ class UccAggregateStage extends BaseStage {
 }
 
 /**
- * Score Stage - Calculate final lead score
+ * Rules Stage - Execute business rules
+ */
+class RulesStage extends BaseStage {
+  name = PipelineStage.RULES;
+  
+  async executeStage(context: StageContext): Promise<StageContext> {
+    const { normalizedData, uccData } = context;
+    
+    // Create rule context
+    const ruleContext: RuleContext = {
+      lead: normalizedData as Lead,
+      uccFilings: uccData,
+      scores: {},
+      transformations: {},
+      alerts: [],
+      enrichments: {},
+      metadata: context.metadata,
+      executionPath: [],
+      timing: {}
+    };
+    
+    try {
+      // Execute all enabled rules
+      const results = await rulesEngine.execute(ruleContext);
+      
+      // Apply transformations to normalized data
+      Object.assign(normalizedData, ruleContext.transformations);
+      
+      // Store rule execution results
+      context.metadata.ruleExecutionResults = results;
+      context.metadata.ruleScores = ruleContext.scores;
+      context.metadata.ruleAlerts = ruleContext.alerts;
+      
+      // Add alerts as flags
+      ruleContext.alerts.forEach(alert => {
+        context.flags.push(`[${alert.severity}] ${alert.message}`);
+      });
+      
+      // Log execution to database if leadId exists
+      if (context.leadId) {
+        const executionRecords = results.map(result => ({
+          leadId: context.leadId!,
+          ruleId: result.ruleId,
+          matched: result.matched,
+          executionTime: result.executionTime,
+          actionsExecuted: result.actionsExecuted,
+          transformations: result.transformations,
+          scores: result.scoreImpact
+        }));
+        
+        // Save to database (non-blocking)
+        db.insert(ruleExecutions).values(executionRecords).catch(error => {
+          console.error('Failed to log rule executions:', error);
+        });
+      }
+      
+      context.lineage.push({
+        stage: this.name,
+        inputFields: Object.keys(normalizedData),
+        outputFields: Object.keys(ruleContext.transformations),
+        transformations: [`Executed ${results.length} rules`, `${results.filter(r => r.matched).length} matched`],
+        confidence: 90
+      });
+      
+    } catch (error) {
+      context.errors.push({
+        stage: this.name,
+        error: error instanceof Error ? error.message : 'Rules execution failed',
+        timestamp: new Date(),
+        severity: 'medium',
+        retryable: true
+      });
+    }
+    
+    return context;
+  }
+  
+  calculateConfidence(context: StageContext): number {
+    const results = context.metadata.ruleExecutionResults as any[] || [];
+    const matchedCount = results.filter((r: any) => r.matched).length;
+    return Math.min(95, 70 + (matchedCount * 2));
+  }
+  
+  getDecision(context: StageContext): string {
+    const results = context.metadata.ruleExecutionResults as any[] || [];
+    return `Executed ${results.length} rules, ${results.filter((r: any) => r.matched).length} matched`;
+  }
+  
+  getExplanation(context: StageContext): string {
+    const alerts = context.metadata.ruleAlerts as any[] || [];
+    return alerts.length > 0 ? 
+      `Generated ${alerts.length} alerts` : 
+      'No alerts generated';
+  }
+}
+
+/**
+ * Score Stage - Calculate final lead score using scorecard
  */
 class ScoreStage extends BaseStage {
   name = PipelineStage.SCORE;
   
   async executeStage(context: StageContext): Promise<StageContext> {
-    const { normalizedData, uccAnalysis } = context;
+    const { normalizedData, uccData, enrichmentData } = context;
     
-    // Use the lead quality scorer
-    const scoringResult = leadQualityScorer.calculateScore(normalizedData);
+    // Create lead metrics for scorecard
+    const leadMetrics: LeadMetrics = {
+      lead: normalizedData as Lead,
+      uccFilings: uccData,
+      enrichmentData: enrichmentData as any,
+      verificationResults: context.metadata.verificationResults as any
+    };
     
-    // Adjust score based on UCC analysis
-    if (uccAnalysis) {
-      if (uccAnalysis.stackingRisk === 'critical') {
-        scoringResult.totalScore *= 0.5;
-        scoringResult.flags.push('Score reduced due to critical stacking risk');
-      } else if (uccAnalysis.stackingRisk === 'high') {
-        scoringResult.totalScore *= 0.7;
-        scoringResult.flags.push('Score reduced due to high stacking risk');
-      }
-    }
+    // Calculate score using scorecard manager
+    const scoreResult = scorecardManager.calculateScore(leadMetrics);
+    
+    // Store results
+    context.score = scoreResult.totalScore;
+    context.scoreBreakdown = scoreResult.components.reduce((acc, component) => {
+      acc[component.name] = component.weightedScore;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Add explanations and recommendations
+    context.flags.push(...scoreResult.explanations);
+    context.recommendations.push(...scoreResult.recommendations);
     
     // Match with funders
     const funderMatches = funderMatcher.findMatches(normalizedData);
-    
-    context.score = scoringResult.totalScore;
-    context.scoreBreakdown = scoringResult.breakdown;
-    context.flags.push(...scoringResult.flags);
-    context.recommendations.push(...scoringResult.recommendations);
     
     // Add funder recommendations
     if (funderMatches.length > 0) {
@@ -886,6 +989,7 @@ export class BrainPipeline {
       PipelineStage.RESOLVE,
       PipelineStage.ENRICH,
       PipelineStage.UCC_AGGREGATE,
+      PipelineStage.RULES,
       PipelineStage.SCORE,
       PipelineStage.EXPORT
     ];
@@ -896,8 +1000,40 @@ export class BrainPipeline {
     this.stages.set(PipelineStage.RESOLVE, new ResolveStage());
     this.stages.set(PipelineStage.ENRICH, new EnrichStage());
     this.stages.set(PipelineStage.UCC_AGGREGATE, new UccAggregateStage());
+    this.stages.set(PipelineStage.RULES, new RulesStage());
     this.stages.set(PipelineStage.SCORE, new ScoreStage());
     this.stages.set(PipelineStage.EXPORT, new ExportStage());
+    
+    // Initialize scorecard and rules
+    scorecardManager.initialize().catch(error => {
+      console.error('Failed to initialize scorecard:', error);
+    });
+    
+    // Load default rules
+    this.loadDefaultRules().catch(error => {
+      console.error('Failed to load default rules:', error);
+    });
+  }
+  
+  /**
+   * Load default rules from configuration
+   */
+  private async loadDefaultRules(): Promise<void> {
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const rulesPath = path.join('server', 'intelligence', 'rules', 'default-rules.json');
+      const rulesContent = await fs.readFile(rulesPath, 'utf8');
+      const rules = JSON.parse(rulesContent);
+      
+      for (const rule of rules) {
+        rulesEngine.addRule(rule);
+      }
+      
+      console.log(`[BrainPipeline] Loaded ${rules.length} default rules`);
+    } catch (error) {
+      console.error('[BrainPipeline] Failed to load default rules:', error);
+    }
   }
   
   /**

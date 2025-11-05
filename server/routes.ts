@@ -60,6 +60,7 @@ import { eventBus } from "./services/event-bus";
 import { registerEnrichmentQueueRoutes } from "./routes/enrichment-queue-routes";
 import { masterEnrichmentOrchestrator } from "./services/master-enrichment-orchestrator";
 import { registerBrainRoutes } from "./routes/brain";
+import rulesRouter from "./routes/rules";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1053,6 +1054,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register brain pipeline routes
   registerBrainRoutes(app);
+  
+  // Register rules management routes
+  app.use(rulesRouter);
   
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {

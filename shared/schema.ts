@@ -1795,6 +1795,85 @@ export const uccRelationships = pgTable("ucc_relationships", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Rules engine tables
+export const rules = pgTable("rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  type: text("type").notNull(), // 'validation', 'scoring', 'transformation', 'enrichment', 'alert'
+  precedence: integer("precedence").notNull().default(30), // 10-50
+  priority: integer("priority").notNull().default(50), // 0-100 within precedence level
+  enabled: boolean("enabled").notNull().default(true),
+  
+  // Rule definition
+  condition: jsonb("condition").notNull(), // Nested condition structure
+  actions: jsonb("actions").notNull(), // Array of actions
+  
+  // Metadata
+  tags: jsonb("tags"), // Array of tags for filtering
+  metadata: jsonb("metadata"), // Additional metadata
+  
+  // Tracking
+  createdBy: varchar("created_by").references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Rule execution history
+export const ruleExecutions = pgTable("rule_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ruleId: varchar("rule_id").references(() => rules.id).notNull(),
+  leadId: varchar("lead_id").references(() => leads.id),
+  batchId: varchar("batch_id"),
+  
+  // Execution details
+  matched: boolean("matched").notNull(),
+  executionTime: integer("execution_time").notNull(), // milliseconds
+  actionsExecuted: jsonb("actions_executed"),
+  
+  // Context and results
+  inputData: jsonb("input_data"),
+  outputData: jsonb("output_data"),
+  transformations: jsonb("transformations"),
+  scores: jsonb("scores"),
+  alerts: jsonb("alerts"),
+  
+  // Error tracking
+  errors: jsonb("errors"),
+  warnings: jsonb("warnings"),
+  
+  executedAt: timestamp("executed_at").notNull().defaultNow(),
+});
+
+// Rule versioning
+export const ruleVersions = pgTable("rule_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ruleId: varchar("rule_id").references(() => rules.id).notNull(),
+  version: integer("version").notNull(),
+  data: jsonb("data").notNull(), // Full rule definition at this version
+  changedBy: varchar("changed_by").references(() => users.id),
+  changeDescription: text("change_description"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Scorecard configuration history
+export const scorecardConfigs = pgTable("scorecard_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  version: integer("version").notNull(),
+  
+  // Configuration
+  weights: jsonb("weights").notNull(),
+  thresholds: jsonb("thresholds").notNull(),
+  marketAdjustments: jsonb("market_adjustments"),
+  
+  // Metadata
+  description: text("description"),
+  effectiveDate: timestamp("effective_date").notNull(),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Insert schemas for UCC Intelligence tables
 export const insertUccStateFormatSchema = createInsertSchema(uccStateFormats).omit({
   id: true,
