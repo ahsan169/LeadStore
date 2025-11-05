@@ -557,6 +557,81 @@ export interface IStorage {
   getActivationHistoryById(activationId: string): Promise<any | undefined>;
   getAllActivationHistory(userId?: string, limit?: number): Promise<any[]>;
   getCrmIntegrations(): Promise<CrmIntegration[]>;
+  
+  // Master Database operations
+  getMasterDatabaseCache(): Promise<any[]>;
+  saveMasterDatabaseCache(entities: any[]): Promise<void>;
+  searchMasterDatabase(query: {
+    businessName?: string;
+    ownerName?: string;
+    phone?: string;
+    email?: string;
+  }): Promise<any>;
+  updateMasterDatabaseEntity(entityId: string, data: any): Promise<void>;
+  getMasterDatabaseStats(): Promise<{
+    totalEntities: number;
+    avgCompleteness: number;
+    topIndustries: Array<[string, number]>;
+    topStates: Array<[string, number]>;
+  }>;
+  
+  // Intelligence Brain operations
+  createIntelligenceDecision(decision: {
+    leadId: string;
+    strategy: string;
+    priority: number;
+    services: string[];
+    estimatedCost: number;
+    confidence: number;
+    reasoning: string;
+    skipReasons?: string[];
+  }): Promise<any>;
+  getIntelligenceDecision(id: string): Promise<any | undefined>;
+  getIntelligenceDecisionsByLeadId(leadId: string): Promise<any[]>;
+  updateIntelligenceDecision(id: string, data: {
+    actualCost?: number;
+    success?: boolean;
+    errorMessage?: string;
+    resultMetrics?: any;
+    executionTime?: number;
+  }): Promise<any | undefined>;
+  getIntelligenceBrainMetrics(): Promise<{
+    totalDecisions: number;
+    averageCost: number;
+    accuracyScore: number;
+    creditsSaved: number;
+    enrichmentSuccessRate: number;
+  }>;
+  
+  // Cost Optimization operations
+  getCurrentApiUsage(): Promise<{
+    dailySpend: number;
+    monthlySpend: number;
+    serviceUsage: Record<string, { count: number; cost: number }>;
+  } | null>;
+  trackApiUsage(data: {
+    service: string;
+    cost: number;
+    success: boolean;
+    dailySpend: number;
+    monthlySpend: number;
+  }): Promise<void>;
+  getRecentEnrichmentLogs(limit: number): Promise<any[]>;
+  createEnrichmentLog(log: {
+    leadId: string;
+    service: string;
+    success: boolean;
+    responseData: any;
+    cost: number;
+    processingTime: number;
+  }): Promise<any>;
+  
+  // Similar Leads operations for ML
+  searchSimilarLeads(criteria: {
+    industry?: string;
+    state?: string;
+    revenueRange?: string | number;
+  }): Promise<Lead[]>;
 }
 
 export class DbStorage implements IStorage {
