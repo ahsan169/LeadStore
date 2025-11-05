@@ -76,7 +76,7 @@ const dryRunSchema = z.object({
 /**
  * GET /api/rules - List all rules with pagination
  */
-router.get('/rules', async (req: Request, res: Response) => {
+router.get('/api/api/rules', async (req: Request, res: Response) => {
   try {
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
@@ -135,7 +135,7 @@ router.get('/rules', async (req: Request, res: Response) => {
 /**
  * POST /api/rules - Create new rule
  */
-router.post('/rules', async (req: Request, res: Response) => {
+router.post('/api/rules', async (req: Request, res: Response) => {
   try {
     const body = createRuleSchema.parse(req.body);
     
@@ -207,7 +207,7 @@ router.post('/rules', async (req: Request, res: Response) => {
 /**
  * PUT /api/rules/:id - Update rule
  */
-router.put('/rules/:id', async (req: Request, res: Response) => {
+router.put('/api/rules/:id', async (req: Request, res: Response) => {
   try {
     const ruleId = req.params.id;
     const updates = req.body;
@@ -287,7 +287,7 @@ router.put('/rules/:id', async (req: Request, res: Response) => {
 /**
  * DELETE /api/rules/:id - Delete rule (soft delete)
  */
-router.delete('/rules/:id', async (req: Request, res: Response) => {
+router.delete('/api/rules/:id', async (req: Request, res: Response) => {
   try {
     const ruleId = req.params.id;
 
@@ -332,7 +332,7 @@ router.delete('/rules/:id', async (req: Request, res: Response) => {
 /**
  * POST /api/rules/dry-run - Test rules against sample data
  */
-router.post('/rules/dry-run', async (req: Request, res: Response) => {
+router.post('/api/rules/dry-run', async (req: Request, res: Response) => {
   try {
     const body = dryRunSchema.parse(req.body);
 
@@ -416,7 +416,7 @@ router.post('/rules/dry-run', async (req: Request, res: Response) => {
 /**
  * GET /api/rules/scorecard - Get current scorecard configuration
  */
-router.get('/rules/scorecard', async (req: Request, res: Response) => {
+router.get('/api/rules/scorecard', async (req: Request, res: Response) => {
   try {
     const config = scorecardManager.getConfig();
     const history = scorecardManager.getConfigHistory();
@@ -440,7 +440,7 @@ router.get('/rules/scorecard', async (req: Request, res: Response) => {
 /**
  * PUT /api/rules/scorecard - Update scorecard weights
  */
-router.put('/rules/scorecard', async (req: Request, res: Response) => {
+router.put('/api/rules/scorecard', async (req: Request, res: Response) => {
   try {
     const body = updateScorecardSchema.parse(req.body);
 
@@ -485,7 +485,7 @@ router.put('/rules/scorecard', async (req: Request, res: Response) => {
 /**
  * POST /api/rules/validate - Validate rule syntax and logic
  */
-router.post('/rules/validate', async (req: Request, res: Response) => {
+router.post('/api/rules/validate', async (req: Request, res: Response) => {
   try {
     const ruleData = req.body;
 
@@ -532,7 +532,7 @@ router.post('/rules/validate', async (req: Request, res: Response) => {
 /**
  * GET /api/rules/history - Rule change history
  */
-router.get('/rules/history', async (req: Request, res: Response) => {
+router.get('/api/rules/history', async (req: Request, res: Response) => {
   try {
     const ruleId = req.query.ruleId as string;
     const limit = parseInt(req.query.limit as string) || 50;
@@ -566,7 +566,7 @@ router.get('/rules/history', async (req: Request, res: Response) => {
 /**
  * POST /api/rules/rollback/:version - Rollback to previous version
  */
-router.post('/rules/rollback/:version', async (req: Request, res: Response) => {
+router.post('/api/rules/rollback/:version', async (req: Request, res: Response) => {
   try {
     const version = parseInt(req.params.version);
     const { type } = req.body;
@@ -640,7 +640,7 @@ router.post('/rules/rollback/:version', async (req: Request, res: Response) => {
 /**
  * POST /api/rules/import - Import rules from JSON
  */
-router.post('/rules/import', async (req: Request, res: Response) => {
+router.post('/api/rules/import', async (req: Request, res: Response) => {
   try {
     const { rules: importedRules } = req.body;
     
@@ -676,7 +676,7 @@ router.post('/rules/import', async (req: Request, res: Response) => {
 /**
  * GET /api/rules/export - Export rules to JSON
  */
-router.get('/rules/export', async (req: Request, res: Response) => {
+router.get('/api/rules/export', async (req: Request, res: Response) => {
   try {
     const rulesJson = rulesEngine.exportRules();
     
