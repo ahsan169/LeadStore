@@ -2081,6 +2081,255 @@ export const insertEntityRelationshipSchema = createInsertSchema(entityRelations
   updatedAt: true,
 });
 
+// ==================== FEEDBACK AND LEARNING SYSTEM TABLES ====================
+
+// Feedback collection table for operator corrections and improvements
+export const feedback = pgTable("feedback", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  
+  // Feedback type and details
+  feedbackType: text("feedback_type").notNull(), // 'correction', 'validation', 'suggestion', 'entity_resolution', 'classification', 'score_adjustment'
+  fieldName: text("field_name"), // Field being corrected
+  originalValue: text("original_value"), // Original value
+  correctedValue: text("corrected_value"), // Corrected value
+  explanation: text("explanation"), // Why the correction was made
+  
+  // Confidence and priority
+  confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull().default("50.00"), // 0-100
+  priority: integer("priority").notNull().default(50), // 0-100
+  impact: text("impact"), // 'low', 'medium', 'high', 'critical'
+  
+  // Status tracking
+  status: text("status").notNull().default("pending"), // 'pending', 'applied', 'rejected', 'testing'
+  appliedAt: timestamp("applied_at"),
+  rejectedAt: timestamp("rejected_at"),
+  rejectionReason: text("rejection_reason"),
+  
+  // Operator information
+  operatorId: varchar("operator_id").references(() => users.id).notNull(),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  
+  // Metadata and context
+  context: jsonb("context"), // Additional context about the feedback
+  affectedLeads: jsonb("affected_leads"), // IDs of other leads affected by this pattern
+  metadata: jsonb("metadata"), // Additional metadata
+  
+  // Timestamps
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Learned patterns table for storing patterns discovered from feedback
+export const learnedPatterns = pgTable("learned_patterns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Pattern identification
+  patternType: text("pattern_type").notNull(), // 'field_mapping', 'synonym', 'entity_alias', 'extraction_rule', 'classification_rule', 'threshold'
+  patternCategory: text("pattern_category"), // 'business_name', 'phone', 'email', 'industry', etc.
+  patternValue: jsonb("pattern_value").notNull(), // The actual pattern (could be regex, mapping, rule, etc.)
+  
+  // Pattern details
+  description: text("description"),
+  examples: jsonb("examples"), // Examples of where this pattern was observed
+  
+  // Statistics and confidence
+  confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull().default("0.00"), // 0-100
+  occurrences: integer("occurrences").notNull().default(1), // Times this pattern has been seen
+  successRate: decimal("success_rate", { precision: 5, scale: 4 }), // 0-1 success rate when applied
+  
+  // Source tracking
+  sourceType: text("source_type").notNull(), // 'feedback', 'ml_model', 'heuristic', 'manual'
+  sourceFeedbackIds: jsonb("source_feedback_ids"), // IDs of feedback that contributed to this pattern
+  
+  // Status and lifecycle
+  status: text("status").notNull().default("discovered"), // 'discovered', 'testing', 'active', 'deprecated', 'rejected'
+  activatedAt: timestamp("activated_at"),
+  deactivatedAt: timestamp("deactivated_at"),
+  
+  // Performance metrics
+  applicationsCount: integer("applications_count").notNull().default(0),
+  successfulApplications: integer("successful_applications").notNull().default(0),
+  failedApplications: integer("failed_applications").notNull().default(0),
+  
+  // Testing and validation
+  abTestId: varchar("ab_test_id"), // Link to A/B test if pattern is being tested
+  validationResults: jsonb("validation_results"), // Results from validation tests
+  
+  // Timestamps
+  firstSeen: timestamp("first_seen").notNull().defaultNow(),
+  lastSeen: timestamp("last_seen").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Improvement suggestions table for system improvement recommendations
+export const improvementSuggestions = pgTable("improvement_suggestions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Suggestion details
+  suggestionType: text("suggestion_type").notNull(), // 'new_rule', 'threshold_adjustment', 'weight_change', 'field_addition', 'process_improvement'
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  
+  // Impact analysis
+  impactScore: integer("impact_score").notNull(), // 0-100
+  affectedLeadsCount: integer("affected_leads_count").notNull().default(0),
+  estimatedImprovement: decimal("estimated_improvement", { precision: 5, scale: 2 }), // Percentage improvement expected
+  
+  // Supporting evidence
+  evidence: jsonb("evidence"), // Data supporting this suggestion
+  relatedPatterns: jsonb("related_patterns"), // IDs of related learned patterns
+  relatedFeedback: jsonb("related_feedback"), // IDs of related feedback items
+  
+  // Implementation details
+  implementation: jsonb("implementation"), // How to implement this suggestion
+  rollbackPlan: jsonb("rollback_plan"), // How to rollback if needed
+  testingPlan: jsonb("testing_plan"), // How to test this change
+  
+  // Status and review
+  status: text("status").notNull().default("pending"), // 'pending', 'under_review', 'approved', 'implemented', 'rejected'
+  priority: text("priority").notNull().default("medium"), // 'low', 'medium', 'high', 'critical'
+  
+  // Review process
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  
+  // Implementation tracking
+  implementedBy: varchar("implemented_by").references(() => users.id),
+  implementedAt: timestamp("implemented_at"),
+  implementationNotes: text("implementation_notes"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Feedback metrics table for tracking system improvement over time
+export const feedbackMetrics = pgTable("feedback_metrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Time period
+  periodType: text("period_type").notNull(), // 'daily', 'weekly', 'monthly'
+  periodStart: timestamp("period_start").notNull(),
+  periodEnd: timestamp("period_end").notNull(),
+  
+  // Feedback statistics
+  totalFeedback: integer("total_feedback").notNull().default(0),
+  appliedFeedback: integer("applied_feedback").notNull().default(0),
+  rejectedFeedback: integer("rejected_feedback").notNull().default(0),
+  pendingFeedback: integer("pending_feedback").notNull().default(0),
+  
+  // Pattern statistics
+  patternsDiscovered: integer("patterns_discovered").notNull().default(0),
+  patternsActivated: integer("patterns_activated").notNull().default(0),
+  patternsDeprecated: integer("patterns_deprecated").notNull().default(0),
+  
+  // Accuracy metrics
+  accuracyBefore: decimal("accuracy_before", { precision: 5, scale: 4 }), // 0-1
+  accuracyAfter: decimal("accuracy_after", { precision: 5, scale: 4 }), // 0-1
+  improvementRate: decimal("improvement_rate", { precision: 5, scale: 4 }), // -1 to 1
+  
+  // Performance metrics
+  avgProcessingTime: integer("avg_processing_time"), // milliseconds
+  errorRate: decimal("error_rate", { precision: 5, scale: 4 }), // 0-1
+  
+  // Field-specific improvements
+  fieldImprovements: jsonb("field_improvements"), // Improvements by field
+  categoryImprovements: jsonb("category_improvements"), // Improvements by category
+  
+  // System health
+  systemHealth: jsonb("system_health"), // Overall system health metrics
+  regressions: jsonb("regressions"), // Any detected regressions
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// A/B testing table for testing improvements
+export const abTests = pgTable("ab_tests", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Test identification
+  testName: text("test_name").notNull(),
+  testDescription: text("test_description"),
+  testType: text("test_type").notNull(), // 'pattern', 'threshold', 'weight', 'rule', 'model'
+  
+  // Test configuration
+  variantA: jsonb("variant_a").notNull(), // Control variant
+  variantB: jsonb("variant_b").notNull(), // Test variant
+  
+  // Test parameters
+  sampleSize: integer("sample_size").notNull(),
+  confidenceLevel: decimal("confidence_level", { precision: 5, scale: 4 }).notNull().default("0.95"), // 0-1
+  minimumDetectableEffect: decimal("minimum_detectable_effect", { precision: 5, scale: 4 }), // 0-1
+  
+  // Test status
+  status: text("status").notNull().default("draft"), // 'draft', 'running', 'paused', 'completed', 'cancelled'
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  
+  // Results
+  variantAMetrics: jsonb("variant_a_metrics"), // Performance metrics for variant A
+  variantBMetrics: jsonb("variant_b_metrics"), // Performance metrics for variant B
+  winner: text("winner"), // 'a', 'b', 'no_difference'
+  statisticalSignificance: decimal("statistical_significance", { precision: 5, scale: 4 }), // p-value
+  
+  // Decision
+  decision: text("decision"), // 'adopt_b', 'keep_a', 'continue_testing', 'abandon'
+  decisionReason: text("decision_reason"),
+  decidedBy: varchar("decided_by").references(() => users.id),
+  decidedAt: timestamp("decided_at"),
+  
+  // Metadata
+  relatedPatternId: varchar("related_pattern_id").references(() => learnedPatterns.id),
+  relatedSuggestionId: varchar("related_suggestion_id").references(() => improvementSuggestions.id),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Insert schemas for Feedback tables
+export const insertFeedbackSchema = createInsertSchema(feedback).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  appliedAt: true,
+  rejectedAt: true,
+});
+
+export const insertLearnedPatternSchema = createInsertSchema(learnedPatterns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  firstSeen: true,
+  lastSeen: true,
+  activatedAt: true,
+  deactivatedAt: true,
+});
+
+export const insertImprovementSuggestionSchema = createInsertSchema(improvementSuggestions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  reviewedAt: true,
+  implementedAt: true,
+});
+
+export const insertFeedbackMetricsSchema = createInsertSchema(feedbackMetrics).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAbTestSchema = createInsertSchema(abTests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  startedAt: true,
+  endedAt: true,
+  decidedAt: true,
+});
+
 // Insert schemas for UCC Intelligence tables
 export const insertUccStateFormatSchema = createInsertSchema(uccStateFormats).omit({
   id: true,
@@ -2222,6 +2471,22 @@ export type SmartSearch = typeof smartSearches.$inferSelect;
 
 export type InsertSearchHistory = z.infer<typeof insertSearchHistorySchema>;
 export type SearchHistory = typeof searchHistory.$inferSelect;
+
+// Feedback system type exports
+export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
+export type Feedback = typeof feedback.$inferSelect;
+
+export type InsertLearnedPattern = z.infer<typeof insertLearnedPatternSchema>;
+export type LearnedPattern = typeof learnedPatterns.$inferSelect;
+
+export type InsertImprovementSuggestion = z.infer<typeof insertImprovementSuggestionSchema>;
+export type ImprovementSuggestion = typeof improvementSuggestions.$inferSelect;
+
+export type InsertFeedbackMetrics = z.infer<typeof insertFeedbackMetricsSchema>;
+export type FeedbackMetrics = typeof feedbackMetrics.$inferSelect;
+
+export type InsertAbTest = z.infer<typeof insertAbTestSchema>;
+export type AbTest = typeof abTests.$inferSelect;
 
 export type InsertPopularSearch = z.infer<typeof insertPopularSearchSchema>;
 export type PopularSearch = typeof popularSearches.$inferSelect;
