@@ -1358,9 +1358,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
 
-        // Validate email format
+        // Validate email format (only if email is present)
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(normalizedRow.email)) {
+        if (normalizedRow.email && normalizedRow.email.trim() !== '' && !emailRegex.test(normalizedRow.email)) {
           validationResults.errors.push({
             row: rowNum,
             error: "Invalid email format",
@@ -1369,28 +1369,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
 
-        // Validate phone format (at least 10 digits)
-        const phoneDigits = normalizedRow.phone.replace(/\D/g, '');
-        if (phoneDigits.length < 10) {
-          validationResults.errors.push({
-            row: rowNum,
-            error: "Invalid phone format (minimum 10 digits required)",
-            data: normalizedRow,
-          });
-          continue;
+        // Validate phone format (only if phone is present)
+        if (normalizedRow.phone && normalizedRow.phone.trim() !== '') {
+          const phoneDigits = normalizedRow.phone.replace(/\D/g, '');
+          if (phoneDigits.length < 10) {
+            validationResults.errors.push({
+              row: rowNum,
+              error: "Invalid phone format (minimum 10 digits required)",
+              data: normalizedRow,
+            });
+            continue;
+          }
         }
 
-        // Check for duplicates
-        const leadHash = createLeadHash(normalizedRow.email, normalizedRow.phone);
-        if (leadHashes.has(leadHash)) {
-          validationResults.warnings.push({
-            row: rowNum,
-            warning: "Duplicate lead (same email and phone)",
-            data: normalizedRow,
-          });
-          continue;
+        // Check for duplicates (only if we have email or phone to check)
+        if ((normalizedRow.email && normalizedRow.email.trim() !== '') || 
+            (normalizedRow.phone && normalizedRow.phone.trim() !== '')) {
+          const leadHash = createLeadHash(
+            normalizedRow.email || '', 
+            normalizedRow.phone || ''
+          );
+          if (leadHashes.has(leadHash)) {
+            validationResults.warnings.push({
+              row: rowNum,
+              warning: "Duplicate lead (same email and phone)",
+              data: normalizedRow,
+            });
+            continue;
+          }
+          leadHashes.add(leadHash);
         }
-        leadHashes.add(leadHash);
 
         // Calculate MCA quality score
         const qualityScore = calculateMCAQualityScore(normalizedRow);
