@@ -211,6 +211,39 @@ export const uccMonitoringAlerts = pgTable("ucc_monitoring_alerts", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Master Database Cache for comprehensive business intelligence
+export const masterDatabaseCache = pgTable("master_database_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityId: text("entity_id").notNull().unique(), // Unique business entity identifier
+  businessData: jsonb("business_data").notNull(), // Complete BusinessEntity object
+  searchIndexes: jsonb("search_indexes"), // Pre-computed search indexes
+  completeness: decimal("completeness", { precision: 5, scale: 4 }).notNull(), // 0.0000-1.0000
+  dataQuality: decimal("data_quality", { precision: 5, scale: 4 }).notNull(), // 0.0000-1.0000
+  lastVerified: timestamp("last_verified").notNull(),
+  sources: text("sources").array(), // Data sources used
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Intelligence Brain Decision Logs
+export const intelligenceDecisions = pgTable("intelligence_decisions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  strategy: text("strategy").notNull(), // 'minimal', 'standard', 'comprehensive', 'maximum'
+  priority: integer("priority").notNull(), // 1-10
+  services: text("services").array(), // Services selected for enrichment
+  estimatedCost: decimal("estimated_cost", { precision: 10, scale: 4 }).notNull(),
+  actualCost: decimal("actual_cost", { precision: 10, scale: 4 }),
+  confidence: decimal("confidence", { precision: 5, scale: 4 }).notNull(), // 0.0000-1.0000
+  reasoning: text("reasoning").notNull(),
+  skipReasons: text("skip_reasons").array(),
+  executionTime: integer("execution_time"), // milliseconds
+  success: boolean("success"),
+  errorMessage: text("error_message"),
+  resultMetrics: jsonb("result_metrics"), // Detailed metrics about the decision outcome
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
 // Saved searches for smart lead matching
 export const savedSearches = pgTable("saved_searches", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -2502,6 +2535,10 @@ export type UccIntelligence = typeof uccIntelligence.$inferSelect;
 
 export type InsertUccRelationship = z.infer<typeof insertUccRelationshipSchema>;
 export type UccRelationship = typeof uccRelationships.$inferSelect;
+
+// Master Database and Intelligence Brain type exports
+export type MasterDatabaseCache = typeof masterDatabaseCache.$inferSelect;
+export type IntelligenceDecision = typeof intelligenceDecisions.$inferSelect;
 
 export type InsertEntityMatch = z.infer<typeof insertEntityMatchSchema>;
 export type EntityMatch = typeof entityMatches.$inferSelect;
