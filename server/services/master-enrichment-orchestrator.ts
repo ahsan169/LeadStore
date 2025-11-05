@@ -106,7 +106,6 @@ export class MasterEnrichmentOrchestrator {
   private uccLeadConnector: UccLeadConnector;
   private comprehensiveEnricher: ComprehensiveLeadEnricher;
   private leadCompletionAnalyzer: LeadCompletionAnalyzer;
-  private enrichmentQueue: EnrichmentQueue;
   
   private defaultConfig: MasterEnrichmentConfig = {
     enableUccIntelligence: true,
@@ -142,7 +141,6 @@ export class MasterEnrichmentOrchestrator {
     this.uccLeadConnector = new UccLeadConnector();
     this.comprehensiveEnricher = new ComprehensiveLeadEnricher();
     this.leadCompletionAnalyzer = new LeadCompletionAnalyzer();
-    this.enrichmentQueue = new EnrichmentQueue();
     
     // Register event listeners for automatic enrichment
     this.registerEventListeners();

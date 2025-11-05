@@ -1,9 +1,14 @@
-import { Lead, InsertLead } from "@shared/schema";
+import { Lead, InsertLead, enrichmentJobs, type InsertEnrichmentJob } from "@shared/schema";
 import { storage } from "../storage";
+import { db } from "../db";
+import { eq, and, or, desc, asc, lte, gte } from "drizzle-orm";
 import { leadCompletionAnalyzer } from "./lead-completion-analyzer";
 import { ComprehensiveLeadEnricher, EnrichmentResult, EnrichmentOptions } from "./comprehensive-lead-enricher";
+import { MasterEnrichmentOrchestrator } from "./master-enrichment-orchestrator";
+import { IntelligenceBrain } from "./intelligence-brain";
 import { eventBus } from "./event-bus";
 import { brainPipeline } from "../intelligence/brain-pipeline";
+import { webSocketService } from "./websocket-service";
 
 interface QueueItem {
   id: string;
@@ -45,9 +50,17 @@ interface EnrichmentStats {
 export class EnrichmentQueue {
   private queue: Map<string, QueueItem> = new Map();
   private processing: Set<string> = new Set();
+  private deadLetterQueue: Map<string, QueueItem> = new Map();
+  
+  // Enrichment services (lazy loaded to avoid circular dependencies)
   private enricher: ComprehensiveLeadEnricher;
+  private masterOrchestrator: MasterEnrichmentOrchestrator | null = null;
+  private intelligenceBrain: IntelligenceBrain | null = null;
+  
   private isProcessing: boolean = false;
   private processInterval?: NodeJS.Timeout;
+  
+  // Enhanced stats tracking
   private stats: EnrichmentStats = {
     totalProcessed: 0,
     successful: 0,
@@ -58,6 +71,14 @@ export class EnrichmentQueue {
     successRate: 0
   };
   
+  // API credit tracking
+  private creditUsage: Map<string, { used: number; limit: number }> = new Map([
+    ['perplexity', { used: 0, limit: 1000 }],
+    ['hunter', { used: 0, limit: 2000 }],
+    ['openai', { used: 0, limit: 5000 }],
+    ['numverify', { used: 0, limit: 3000 }]
+  ]);
+  
   private rateLimits: RateLimitConfig = {
     perplexity: { requestsPerMinute: 20, currentCount: 0, resetTime: new Date() },
     hunter: { requestsPerMinute: 50, currentCount: 0, resetTime: new Date() },
@@ -65,20 +86,73 @@ export class EnrichmentQueue {
     openai: { requestsPerMinute: 60, currentCount: 0, resetTime: new Date() }
   };
   
-  private readonly BATCH_SIZE = 5; // Process 5 items at a time
-  private readonly PROCESS_INTERVAL = 5000; // Check queue every 5 seconds
-  private readonly MAX_CONCURRENT = 3; // Max concurrent enrichment processes
+  // Processing configuration
+  private readonly BATCH_SIZE = 10; // Process up to 10 items at a time
+  private readonly PROCESS_INTERVAL = 3000; // Check queue every 3 seconds
+  private readonly MAX_CONCURRENT = 5; // Max concurrent enrichment processes
+  private readonly MAX_RETRY_DELAY = 300000; // Max 5 minutes between retries
+  private readonly DEAD_LETTER_THRESHOLD = 5; // Move to dead letter after 5 retries
   
   constructor() {
     this.enricher = new ComprehensiveLeadEnricher();
+    // Delay initialization of services to avoid circular dependencies
+    
     this.startProcessing();
+    this.loadPendingJobs(); // Load any pending jobs from database
     
     // Register event listeners
+    this.registerEventListeners();
+    
+    console.log('[EnrichmentQueue] Initialized with Brain integration and started processing');
+  }
+  
+  /**
+   * Get or create master orchestrator (lazy loading)
+   */
+  private getMasterOrchestrator(): MasterEnrichmentOrchestrator {
+    if (!this.masterOrchestrator) {
+      const { MasterEnrichmentOrchestrator } = require('./master-enrichment-orchestrator');
+      this.masterOrchestrator = new MasterEnrichmentOrchestrator({ 
+        enableUccIntelligence: true,
+        enableLeadIntelligence: true,
+        enableComprehensiveEnrichment: true,
+        enableVerification: true 
+      });
+    }
+    return this.masterOrchestrator;
+  }
+  
+  /**
+   * Get or create intelligence brain (lazy loading)
+   */
+  private getIntelligenceBrain(): IntelligenceBrain {
+    if (!this.intelligenceBrain) {
+      const { IntelligenceBrain } = require('./intelligence-brain');
+      this.intelligenceBrain = new IntelligenceBrain();
+    }
+    return this.intelligenceBrain;
+  }
+  
+  /**
+   * Register all event listeners for automatic enrichment
+   */
+  private registerEventListeners() {
+    // Lead upload triggers Brain analysis
     eventBus.on('lead:uploaded', this.handleLeadUploaded.bind(this));
+    eventBus.on('batch:uploaded', this.handleBatchUploaded.bind(this));
+    
+    // Lead view triggers enrichment check
     eventBus.on('lead:viewed', this.handleLeadViewed.bind(this));
+    
+    // Manual enrichment request
     eventBus.on('lead:enrichment-request', this.handleEnrichmentRequest.bind(this));
     
-    console.log('[EnrichmentQueue] Initialized and started processing');
+    // Brain decision events
+    eventBus.on('brain:decision', this.handleBrainDecision.bind(this));
+    
+    // Enrichment completion events
+    eventBus.on('enrichment:completed', this.handleEnrichmentComplete.bind(this));
+    eventBus.on('enrichment:failed', this.handleEnrichmentFailed.bind(this));
   }
   
   /**
@@ -165,7 +239,7 @@ export class EnrichmentQueue {
   }
   
   /**
-   * Process items from the queue
+   * Process items from the queue with priority-based selection
    */
   private async processQueue(): Promise<void> {
     if (this.isProcessing || this.processing.size >= this.MAX_CONCURRENT) {
@@ -179,13 +253,33 @@ export class EnrichmentQueue {
       const itemsToProcess = this.getNextItems();
       
       if (itemsToProcess.length === 0) {
+        // Check dead letter queue for retry candidates
+        await this.retryDeadLetterItems();
         this.isProcessing = false;
         return;
       }
       
+      // Update real-time stats
+      this.stats.pending = this.queue.size;
+      
       // Process items in parallel (up to BATCH_SIZE)
-      const promises = itemsToProcess.map(item => this.processItem(item));
-      await Promise.allSettled(promises);
+      const promises = itemsToProcess.map(item => this.processItemWithBrain(item));
+      const results = await Promise.allSettled(promises);
+      
+      // Emit batch processing status
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failCount = results.filter(r => r.status === 'rejected').length;
+      
+      webSocketService.broadcast({
+        type: 'enrichment:batch-processed',
+        data: {
+          processed: results.length,
+          successful: successCount,
+          failed: failCount,
+          queueSize: this.queue.size,
+          stats: this.getStats()
+        }
+      });
       
     } catch (error) {
       console.error('[EnrichmentQueue] Error processing queue:', error);
@@ -277,16 +371,17 @@ export class EnrichmentQueue {
         }
         
       } else {
-        // Check if we should use master enrichment orchestrator
-        const useOrchestrator = item.enrichmentOptions?.useOrchestrator || 
-                               (item as any).useOrchestrator || 
-                               (item as any).metadata?.useOrchestrator;
+        // Always use Brain to decide enrichment strategy
+        console.log(`[EnrichmentQueue] Using Intelligence Brain for lead ${item.leadId}`);
         
-        if (useOrchestrator) {
-        console.log(`[EnrichmentQueue] Using Master Enrichment Orchestrator for lead ${item.leadId}`);
+        // Get Brain decision for this lead
+        const brainDecision = await this.getIntelligenceBrain().analyzeAndDecide(item.leadData as Lead);
         
-        // Import and use master orchestrator
-        const { masterEnrichmentOrchestrator } = await import('./master-enrichment-orchestrator');
+        // Store Brain decision in database
+        await this.storeBrainDecision(item.leadId, brainDecision);
+        
+        // Use Master Enrichment Orchestrator based on Brain decision
+        console.log(`[EnrichmentQueue] Brain strategy: ${brainDecision.strategy} for lead ${item.leadId}`);
         
         // Convert lead data for orchestrator
         const leadForOrchestrator = {
@@ -294,13 +389,12 @@ export class EnrichmentQueue {
           id: item.leadId
         } as Lead;
         
-        // Execute master orchestration
-        const orchestratorResult = await masterEnrichmentOrchestrator.enrichLead(leadForOrchestrator, {
+        // Execute master orchestration with Brain-selected services
+        const orchestratorResult = await this.getMasterOrchestrator().enrichLead(leadForOrchestrator, {
           source: item.source || 'queue',
           userId: item.userId,
           priority: item.priority,
-          forceRefresh: item.enrichmentOptions?.forceRefresh || false,
-          cascadeDepth: (item as any).metadata?.cascadeDepth || 2
+          forceRefresh: item.enrichmentOptions?.forceRefresh || false
         });
         
         // Convert orchestrator result to EnrichmentResult format
@@ -347,15 +441,6 @@ export class EnrichmentQueue {
         } as EnrichmentResult;
         
         console.log(`[EnrichmentQueue] Master Enrichment completed - Score: ${orchestratorResult.masterEnrichmentScore}`);
-        
-        } else {
-          // Use standard enrichment
-          console.log(`[EnrichmentQueue] Using standard enrichment for lead ${item.leadId}`);
-          result = await this.enricher.enrichSingleLead(
-            item.leadData,
-            item.enrichmentOptions || {}
-          );
-        }
       }
       
       // Save enriched data
@@ -718,6 +803,343 @@ export class EnrichmentQueue {
       console.error('[EnrichmentQueue] Error queuing incomplete leads:', error);
       return 0;
     }
+  }
+  /**
+   * Load pending jobs from database on startup
+   */
+  private async loadPendingJobs(): Promise<void> {
+    try {
+      const pendingJobs = await db
+        .select()
+        .from(enrichmentJobs)
+        .where(or(
+          eq(enrichmentJobs.status, 'pending'),
+          eq(enrichmentJobs.status, 'processing')
+        ))
+        .limit(100);
+      
+      console.log(`[EnrichmentQueue] Loading ${pendingJobs.length} pending jobs from database`);
+      
+      for (const job of pendingJobs) {
+        const queueItem: QueueItem = {
+          id: job.id,
+          leadId: job.leadId,
+          leadData: {}, // Will be loaded when processing
+          priority: job.priority as 'high' | 'medium' | 'low',
+          retryCount: job.retryCount,
+          maxRetries: job.maxRetries,
+          status: job.status as QueueItem['status'],
+          error: job.error || undefined,
+          createdAt: job.createdAt,
+          processedAt: job.processedAt || undefined,
+          completedAt: job.completedAt || undefined,
+          enrichmentOptions: job.enrichmentOptions,
+          source: job.source,
+          userId: job.userId || undefined,
+          batchId: job.batchId || undefined
+        };
+        
+        this.queue.set(queueItem.id, queueItem);
+      }
+      
+      console.log(`[EnrichmentQueue] Loaded ${this.queue.size} jobs into queue`);
+    } catch (error) {
+      console.error('[EnrichmentQueue] Error loading pending jobs:', error);
+    }
+  }
+  
+  /**
+   * Update lead status in database
+   */
+  private async updateLeadStatus(leadId: string, status: 'queued' | 'processing' | 'enriched' | 'failed'): Promise<void> {
+    try {
+      await storage.updateLead(leadId, {
+        enrichmentStatus: status,
+        lastStatusUpdate: new Date()
+      } as any);
+    } catch (error) {
+      console.error(`[EnrichmentQueue] Error updating lead status for ${leadId}:`, error);
+    }
+  }
+  
+  /**
+   * Store enrichment result in database
+   */
+  private async storeEnrichmentResult(item: QueueItem, result: any, decision: any): Promise<void> {
+    try {
+      // Update enrichment job record
+      if (item.id) {
+        await db
+          .update(enrichmentJobs)
+          .set({
+            status: 'completed',
+            result: result,
+            completedAt: new Date(),
+            enrichmentCost: decision.estimatedCost
+          })
+          .where(eq(enrichmentJobs.id, item.id));
+      }
+      
+      // Store intelligence decision
+      await db.insert(intelligenceDecisions).values({
+        leadId: item.leadId,
+        decisionType: 'enrichment',
+        strategy: decision.strategy,
+        confidence: decision.confidence,
+        reasoning: decision.reasoning,
+        services: decision.services,
+        estimatedCost: decision.estimatedCost,
+        actualCost: decision.actualCost || decision.estimatedCost,
+        priority: decision.priority,
+        metadata: {
+          queueId: item.id,
+          source: item.source,
+          enrichmentScore: result.masterEnrichmentScore,
+          dataCompleteness: result.dataCompleteness
+        }
+      });
+    } catch (error) {
+      console.error('[EnrichmentQueue] Error storing enrichment result:', error);
+    }
+  }
+  
+  /**
+   * Store Brain decision in database
+   */
+  private async storeBrainDecision(leadId: string, decision: any): Promise<void> {
+    try {
+      await db.insert(intelligenceDecisions).values({
+        leadId,
+        decisionType: 'brain_analysis',
+        strategy: decision.strategy,
+        confidence: decision.confidence,
+        reasoning: decision.reasoning,
+        services: decision.services,
+        estimatedCost: decision.estimatedCost,
+        priority: decision.priority,
+        metadata: decision
+      });
+    } catch (error) {
+      console.error('[EnrichmentQueue] Error storing Brain decision:', error);
+    }
+  }
+  
+  /**
+   * Track API credits consumed
+   */
+  private trackApiCredits(result: any): void {
+    // Update credit usage based on enrichment result
+    if (result.enrichmentMetadata?.apiCalls) {
+      for (const system of result.enrichmentSystems || []) {
+        const service = system.systemName.toLowerCase();
+        const usage = this.creditUsage.get(service);
+        if (usage) {
+          usage.used += system.apiCallsUsed?.length || 1;
+        }
+      }
+    }
+    
+    // Emit credit usage update
+    websocketService.broadcast({
+      type: 'credits:updated',
+      data: Object.fromEntries(this.creditUsage)
+    });
+  }
+  
+  /**
+   * Update enrichment stats
+   */
+  private updateStats(success: boolean, processingTime: number): void {
+    if (success) {
+      this.stats.successful++;
+      this.updateAverageProcessingTime(processingTime);
+    } else {
+      this.stats.failed++;
+    }
+    
+    this.stats.totalProcessed++;
+    this.stats.pending = this.queue.size;
+    this.stats.successRate = this.stats.successful / this.stats.totalProcessed;
+    this.stats.errorRate = this.stats.failed / this.stats.totalProcessed;
+  }
+  
+  /**
+   * Get dead letter queue items
+   */
+  getDeadLetterItems(): QueueItem[] {
+    return Array.from(this.deadLetterQueue.values());
+  }
+  
+  /**
+   * Retry dead letter queue items
+   */
+  async retryDeadLetterItems(itemIds?: string[]): Promise<number> {
+    let retried = 0;
+    const now = Date.now();
+    const retryThreshold = 30 * 60 * 1000; // 30 minutes
+    
+    for (const [id, item] of this.deadLetterQueue.entries()) {
+      // If specific IDs provided, only retry those
+      if (itemIds && !itemIds.includes(id)) continue;
+      
+      // Otherwise, check if enough time has passed
+      if (!itemIds && item.completedAt && now - item.completedAt.getTime() < retryThreshold) continue;
+      
+      // Reset item for retry
+      item.status = 'pending';
+      item.retryCount = 0;
+      item.error = undefined;
+      item.completedAt = undefined;
+      item.processedAt = undefined;
+      
+      // Move back to main queue with low priority
+      item.priority = 'low';
+      this.queue.set(id, item);
+      this.deadLetterQueue.delete(id);
+      
+      retried++;
+      console.log(`[EnrichmentQueue] Retrying dead letter item ${id}`);
+    }
+    
+    return retried;
+  }
+  
+  /**
+   * Update Master Database with enrichment results
+   */
+  private async updateMasterDatabase(leadId: string, result: any): Promise<void> {
+    try {
+      // Store in master database cache
+      await storage.updateMasterDatabaseCache({
+        entityId: leadId,
+        businessData: result.finalData,
+        enrichmentScore: result.masterEnrichmentScore,
+        lastEnriched: new Date(),
+        sources: result.enrichmentSystems?.map((s: any) => s.systemName) || []
+      });
+    } catch (error) {
+      console.error('[EnrichmentQueue] Error updating master database:', error);
+    }
+  }
+  
+  /**
+   * Handle batch uploaded event
+   */
+  private async handleBatchUploaded(data: any): Promise<void> {
+    const { leads, batchId, userId } = data;
+    
+    console.log(`[EnrichmentQueue] Processing batch upload of ${leads.length} leads`);
+    
+    // Use Brain to evaluate the entire batch
+    const batchEvaluation = await this.getIntelligenceBrain().evaluateBatch(
+      leads.map((lead: Lead) => ({ lead })),
+      { batchId, strategy: 'balanced' }
+    );
+    
+    // Queue leads based on Brain decisions
+    for (const decision of batchEvaluation.decisions) {
+      if (decision.strategy !== 'minimal') {
+        const lead = leads.find((l: Lead) => l.id === decision.leadId);
+        if (lead) {
+          const priority = decision.priority > 8 ? 'high' : 
+                          decision.priority > 5 ? 'medium' : 'low';
+          
+          await this.addToQueue(lead, priority, 'upload', {
+            userId,
+            batchId
+          });
+        }
+      }
+    }
+    
+    // Emit batch processing status
+    websocketService.broadcast({
+      type: 'batch:enrichment-queued',
+      data: {
+        batchId,
+        totalLeads: leads.length,
+        queuedForEnrichment: batchEvaluation.decisions.filter(d => d.strategy !== 'minimal').length,
+        estimatedCost: batchEvaluation.batchPlan.totalEstimatedCost
+      }
+    });
+  }
+  
+  /**
+   * Handle Brain decision events
+   */
+  private async handleBrainDecision(data: any): Promise<void> {
+    const { lead, decision } = data;
+    
+    // Only process if Brain recommends enrichment
+    if (decision.strategy !== 'minimal' && !decision.skipReasons?.length) {
+      const priority = decision.priority > 8 ? 'high' : 
+                      decision.priority > 5 ? 'medium' : 'low';
+      
+      await this.addToQueue(lead, priority, 'brain', {
+        brainDecision: decision
+      });
+    }
+  }
+  
+  /**
+   * Handle enrichment completion
+   */
+  private async handleEnrichmentComplete(data: any): Promise<void> {
+    const { leadId, enrichmentScore, dataCompleteness } = data;
+    
+    // Update real-time monitoring
+    websocketService.broadcast({
+      type: 'enrichment:lead-complete',
+      data: {
+        leadId,
+        enrichmentScore,
+        dataCompleteness,
+        queueStats: this.getStats()
+      }
+    });
+    
+    console.log(`[EnrichmentQueue] Lead ${leadId} enrichment complete with score ${enrichmentScore}`);
+  }
+  
+  /**
+   * Handle enrichment failure
+   */
+  private async handleEnrichmentFailed(data: any): Promise<void> {
+    const { leadId, error, attempts } = data;
+    
+    console.error(`[EnrichmentQueue] Lead ${leadId} enrichment failed after ${attempts} attempts: ${error}`);
+    
+    // Alert for critical failures
+    if (attempts >= this.DEAD_LETTER_THRESHOLD) {
+      webSocketService.broadcast({
+        type: 'enrichment:critical-failure',
+        data: { leadId, error, attempts }
+      });
+    }
+  }
+  
+  /**
+   * Get monitoring metrics
+   */
+  getMonitoringMetrics(): any {
+    return {
+      queue: {
+        size: this.queue.size,
+        pending: Array.from(this.queue.values()).filter(i => i.status === 'pending').length,
+        processing: this.processing.size,
+        failed: Array.from(this.queue.values()).filter(i => i.status === 'failed').length,
+        deadLetter: this.deadLetterQueue.size
+      },
+      stats: this.stats,
+      creditUsage: Object.fromEntries(this.creditUsage),
+      rateLimits: Object.fromEntries(
+        Array.from(this.rateLimits).map(([k, v]) => [k, {
+          current: v.currentCount,
+          limit: v.requestsPerMinute,
+          resetIn: Math.max(0, v.resetTime.getTime() - Date.now())
+        }])
+      )
+    };
   }
 }
 

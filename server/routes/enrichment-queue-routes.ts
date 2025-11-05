@@ -26,13 +26,77 @@ export function registerEnrichmentQueueRoutes(app: Express) {
   app.get("/api/admin/enrichment/queue/stats", requireAuth, requireAdmin, async (req, res) => {
     try {
       const stats = enrichmentQueue.getStats();
+      const metrics = enrichmentQueue.getMonitoringMetrics();
+      
       res.json({
         success: true,
-        stats
+        stats,
+        metrics,
+        timestamp: new Date()
       });
     } catch (error) {
       console.error("Error fetching enrichment queue stats:", error);
       res.status(500).json({ error: "Failed to fetch enrichment queue statistics" });
+    }
+  });
+  
+  // GET /api/admin/enrichment/monitoring - Get comprehensive monitoring data
+  app.get("/api/admin/enrichment/monitoring", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const metrics = enrichmentQueue.getMonitoringMetrics();
+      
+      // Get recent enrichment jobs from database
+      const recentJobs = await storage.getRecentEnrichmentJobs(10);
+      
+      // Get enrichment analytics
+      const analytics = await storage.getEnrichmentAnalytics();
+      
+      res.json({
+        success: true,
+        monitoring: {
+          realtime: metrics,
+          recentJobs,
+          analytics,
+          timestamp: new Date()
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching enrichment monitoring data:", error);
+      res.status(500).json({ error: "Failed to fetch enrichment monitoring data" });
+    }
+  });
+  
+  // GET /api/admin/enrichment/queue/deadletter - Get dead letter queue items
+  app.get("/api/admin/enrichment/queue/deadletter", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const deadLetterItems = enrichmentQueue.getDeadLetterItems();
+      
+      res.json({
+        success: true,
+        items: deadLetterItems,
+        count: deadLetterItems.length
+      });
+    } catch (error) {
+      console.error("Error fetching dead letter queue:", error);
+      res.status(500).json({ error: "Failed to fetch dead letter queue items" });
+    }
+  });
+  
+  // POST /api/admin/enrichment/queue/deadletter/retry - Retry dead letter items
+  app.post("/api/admin/enrichment/queue/deadletter/retry", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { itemIds } = req.body;
+      
+      const retried = await enrichmentQueue.retryDeadLetterItems(itemIds);
+      
+      res.json({
+        success: true,
+        message: `Retried ${retried} items from dead letter queue`,
+        retriedCount: retried
+      });
+    } catch (error) {
+      console.error("Error retrying dead letter items:", error);
+      res.status(500).json({ error: "Failed to retry dead letter items" });
     }
   });
   
