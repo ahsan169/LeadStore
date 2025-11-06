@@ -25,6 +25,7 @@ import RulesManager from "@/components/admin/rules-manager";
 import KnowledgeManager from "@/components/admin/knowledge-manager";
 import EntityResolution from "@/components/admin/entity-resolution";
 import LearningCenter from "@/components/admin/learning-center";
+import LeadEnrichmentManager from "./lead-enrichment-manager";
 
 export default function SimplifiedAdminPage() {
   const { toast } = useToast();
@@ -1083,7 +1084,7 @@ export default function SimplifiedAdminPage() {
 
         {/* Enrichment Tab */}
         <TabsContent value="enrichment" className="space-y-4">
-          <AdminEnrichmentConfig />
+          <LeadEnrichmentManager />
         </TabsContent>
 
         {/* Settings Tab */}
