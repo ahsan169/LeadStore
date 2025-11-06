@@ -732,7 +732,7 @@ export default function EnrichmentDashboard() {
                     <span className="font-medium">Credits Saved</span>
                   </div>
                   <div className="text-2xl font-bold">
-                    ${stats?.intelligence?.creditsSaved?.toFixed(2) || 0}
+                    ${typeof stats?.intelligence?.creditsSaved === 'number' ? stats.intelligence.creditsSaved.toFixed(2) : 0}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Via smart routing
