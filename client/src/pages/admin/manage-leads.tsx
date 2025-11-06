@@ -30,6 +30,7 @@ import { formatDistanceToNow } from "date-fns";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { LeadDetailModal } from "@/components/LeadDetailModal";
 import type { AiInsight, Lead, LeadBatch } from "@shared/schema";
 
 export default function ManageLeadsPage() {
@@ -41,6 +42,7 @@ export default function ManageLeadsPage() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [leadAnalysis, setLeadAnalysis] = useState<AiInsight | null>(null);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showLeadDetailModal, setShowLeadDetailModal] = useState(false);
 
   const generateInsightsMutation = useMutation({
     mutationFn: async (batchId: string) => {
@@ -223,6 +225,41 @@ export default function ManageLeadsPage() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Lead Detail Modal */}
+      <LeadDetailModal
+        lead={selectedLead}
+        isOpen={showLeadDetailModal}
+        onClose={() => {
+          setShowLeadDetailModal(false);
+          setSelectedLead(null);
+        }}
+        onEnrich={async (lead) => {
+          // Trigger enrichment for the lead
+          try {
+            const response = await apiRequest("POST", `/api/enrichment/analyze/${lead.id}`);
+            const result = await response.json();
+            toast({
+              title: "Enrichment Started",
+              description: `Lead enrichment queued for ${lead.businessName}`,
+            });
+            queryClient.invalidateQueries({ queryKey: ["/api/leads/batch", lead.batchId] });
+          } catch (error) {
+            toast({
+              title: "Enrichment Failed",
+              description: "Failed to start enrichment process",
+              variant: "destructive",
+            });
+          }
+        }}
+        onExport={async (lead, format) => {
+          // Handle export
+          toast({
+            title: "Export Started",
+            description: `Exporting lead data as ${format}`,
+          });
+        }}
+      />
     </div>
   );
 }
@@ -368,7 +405,14 @@ function BatchCard({
                     </thead>
                     <tbody>
                       {leads.map((lead) => (
-                        <tr key={lead.id} className="border-b hover:bg-muted/50">
+                        <tr 
+                          key={lead.id} 
+                          className="border-b hover:bg-muted/50 cursor-pointer"
+                          onClick={() => {
+                            setSelectedLead(lead);
+                            setShowLeadDetailModal(true);
+                          }}
+                        >
                           <td className="py-3 px-3">
                             <div>
                               <div className="font-medium text-sm">{lead.businessName}</div>

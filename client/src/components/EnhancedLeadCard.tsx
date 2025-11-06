@@ -172,7 +172,10 @@ export function EnhancedLeadCard({
   const scoreDisplay = lead.unifiedLeadScore ? getScoreDisplay(lead.unifiedLeadScore) : null;
 
   return (
-    <Card className="hover-elevate">
+    <Card 
+      className="hover-elevate cursor-pointer transition-all duration-200 hover:shadow-lg"
+      onClick={() => onViewDetails?.(lead)}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex-1">
