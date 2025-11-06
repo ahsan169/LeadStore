@@ -61,6 +61,7 @@ import { registerEnrichmentQueueRoutes } from "./routes/enrichment-queue-routes"
 import { masterEnrichmentOrchestrator } from "./services/master-enrichment-orchestrator";
 import { registerBrainRoutes } from "./routes/brain";
 import { registerEnrichmentDashboardRoutes } from "./routes/enrichment-dashboard-routes";
+import { registerMultiSourceVerificationRoutes } from "./routes/multi-source-verification-routes";
 import rulesRouter from "./routes/rules";
 import { setupAdminRoutes } from "./routes/admin";
 import { setupAdminUploadRoutes } from "./routes/admin-upload";
@@ -1135,6 +1136,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register enrichment dashboard routes
   registerEnrichmentDashboardRoutes(app);
+  
+  // Register multi-source verification routes
+  registerMultiSourceVerificationRoutes(app);
   
   // Register rules management routes
   app.use(rulesRouter);
