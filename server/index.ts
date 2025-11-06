@@ -103,7 +103,11 @@ app.use(passport.session());
 // Login route (before other routes)
 app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
   if (req.user) {
-    const { password, ...userWithoutPassword } = req.user as User;
+    const user = req.user as User;
+    req.session.userId = user.id;
+    req.session.userRole = user.role;
+    
+    const { password, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
   } else {
     res.status(401).json({ error: "Authentication failed" });
