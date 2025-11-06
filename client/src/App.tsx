@@ -15,7 +15,8 @@ import PaymentSuccessPage from "@/pages/payment-success";
 import PaymentCancelPage from "@/pages/payment-cancel";
 import SimplifiedAdminPage from "@/pages/admin/simplified-admin";
 import IntelligenceDashboard from "@/pages/intelligence-dashboard";
-import { Home, Package, DollarSign, Users, Upload, LogOut, ShoppingCart, CreditCard, Settings, Brain } from "lucide-react";
+import EnrichmentDashboard from "@/pages/admin/enrichment-dashboard";
+import { Home, Package, DollarSign, Users, Upload, LogOut, ShoppingCart, CreditCard, Settings, Brain, Zap } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -52,6 +53,7 @@ function AppSidebar() {
     { title: "Buy Leads", url: "/purchase", icon: ShoppingCart },
     { title: "My Purchases", url: "/purchases", icon: Package },
     { title: "Intelligence", url: "/intelligence", icon: Brain },
+    { title: "Enrichment", url: "/enrichment", icon: Zap },
     { title: "Admin Panel", url: "/admin", icon: Settings },
   ];
 
@@ -180,6 +182,7 @@ function Router() {
               {user.role === "admin" && (
                 <>
                   <Route path="/intelligence" component={IntelligenceDashboard} />
+                  <Route path="/enrichment" component={EnrichmentDashboard} />
                   <Route path="/admin" component={SimplifiedAdminPage} />
                   <Route path="/admin/upload" component={SimplifiedAdminPage} />
                   <Route path="/admin/customers" component={SimplifiedAdminPage} />

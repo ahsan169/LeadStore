@@ -1141,6 +1141,36 @@ export class EnrichmentQueue {
       )
     };
   }
+  
+  /**
+   * Pause queue processing
+   */
+  pauseProcessing(): void {
+    this.isProcessing = false;
+    if (this.processingInterval) {
+      clearInterval(this.processingInterval);
+      this.processingInterval = null;
+    }
+    console.log('[EnrichmentQueue] Processing paused');
+  }
+  
+  /**
+   * Resume queue processing
+   */
+  resumeProcessing(): void {
+    this.startProcessing();
+    console.log('[EnrichmentQueue] Processing resumed');
+  }
+  
+  /**
+   * Clear dead letter queue
+   */
+  clearDeadLetterQueue(): number {
+    const count = this.deadLetterQueue.size;
+    this.deadLetterQueue.clear();
+    console.log(`[EnrichmentQueue] Cleared ${count} items from dead letter queue`);
+    return count;
+  }
 }
 
 // Export singleton instance

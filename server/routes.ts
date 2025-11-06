@@ -60,6 +60,7 @@ import { eventBus } from "./services/event-bus";
 import { registerEnrichmentQueueRoutes } from "./routes/enrichment-queue-routes";
 import { masterEnrichmentOrchestrator } from "./services/master-enrichment-orchestrator";
 import { registerBrainRoutes } from "./routes/brain";
+import { registerEnrichmentDashboardRoutes } from "./routes/enrichment-dashboard-routes";
 import rulesRouter from "./routes/rules";
 import { setupAdminRoutes } from "./routes/admin";
 import { setupAdminUploadRoutes } from "./routes/admin-upload";
@@ -1131,6 +1132,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Register brain pipeline routes
   registerBrainRoutes(app);
+  
+  // Register enrichment dashboard routes
+  registerEnrichmentDashboardRoutes(app);
   
   // Register rules management routes
   app.use(rulesRouter);
