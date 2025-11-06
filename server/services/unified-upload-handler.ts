@@ -12,6 +12,7 @@ import { FieldMapper, CanonicalField, FIELD_VALIDATORS, fieldMapper } from '../i
 import { openAIService } from './openai-service';
 import { DataCompletenessAnalyzer, type AnalysisReport, type BatchAnalysisReport } from './data-completeness-analyzer';
 import type { EnrichmentDecision } from "./intelligence-brain";
+import { aiDecisionEngine, type EnrichmentStrategy } from "./ai-decision-engine";
 
 interface UploadResult {
   batchId: string;
@@ -1376,40 +1377,81 @@ export class UnifiedUploadHandler {
       }
     }
     
-    // AUTO-ENRICHMENT: Trigger automatic enrichment if enabled
+    // AUTO-ENRICHMENT: Use AI Decision Engine for intelligent enrichment
     if (options.autoEnrich && options.intelligentProcessing) {
-      console.log(`[UnifiedUploadHandler] Triggering automatic enrichment for high-priority leads...`);
+      console.log(`[UnifiedUploadHandler] AI Decision Engine analyzing batch for intelligent enrichment...`);
       
-      // Filter decisions that should be enriched
-      const enrichmentDecisions = brainDecisions.decisions.filter(d => 
-        d.services.length > 0 && 
-        d.confidence > 0.5 &&
-        !d.skipReasons?.length
+      // Use AI Decision Engine to analyze the batch
+      const aiEnrichmentPlan = await aiDecisionEngine.analyzeBatch(processedLeads, result.batchId);
+      
+      // Log AI analysis
+      console.log(`[UnifiedUploadHandler] AI Decision Engine Analysis:
+        - Total Leads: ${aiEnrichmentPlan.totalLeads}
+        - Leads to Enrich: ${aiEnrichmentPlan.leadsToEnrich}
+        - Leads to Skip: ${aiEnrichmentPlan.leadsToSkip}
+        - Estimated Cost: $${aiEnrichmentPlan.totalEstimatedCost.toFixed(2)}
+        - Priority Breakdown: High=${aiEnrichmentPlan.priorityBreakdown.high}, Medium=${aiEnrichmentPlan.priorityBreakdown.medium}, Low=${aiEnrichmentPlan.priorityBreakdown.low}
+        - Cost Optimizations: ${aiEnrichmentPlan.costOptimizations.length} identified
+      `);
+      
+      // Execute enrichment for selected strategies
+      const enrichmentResults = await aiDecisionEngine.executeEnrichment(
+        aiEnrichmentPlan.strategies,
+        options.autoEnrich
       );
       
-      // Process batch enrichment through the Brain
-      const enrichmentResults = await this.intelligenceBrain.processBatchEnrichment(
-        enrichmentDecisions
-      );
+      result.enrichedCount = enrichmentResults.queued;
+      result.estimatedCost = aiEnrichmentPlan.totalEstimatedCost;
       
-      result.enrichedCount = enrichmentResults.success;
-      result.estimatedCost = brainDecisions.batchPlan.totalEstimatedCost;
+      // Store AI strategies in result
+      result.intelligenceDecisions = aiEnrichmentPlan.strategies.map(s => ({
+        leadId: s.leadId,
+        strategy: s.reasoning,
+        confidence: s.confidence
+      }));
+      
+      // Add enhanced brain analysis
+      result.brainAnalysis = {
+        totalDecisions: aiEnrichmentPlan.strategies.length,
+        estimatedTotalCost: aiEnrichmentPlan.totalEstimatedCost,
+        expectedQualityGain: aiEnrichmentPlan.strategies.reduce((sum, s) => sum + s.expectedQualityGain, 0) / aiEnrichmentPlan.strategies.length,
+        groupedStrategies: {
+          high: aiEnrichmentPlan.strategies.filter(s => s.priority === 'high').map(s => s.leadId),
+          medium: aiEnrichmentPlan.strategies.filter(s => s.priority === 'medium').map(s => s.leadId),
+          low: aiEnrichmentPlan.strategies.filter(s => s.priority === 'low').map(s => s.leadId)
+        },
+        costOptimizations: aiEnrichmentPlan.costOptimizations,
+        priorityOrder: aiEnrichmentPlan.strategies.map(s => s.leadId),
+        enrichmentJobs: aiEnrichmentPlan.strategies
+          .filter(s => s.priority !== 'skip')
+          .map(s => ({
+            leadId: s.leadId,
+            priority: s.priority === 'high' ? 10 : s.priority === 'medium' ? 5 : 3,
+            estimatedTime: s.estimatedTime
+          }))
+      };
       
       // Add automatic enrichment summary
       result.automaticEnrichmentSummary = {
-        totalQueued: enrichmentResults.success,
+        totalQueued: enrichmentResults.queued,
         totalSkipped: enrichmentResults.skipped,
         totalFailed: enrichmentResults.failed,
-        estimatedCompletionTime: brainDecisions.batchPlan.enrichmentJobs
-          .reduce((sum, job) => sum + job.estimatedTime, 0)
+        estimatedCompletionTime: aiEnrichmentPlan.totalEstimatedTime
       };
       
-      console.log(`[UnifiedUploadHandler] Automatic enrichment summary:
-        - Queued: ${enrichmentResults.success} leads
+      console.log(`[UnifiedUploadHandler] AI-Driven automatic enrichment summary:
+        - Queued: ${enrichmentResults.queued} leads
         - Skipped: ${enrichmentResults.skipped} leads
         - Failed: ${enrichmentResults.failed} leads
         - Estimated completion time: ${result.automaticEnrichmentSummary.estimatedCompletionTime}s
       `);
+      
+      // Emit event for AI-driven enrichment
+      eventBus.emit('upload:ai:enrichment:complete', {
+        batchId: result.batchId,
+        plan: aiEnrichmentPlan,
+        results: enrichmentResults
+      });
     }
     
     // Log enhanced analysis summary
