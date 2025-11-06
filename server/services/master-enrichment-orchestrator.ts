@@ -13,6 +13,7 @@ import { hunterService } from "./enrichment/hunter-service";
 import { numverifyService } from "../numverify-service";
 import { perplexityResearch } from "./perplexity-research";
 import { mcaScoringService } from "./mca-scoring-service";
+import { intelligentEnrichmentOrchestrator } from "./intelligent-enrichment-orchestrator";
 import OpenAI from "openai";
 
 // Initialize OpenAI
@@ -273,8 +274,33 @@ export class MasterEnrichmentOrchestrator {
     const parallelTasks = [];
     const startTime = Date.now();
     
-    // Comprehensive enrichment (Hunter, Numverify, etc.)
-    if (this.config.enableComprehensiveEnrichment) {
+    // Use IntelligentEnrichmentOrchestrator as the main enrichment engine
+    // This includes caching, QA validation, audit trail, and analytics
+    parallelTasks.push(
+      this.runWithTracking('IntelligentOrchestrator', async () => {
+        const orchestratorResult = await intelligentEnrichmentOrchestrator.enrichLead(leadData, {
+          strategy: 'comprehensive',
+          forceRefresh: false,
+          priority: 'high',
+          budget: 1.0,
+          timeoutMs: this.config.timeoutMs
+        });
+        
+        // The orchestrator result includes enriched lead with all integrated services
+        return {
+          ...orchestratorResult.enrichedLead,
+          servicesUsed: orchestratorResult.servicesUsed,
+          totalCost: orchestratorResult.totalCost,
+          processingTime: orchestratorResult.processingTime,
+          successRate: orchestratorResult.successRate,
+          errors: orchestratorResult.errors,
+          warnings: orchestratorResult.warnings
+        };
+      })
+    );
+    
+    // Keep existing comprehensive enrichment as fallback
+    if (this.config.enableComprehensiveEnrichment && !this.config.enableUccIntelligence) {
       parallelTasks.push(
         this.runWithTracking('ComprehensiveEnricher', async () => {
           return await this.comprehensiveEnricher.enrichSingleLead(leadData, {

@@ -9,6 +9,10 @@ import { perplexityResearch } from "./perplexity-research";
 import { mcaScoringService } from "./mca-scoring-service";
 import { comprehensiveLeadEnricher } from "./comprehensive-lead-enricher";
 import { dataFusionEngine } from "./data-fusion-engine";
+import { EnrichmentQualityAssurance } from "./enrichment-quality-assurance";
+import { EnrichmentCache } from "./enrichment-cache";
+import { EnrichmentAuditTrail, AuditEventType, AuditSeverity } from "./enrichment-audit-trail";
+import { EnrichmentAnalytics } from "./enrichment-analytics";
 
 /**
  * Intelligent Enrichment Orchestrator
@@ -69,6 +73,12 @@ export class IntelligentEnrichmentOrchestrator {
   private enrichmentStrategies: Map<string, EnrichmentStrategy> = new Map();
   private activeEnrichments: Map<string, Promise<any>> = new Map();
   
+  // Integrated enrichment services
+  private qualityAssurance: EnrichmentQualityAssurance;
+  private enrichmentCache: EnrichmentCache;
+  private auditTrail: EnrichmentAuditTrail;
+  private analytics: EnrichmentAnalytics;
+  
   // Default configurations
   private defaultRetryConfig: RetryConfig = {
     maxAttempts: 3,
@@ -90,11 +100,22 @@ export class IntelligentEnrichmentOrchestrator {
   };
   
   constructor() {
+    // Initialize integrated services
+    this.qualityAssurance = new EnrichmentQualityAssurance();
+    this.enrichmentCache = new EnrichmentCache({
+      maxEntries: 10000,
+      defaultTTL: 3600000, // 1 hour
+      intelligentTTL: true,
+      deduplicationThreshold: 0.85
+    });
+    this.auditTrail = new EnrichmentAuditTrail();
+    this.analytics = new EnrichmentAnalytics();
+    
     this.initializeServiceConfigs();
     this.initializeEnrichmentStrategies();
     this.startHealthMonitoring();
     
-    console.log('[IntelligentOrchestrator] Initialized with circuit breakers and retry logic');
+    console.log('[IntelligentOrchestrator] Initialized with QA, Cache, Audit, Analytics integration');
   }
   
   /**
@@ -270,13 +291,94 @@ export class IntelligentEnrichmentOrchestrator {
     
     console.log(`[IntelligentOrchestrator] Starting enrichment ${enrichmentId} with strategy: ${options.strategy || 'high_quality'}`);
     
+    // Log enrichment start to audit trail
+    await this.auditTrail.log(
+      AuditEventType.ENRICHMENT_STARTED,
+      'Enrichment initiated',
+      { leadId: lead.id, strategy: options.strategy, options },
+      { leadId: lead.id, severity: AuditSeverity.INFO }
+    );
+    
+    // Emit enrichment started event for analytics
+    eventBus.emit('enrichment:started', {
+      leadId: lead.id,
+      strategy: options.strategy,
+      timestamp: new Date()
+    });
+    
+    // Check cache first (unless force refresh is requested)
+    if (!options.forceRefresh && lead.id) {
+      const cacheKey = this.generateCacheKey(lead);
+      const cachedData = await this.enrichmentCache.get(cacheKey);
+      
+      if (cachedData) {
+        console.log(`[IntelligentOrchestrator] Cache hit for lead ${lead.id}`);
+        
+        // Log cache hit
+        await this.auditTrail.log(
+          AuditEventType.CACHE_HIT,
+          'Using cached enrichment data',
+          { leadId: lead.id, cacheKey },
+          { leadId: lead.id, severity: AuditSeverity.DEBUG }
+        );
+        
+        // Track cache hit in analytics
+        eventBus.emit('enrichment:completed', {
+          leadId: lead.id,
+          fromCache: true,
+          servicesUsed: cachedData.sources,
+          processingTime: Date.now() - startTime
+        });
+        
+        return {
+          enrichedLead: cachedData.data,
+          servicesUsed: cachedData.sources,
+          totalCost: 0, // No cost for cached data
+          processingTime: Date.now() - startTime,
+          successRate: 1,
+          errors: [],
+          warnings: []
+        };
+      }
+      
+      // Log cache miss
+      await this.auditTrail.log(
+        AuditEventType.CACHE_MISS,
+        'Cache miss, proceeding with enrichment',
+        { leadId: lead.id, cacheKey },
+        { leadId: lead.id, severity: AuditSeverity.DEBUG }
+      );
+    }
+    
+    // Perform QA validation on input data
+    const inputQA = await this.qualityAssurance.performQualityAssurance(lead, {
+      autoCorrect: true,
+      strictMode: false,
+      checkDuplicates: true
+    });
+    
+    if (inputQA.overallScore < 40) {
+      console.warn(`[IntelligentOrchestrator] Low quality input data: ${inputQA.overallScore}`);
+      eventBus.emit('qa:issue-detected', {
+        leadId: lead.id,
+        score: inputQA.overallScore,
+        issues: inputQA.integrity.issues
+      });
+    }
+    
+    // Apply auto-corrections from QA
+    let enrichedLead = { ...lead };
+    inputQA.autoCorrections.forEach(correction => {
+      (enrichedLead as any)[correction.field] = correction.correctedValue;
+    });
+    
     // Check if enrichment is already in progress for this lead
     if (lead.id && this.activeEnrichments.has(lead.id)) {
       console.log(`[IntelligentOrchestrator] Enrichment already in progress for lead ${lead.id}`);
       return this.activeEnrichments.get(lead.id)!;
     }
     
-    const enrichmentPromise = this.performEnrichment(lead, strategy, options);
+    const enrichmentPromise = this.performEnrichment(enrichedLead, strategy, options, enrichmentId);
     
     if (lead.id) {
       this.activeEnrichments.set(lead.id, enrichmentPromise);
@@ -298,8 +400,10 @@ export class IntelligentEnrichmentOrchestrator {
   private async performEnrichment(
     lead: Partial<Lead>,
     strategy: EnrichmentStrategy,
-    options: any
+    options: any,
+    enrichmentId: string
   ): Promise<any> {
+    const startTime = Date.now();
     const result = {
       enrichedLead: { ...lead },
       servicesUsed: [] as string[],
@@ -310,68 +414,192 @@ export class IntelligentEnrichmentOrchestrator {
       warnings: [] as string[]
     };
     
-    // Phase 1: Try primary services
-    const primaryResults = await this.executeServiceGroup(
-      strategy.primary,
-      lead,
-      'primary',
-      options
-    );
-    
-    result.enrichedLead = this.mergeResults(result.enrichedLead, primaryResults.data);
-    result.servicesUsed.push(...primaryResults.servicesUsed);
-    result.totalCost += primaryResults.totalCost;
-    result.errors.push(...primaryResults.errors);
-    
-    // Phase 2: Check if required services succeeded
-    const requiredMet = strategy.required.every(service => 
-      primaryResults.servicesUsed.includes(service)
-    );
-    
-    if (!requiredMet) {
-      console.log('[IntelligentOrchestrator] Required services not met, trying fallbacks');
-      
-      // Phase 3: Try fallback services
-      const fallbackResults = await this.executeServiceGroup(
-        strategy.fallback,
-        result.enrichedLead,
-        'fallback',
+    try {
+      // Phase 1: Try primary services
+      const primaryResults = await this.executeServiceGroup(
+        strategy.primary,
+        lead,
+        'primary',
         options
       );
       
-      result.enrichedLead = this.mergeResults(result.enrichedLead, fallbackResults.data);
-      result.servicesUsed.push(...fallbackResults.servicesUsed);
-      result.totalCost += fallbackResults.totalCost;
-      result.errors.push(...fallbackResults.errors);
-    }
-    
-    // Phase 4: Optional services (non-blocking)
-    if (strategy.optional.length > 0 && result.totalCost < (options.budget || Infinity)) {
-      this.executeServiceGroup(
-        strategy.optional,
-        result.enrichedLead,
-        'optional',
-        options
-      ).then(optionalResults => {
-        // Log optional results but don't block
-        console.log('[IntelligentOrchestrator] Optional services completed:', optionalResults.servicesUsed);
-      }).catch(error => {
-        console.warn('[IntelligentOrchestrator] Optional services failed:', error);
+      result.enrichedLead = this.mergeResults(result.enrichedLead, primaryResults.data);
+      result.servicesUsed.push(...primaryResults.servicesUsed);
+      result.totalCost += primaryResults.totalCost;
+      result.errors.push(...primaryResults.errors);
+      
+      // Phase 2: Check if required services succeeded
+      const requiredMet = strategy.required.every(service => 
+        primaryResults.servicesUsed.includes(service)
+      );
+      
+      if (!requiredMet) {
+        console.log('[IntelligentOrchestrator] Required services not met, trying fallbacks');
+        
+        // Phase 3: Try fallback services
+        const fallbackResults = await this.executeServiceGroup(
+          strategy.fallback,
+          result.enrichedLead,
+          'fallback',
+          options
+        );
+        
+        result.enrichedLead = this.mergeResults(result.enrichedLead, fallbackResults.data);
+        result.servicesUsed.push(...fallbackResults.servicesUsed);
+        result.totalCost += fallbackResults.totalCost;
+        result.errors.push(...fallbackResults.errors);
+      }
+      
+      // Phase 4: Optional services (non-blocking)
+      if (strategy.optional.length > 0 && result.totalCost < (options.budget || Infinity)) {
+        this.executeServiceGroup(
+          strategy.optional,
+          result.enrichedLead,
+          'optional',
+          options
+        ).then(optionalResults => {
+          // Log optional results but don't block
+          console.log('[IntelligentOrchestrator] Optional services completed:', optionalResults.servicesUsed);
+          
+          // Track optional service completion
+          eventBus.emit('api:call', {
+            service: 'optional_services',
+            servicesUsed: optionalResults.servicesUsed,
+            cost: optionalResults.totalCost
+          });
+        }).catch(error => {
+          console.warn('[IntelligentOrchestrator] Optional services failed:', error);
+        });
+      }
+      
+      // Perform QA validation on enriched data
+      const outputQA = await this.qualityAssurance.performQualityAssurance(result.enrichedLead, {
+        autoCorrect: true,
+        strictMode: false,
+        checkDuplicates: false,
+        validateExternal: false
       });
+      
+      // Apply final corrections
+      outputQA.autoCorrections.forEach(correction => {
+        (result.enrichedLead as any)[correction.field] = correction.correctedValue;
+        
+        // Log data correction
+        this.auditTrail.log(
+          AuditEventType.DATA_CORRECTED,
+          'Auto-correction applied',
+          { field: correction.field, oldValue: correction.originalValue, newValue: correction.correctedValue },
+          { leadId: lead.id, severity: AuditSeverity.INFO }
+        );
+      });
+      
+      // Check for quality issues
+      if (outputQA.overallScore < 70) {
+        result.warnings.push(`Data quality score: ${outputQA.overallScore}`);
+        
+        // Log quality issue
+        await this.auditTrail.log(
+          AuditEventType.QUALITY_ISSUE,
+          'Low quality score detected',
+          { score: outputQA.overallScore, issues: outputQA.integrity.issues },
+          { leadId: lead.id, severity: AuditSeverity.WARNING }
+        );
+        
+        // Emit quality issue event
+        eventBus.emit('qa:issue-detected', {
+          leadId: lead.id,
+          score: outputQA.overallScore,
+          issues: outputQA.integrity.issues
+        });
+      }
+      
+      // Calculate final metrics
+      result.processingTime = Date.now() - startTime;
+      result.successRate = result.servicesUsed.length / (strategy.primary.length + strategy.fallback.length);
+      
+      // Store result in cache
+      if (lead.id) {
+        const cacheKey = this.generateCacheKey(lead);
+        await this.enrichmentCache.set(cacheKey, result.enrichedLead, {
+          sources: result.servicesUsed,
+          confidence: outputQA.overallScore / 100,
+          metadata: {
+            enrichmentId,
+            strategy: options.strategy,
+            qualityScore: outputQA.overallScore
+          }
+        });
+      }
+      
+      // Log successful completion
+      await this.auditTrail.log(
+        AuditEventType.ENRICHMENT_COMPLETED,
+        'Enrichment completed successfully',
+        {
+          enrichmentId,
+          servicesUsed: result.servicesUsed,
+          totalCost: result.totalCost,
+          qualityScore: outputQA.overallScore
+        },
+        {
+          leadId: lead.id,
+          severity: AuditSeverity.INFO,
+          performance: {
+            duration: result.processingTime,
+            apiCalls: result.servicesUsed.length,
+            cost: result.totalCost
+          }
+        }
+      );
+      
+      // Emit completion events for analytics
+      eventBus.emit('enrichment:completed', {
+        leadId: lead.id,
+        enrichmentId,
+        servicesUsed: result.servicesUsed,
+        totalCost: result.totalCost,
+        processingTime: result.processingTime,
+        qualityScore: outputQA.overallScore,
+        successRate: result.successRate
+      });
+      
+      eventBus.emit('enrichment:intelligent-complete', {
+        leadId: lead.id,
+        servicesUsed: result.servicesUsed,
+        totalCost: result.totalCost,
+        successRate: result.successRate
+      });
+      
+    } catch (error) {
+      // Log failure
+      await this.auditTrail.log(
+        AuditEventType.ENRICHMENT_FAILED,
+        'Enrichment failed',
+        {
+          enrichmentId,
+          error: (error as Error).message,
+          servicesAttempted: result.servicesUsed
+        },
+        {
+          leadId: lead.id,
+          severity: AuditSeverity.ERROR,
+          error: {
+            message: (error as Error).message,
+            stack: (error as Error).stack
+          }
+        }
+      );
+      
+      // Emit failure event
+      eventBus.emit('enrichment:failed', {
+        leadId: lead.id,
+        enrichmentId,
+        error: (error as Error).message,
+        servicesAttempted: result.servicesUsed
+      });
+      
+      throw error;
     }
-    
-    // Calculate final metrics
-    const endTime = Date.now();
-    result.processingTime = endTime - Date.now();
-    result.successRate = result.servicesUsed.length / (strategy.primary.length + strategy.fallback.length);
-    
-    // Emit completion event
-    eventBus.emit('enrichment:intelligent-complete', {
-      leadId: lead.id,
-      servicesUsed: result.servicesUsed,
-      totalCost: result.totalCost,
-      successRate: result.successRate
-    });
     
     return result;
   }
@@ -752,6 +980,20 @@ export class IntelligentEnrichmentOrchestrator {
    */
   private generateEnrichmentId(): string {
     return `enrich_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+  
+  /**
+   * Generate cache key for a lead
+   */
+  private generateCacheKey(lead: Partial<Lead>): string {
+    const keyParts = [
+      lead.id || '',
+      lead.email || '',
+      lead.phone || '',
+      lead.businessName || ''
+    ].filter(part => part);
+    
+    return `lead_${keyParts.join('_').toLowerCase().replace(/\s+/g, '_')}`;
   }
   
   /**

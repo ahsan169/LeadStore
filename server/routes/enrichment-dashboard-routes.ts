@@ -5,6 +5,16 @@ import { requireAuth, requireAdmin } from "../middleware/auth";
 import { db } from "../db";
 import { intelligenceDecisions, enrichmentJobs } from "../../shared/schema";
 import { desc, sql, gte, and, eq } from "drizzle-orm";
+import { EnrichmentAnalytics } from "../services/enrichment-analytics";
+import { EnrichmentAuditTrail, AuditEventType, AuditSeverity } from "../services/enrichment-audit-trail";
+import { EnrichmentCache } from "../services/enrichment-cache";
+import { EnrichmentQualityAssurance } from "../services/enrichment-quality-assurance";
+
+// Initialize service instances
+const analytics = new EnrichmentAnalytics();
+const auditTrail = new EnrichmentAuditTrail();
+const enrichmentCache = new EnrichmentCache();
+const qualityAssurance = new EnrichmentQualityAssurance();
 
 export function registerEnrichmentDashboardRoutes(app: Express) {
   // GET /api/enrichment/stats - Get enrichment statistics
@@ -396,6 +406,223 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
       });
     }
   });
+  
+  // NEW ENDPOINTS FOR INTEGRATED SERVICES
+  
+  // GET /api/enrichment/analytics/metrics - Get real analytics metrics
+  app.get("/api/enrichment/analytics/metrics", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { period = 'day' } = req.query;
+      const metrics = await analytics.getEnrichmentMetrics(period as any);
+      
+      res.json({
+        success: true,
+        data: metrics
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching analytics metrics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch analytics metrics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // GET /api/enrichment/analytics/service-metrics - Get service performance metrics
+  app.get("/api/enrichment/analytics/service-metrics", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const serviceMetrics = await analytics.getServiceMetrics();
+      
+      res.json({
+        success: true,
+        data: serviceMetrics
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching service metrics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch service metrics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // GET /api/enrichment/analytics/cost - Get cost analytics
+  app.get("/api/enrichment/analytics/cost", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { period = 'day' } = req.query;
+      const costAnalytics = await analytics.getCostAnalytics(period as any);
+      
+      res.json({
+        success: true,
+        data: costAnalytics
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching cost analytics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch cost analytics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // GET /api/enrichment/analytics/quality - Get quality metrics
+  app.get("/api/enrichment/analytics/quality", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const qualityMetrics = await analytics.getQualityMetrics();
+      
+      res.json({
+        success: true,
+        data: qualityMetrics
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching quality metrics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch quality metrics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // GET /api/enrichment/audit-trail - Get audit trail logs
+  app.get("/api/enrichment/audit-trail", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { 
+        leadId,
+        userId,
+        service,
+        eventType,
+        severity,
+        startDate,
+        endDate,
+        limit = '100',
+        offset = '0'
+      } = req.query;
+      
+      const logs = await auditTrail.queryLogs({
+        leadId: leadId as string,
+        userId: userId as string,
+        service: service as string,
+        eventTypes: eventType ? [eventType as AuditEventType] : undefined,
+        severities: severity ? [severity as AuditSeverity] : undefined,
+        startDate: startDate ? new Date(startDate as string) : undefined,
+        endDate: endDate ? new Date(endDate as string) : undefined,
+        limit: parseInt(limit as string),
+        offset: parseInt(offset as string)
+      });
+      
+      res.json({
+        success: true,
+        data: logs
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching audit logs:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch audit logs",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // GET /api/enrichment/audit-trail/statistics - Get audit statistics
+  app.get("/api/enrichment/audit-trail/statistics", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const statistics = await auditTrail.getStatistics();
+      
+      res.json({
+        success: true,
+        data: statistics
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching audit statistics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch audit statistics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // GET /api/enrichment/cache/statistics - Get cache statistics
+  app.get("/api/enrichment/cache/statistics", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const statistics = enrichmentCache.getStatistics();
+      
+      res.json({
+        success: true,
+        data: statistics
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching cache statistics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch cache statistics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // POST /api/enrichment/cache/invalidate - Invalidate cache entry
+  app.post("/api/enrichment/cache/invalidate", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { key, pattern } = req.body;
+      
+      let invalidatedCount = 0;
+      if (key) {
+        await enrichmentCache.invalidate(key);
+        invalidatedCount = 1;
+      } else if (pattern) {
+        invalidatedCount = await enrichmentCache.invalidateByPattern(pattern);
+      }
+      
+      res.json({
+        success: true,
+        message: `${invalidatedCount} cache entries invalidated`,
+        invalidatedCount
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error invalidating cache:", error);
+      res.status(500).json({ 
+        error: "Failed to invalidate cache",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // POST /api/enrichment/quality/validate - Validate lead data quality
+  app.post("/api/enrichment/quality/validate", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { lead, options = {} } = req.body;
+      
+      const qaReport = await qualityAssurance.performQualityAssurance(lead, options);
+      
+      res.json({
+        success: true,
+        data: qaReport
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error validating lead quality:", error);
+      res.status(500).json({ 
+        error: "Failed to validate lead quality",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+  
+  // GET /api/enrichment/performance-insights - Get performance insights
+  app.get("/api/enrichment/performance-insights", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const insights = await analytics.getPerformanceInsights();
+      
+      res.json({
+        success: true,
+        data: insights
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching performance insights:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch performance insights",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
 }
 
 // Helper functions
@@ -412,10 +639,10 @@ async function getIntelligenceMetrics() {
 
     const [savedCredits] = await db
       .select({ 
-        total: sql<number>`COALESCE(SUM((estimated_cost - actual_cost)::numeric), 0)` 
+        total: sql<number>`COALESCE(SUM((estimated_cost::numeric - actual_cost::numeric)), 0)` 
       })
       .from(intelligenceDecisions)
-      .where(sql`actual_cost < estimated_cost`);
+      .where(sql`actual_cost::numeric < estimated_cost::numeric`);
 
     const total = totalDecisions?.count || 0;
     const successful = successfulDecisions?.count || 0;
