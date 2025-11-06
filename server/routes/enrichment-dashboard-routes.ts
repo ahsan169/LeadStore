@@ -110,165 +110,170 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
   // GET /api/enrichment/health - Get service health status
   app.get("/api/enrichment/health", requireAuth, requireAdmin, async (req, res) => {
     try {
+      const hunterHealth = enrichmentQueue.getServiceHealth('hunter');
+      const numverifyHealth = enrichmentQueue.getServiceHealth('numverify');
+      const perplexityHealth = enrichmentQueue.getServiceHealth('perplexity');
+      const openaiHealth = enrichmentQueue.getServiceHealth('openai');
+      
       const services = [
-        { 
-          name: 'Perplexity',
-          checker: async () => {
-            const startTime = Date.now();
-            try {
-              // Simple health check - verify API key exists
-              const hasKey = !!process.env.PERPLEXITY_API_KEY;
-              const responseTime = Date.now() - startTime;
-              return { 
-                status: hasKey ? 'healthy' : 'down', 
-                responseTime,
-                successRate: hasKey ? 95 : 0 
-              };
-            } catch (error) {
-              return { 
-                status: 'down', 
-                responseTime: Date.now() - startTime,
-                successRate: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              };
-            }
-          }
-        },
-        { 
-          name: 'Hunter.io',
-          checker: async () => {
-            const startTime = Date.now();
-            try {
-              const hasKey = !!process.env.HUNTER_API_KEY;
-              const responseTime = Date.now() - startTime;
-              return { 
-                status: hasKey ? 'healthy' : 'down', 
-                responseTime,
-                successRate: hasKey ? 92 : 0 
-              };
-            } catch (error) {
-              return { 
-                status: 'down', 
-                responseTime: Date.now() - startTime,
-                successRate: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              };
-            }
-          }
-        },
-        { 
-          name: 'Numverify',
-          checker: async () => {
-            const startTime = Date.now();
-            try {
-              const hasKey = !!process.env.NUMVERIFY_API_KEY;
-              const responseTime = Date.now() - startTime;
-              return { 
-                status: hasKey ? 'healthy' : 'down', 
-                responseTime,
-                successRate: hasKey ? 94 : 0 
-              };
-            } catch (error) {
-              return { 
-                status: 'down', 
-                responseTime: Date.now() - startTime,
-                successRate: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              };
-            }
-          }
-        },
-        { 
-          name: 'OpenAI',
-          checker: async () => {
-            const startTime = Date.now();
-            try {
-              const hasKey = !!process.env.OPENAI_API_KEY;
-              const responseTime = Date.now() - startTime;
-              return { 
-                status: hasKey ? 'healthy' : 'down', 
-                responseTime,
-                successRate: hasKey ? 98 : 0 
-              };
-            } catch (error) {
-              return { 
-                status: 'down', 
-                responseTime: Date.now() - startTime,
-                successRate: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              };
-            }
-          }
-        },
-        { 
-          name: 'Clearbit',
-          checker: async () => {
-            const startTime = Date.now();
-            try {
-              const hasKey = !!process.env.CLEARBIT_API_KEY;
-              const responseTime = Date.now() - startTime;
-              return { 
-                status: hasKey ? 'healthy' : 'degraded', 
-                responseTime,
-                successRate: hasKey ? 89 : 0 
-              };
-            } catch (error) {
-              return { 
-                status: 'down', 
-                responseTime: Date.now() - startTime,
-                successRate: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              };
-            }
-          }
-        },
-        { 
-          name: 'Proxycurl',
-          checker: async () => {
-            const startTime = Date.now();
-            try {
-              const hasKey = !!process.env.PROXYCURL_API_KEY;
-              const responseTime = Date.now() - startTime;
-              return { 
-                status: hasKey ? 'healthy' : 'down', 
-                responseTime,
-                successRate: hasKey ? 91 : 0 
-              };
-            } catch (error) {
-              return { 
-                status: 'down', 
-                responseTime: Date.now() - startTime,
-                successRate: 0,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              };
-            }
-          }
-        }
+        { service: 'Perplexity', ...perplexityHealth },
+        { service: 'Hunter.io', ...hunterHealth },
+        { service: 'Numverify', ...numverifyHealth },
+        { service: 'OpenAI', ...openaiHealth }
       ];
 
-      const healthChecks = await Promise.all(
-        services.map(async (service) => {
-          const result = await service.checker();
-          return {
-            service: service.name,
-            status: result.status as 'healthy' | 'degraded' | 'down',
-            successRate: result.successRate,
-            averageResponseTime: result.responseTime,
-            lastChecked: new Date().toISOString(),
-            errors: result.error ? [result.error] : []
-          };
-        })
-      );
+      const overallHealth = calculateOverallHealth(services);
 
       res.json({
-        services: healthChecks,
-        overallHealth: calculateOverallHealth(healthChecks),
-        timestamp: new Date().toISOString()
+        services,
+        overall: overallHealth,
+        timestamp: new Date()
       });
     } catch (error) {
-      console.error("[Dashboard] Error checking service health:", error);
+      console.error("[Dashboard] Error fetching service health:", error);
       res.status(500).json({ 
-        error: "Failed to check service health",
+        error: "Failed to fetch service health",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/enrichment/activity/recent - Get recent activity
+  app.get("/api/enrichment/activity/recent", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { limit = '50' } = req.query;
+      
+      // Get recent enrichment jobs from database
+      const recentJobs = await db
+        .select({
+          id: enrichmentJobs.id,
+          leadId: enrichmentJobs.leadId,
+          businessName: enrichmentJobs.businessName,
+          status: enrichmentJobs.status,
+          processingTime: enrichmentJobs.processingTime,
+          servicesUsed: enrichmentJobs.servicesUsed,
+          totalCost: enrichmentJobs.totalCost,
+          errorMessage: enrichmentJobs.errorMessage,
+          createdAt: enrichmentJobs.createdAt,
+          completedAt: enrichmentJobs.completedAt
+        })
+        .from(enrichmentJobs)
+        .orderBy(desc(enrichmentJobs.createdAt))
+        .limit(parseInt(limit as string));
+
+      res.json({
+        activities: recentJobs.map(job => ({
+          id: job.id,
+          leadId: job.leadId,
+          businessName: job.businessName,
+          status: job.status,
+          action: 'Enrichment',
+          duration: job.processingTime,
+          servicesUsed: job.servicesUsed || [],
+          cost: job.totalCost || 0,
+          error: job.errorMessage,
+          timestamp: job.createdAt
+        }))
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching recent activity:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch recent activity",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/enrichment/analytics - Get analytics data from service
+  app.get("/api/enrichment/analytics", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const metrics = analytics.getMetrics();
+      const trends = analytics.getTrends();
+      const insights = await analytics.getPerformanceInsights();
+      
+      res.json({
+        success: true,
+        data: {
+          metrics,
+          trends,
+          insights
+        }
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching analytics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch analytics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/enrichment/audit - Get audit trail data
+  app.get("/api/enrichment/audit", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { limit = '100', severity } = req.query;
+      
+      const logs = auditTrail.getRecentLogs(
+        parseInt(limit as string), 
+        severity as AuditSeverity | undefined
+      );
+      
+      res.json({
+        success: true,
+        data: {
+          logs,
+          total: logs.length
+        }
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching audit logs:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch audit logs",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/enrichment/cache/stats - Get cache statistics
+  app.get("/api/enrichment/cache/stats", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const stats = enrichmentCache.getStats();
+      const hitRate = enrichmentCache.getHitRate();
+      
+      res.json({
+        success: true,
+        data: {
+          ...stats,
+          hitRate,
+          savings: stats.hits * 0.05 // Estimated $ saved per cache hit
+        }
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching cache stats:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch cache statistics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/enrichment/cache/entries - Get cached entries
+  app.get("/api/enrichment/cache/entries", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { limit = '50' } = req.query;
+      const entries = enrichmentCache.getRecentEntries(parseInt(limit as string));
+      
+      res.json({
+        success: true,
+        data: {
+          entries,
+          total: entries.length
+        }
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching cache entries:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch cache entries",
         details: error instanceof Error ? error.message : "Unknown error"
       });
     }
@@ -307,7 +312,7 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
       // Process logs into hourly/daily buckets
       const hourlyData = processIntoTimeBuckets(logs, 'hour');
       const servicePerformance = calculateServicePerformance(logs);
-      const costTrends = calculateCostTrends(logs, period);
+      const costTrends = calculateCostTrends(logs, period as string);
 
       res.json({
         hourly: hourlyData,
@@ -336,8 +341,7 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
 
       res.json({ 
         success: true, 
-        message: "Queue processing paused",
-        status: "paused"
+        message: 'Queue processing paused' 
       });
     } catch (error) {
       console.error("[Dashboard] Error pausing queue:", error);
@@ -355,8 +359,7 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
 
       res.json({ 
         success: true, 
-        message: "Queue processing resumed",
-        status: "running"
+        message: 'Queue processing resumed' 
       });
     } catch (error) {
       console.error("[Dashboard] Error resuming queue:", error);
@@ -367,20 +370,18 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
     }
   });
 
-  // POST /api/enrichment/retry - Retry failed items
-  app.post("/api/enrichment/retry", requireAuth, requireAdmin, async (req, res) => {
+  // POST /api/enrichment/queue/retry - Retry failed items
+  app.post("/api/enrichment/queue/retry", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const { itemIds } = req.body;
-      
-      const retriedCount = await enrichmentQueue.retryDeadLetterItems(itemIds);
+      const retriedCount = enrichmentQueue.retryFailed();
 
       res.json({ 
         success: true, 
-        message: `${retriedCount} items added back to queue`,
-        retried: retriedCount
+        message: `Retried ${retriedCount} failed items`,
+        count: retriedCount
       });
     } catch (error) {
-      console.error("[Dashboard] Error retrying items:", error);
+      console.error("[Dashboard] Error retrying failed items:", error);
       res.status(500).json({ 
         error: "Failed to retry items",
         details: error instanceof Error ? error.message : "Unknown error"
@@ -391,12 +392,12 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
   // DELETE /api/enrichment/dead-letter/clear - Clear dead letter queue
   app.delete("/api/enrichment/dead-letter/clear", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const clearedCount = enrichmentQueue.clearDeadLetterQueue();
+      const clearedCount = enrichmentQueue.clearDeadLetter();
 
       res.json({ 
         success: true, 
-        message: `${clearedCount} items cleared from dead letter queue`,
-        cleared: clearedCount
+        message: `Cleared ${clearedCount} items from dead letter queue`,
+        count: clearedCount
       });
     } catch (error) {
       console.error("[Dashboard] Error clearing dead letter queue:", error);
@@ -406,176 +407,68 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
       });
     }
   });
-  
-  // NEW ENDPOINTS FOR INTEGRATED SERVICES
-  
-  // GET /api/enrichment/analytics/metrics - Get real analytics metrics
-  app.get("/api/enrichment/analytics/metrics", requireAuth, requireAdmin, async (req, res) => {
+
+  // POST /api/enrichment/cache/clear - Clear cache
+  app.post("/api/enrichment/cache/clear", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const { period = 'day' } = req.query;
-      const metrics = await analytics.getEnrichmentMetrics(period as any);
+      enrichmentCache.clear();
       
-      res.json({
-        success: true,
-        data: metrics
-      });
-    } catch (error) {
-      console.error("[Dashboard] Error fetching analytics metrics:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch analytics metrics",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-  
-  // GET /api/enrichment/analytics/service-metrics - Get service performance metrics
-  app.get("/api/enrichment/analytics/service-metrics", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const serviceMetrics = await analytics.getServiceMetrics();
-      
-      res.json({
-        success: true,
-        data: serviceMetrics
-      });
-    } catch (error) {
-      console.error("[Dashboard] Error fetching service metrics:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch service metrics",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-  
-  // GET /api/enrichment/analytics/cost - Get cost analytics
-  app.get("/api/enrichment/analytics/cost", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { period = 'day' } = req.query;
-      const costAnalytics = await analytics.getCostAnalytics(period as any);
-      
-      res.json({
-        success: true,
-        data: costAnalytics
-      });
-    } catch (error) {
-      console.error("[Dashboard] Error fetching cost analytics:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch cost analytics",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-  
-  // GET /api/enrichment/analytics/quality - Get quality metrics
-  app.get("/api/enrichment/analytics/quality", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const qualityMetrics = await analytics.getQualityMetrics();
-      
-      res.json({
-        success: true,
-        data: qualityMetrics
-      });
-    } catch (error) {
-      console.error("[Dashboard] Error fetching quality metrics:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch quality metrics",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-  
-  // GET /api/enrichment/audit-trail - Get audit trail logs
-  app.get("/api/enrichment/audit-trail", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const { 
-        leadId,
-        userId,
-        service,
-        eventType,
-        severity,
-        startDate,
-        endDate,
-        limit = '100',
-        offset = '0'
-      } = req.query;
-      
-      const logs = await auditTrail.queryLogs({
-        leadId: leadId as string,
-        userId: userId as string,
-        service: service as string,
-        eventTypes: eventType ? [eventType as AuditEventType] : undefined,
-        severities: severity ? [severity as AuditSeverity] : undefined,
-        startDate: startDate ? new Date(startDate as string) : undefined,
-        endDate: endDate ? new Date(endDate as string) : undefined,
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string)
+      await auditTrail.log({
+        type: AuditEventType.CACHE_CLEAR,
+        userId: req.user?.id || 'system',
+        leadId: undefined,
+        action: 'Manual cache clear from dashboard',
+        severity: AuditSeverity.INFO,
+        metadata: {
+          clearedBy: req.user?.username || 'unknown'
+        }
       });
       
       res.json({
         success: true,
-        data: logs
+        message: "Cache cleared successfully"
       });
     } catch (error) {
-      console.error("[Dashboard] Error fetching audit logs:", error);
+      console.error("[Dashboard] Error clearing cache:", error);
       res.status(500).json({ 
-        error: "Failed to fetch audit logs",
+        error: "Failed to clear cache",
         details: error instanceof Error ? error.message : "Unknown error"
       });
     }
   });
-  
-  // GET /api/enrichment/audit-trail/statistics - Get audit statistics
-  app.get("/api/enrichment/audit-trail/statistics", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const statistics = await auditTrail.getStatistics();
-      
-      res.json({
-        success: true,
-        data: statistics
-      });
-    } catch (error) {
-      console.error("[Dashboard] Error fetching audit statistics:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch audit statistics",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-  
-  // GET /api/enrichment/cache/statistics - Get cache statistics
-  app.get("/api/enrichment/cache/statistics", requireAuth, requireAdmin, async (req, res) => {
-    try {
-      const statistics = enrichmentCache.getStatistics();
-      
-      res.json({
-        success: true,
-        data: statistics
-      });
-    } catch (error) {
-      console.error("[Dashboard] Error fetching cache statistics:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch cache statistics",
-        details: error instanceof Error ? error.message : "Unknown error"
-      });
-    }
-  });
-  
-  // POST /api/enrichment/cache/invalidate - Invalidate cache entry
+
+  // POST /api/enrichment/cache/invalidate - Invalidate specific cache entries
   app.post("/api/enrichment/cache/invalidate", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const { key, pattern } = req.body;
+      const { leadIds } = req.body;
+      
+      if (!Array.isArray(leadIds)) {
+        return res.status(400).json({ error: "leadIds must be an array" });
+      }
       
       let invalidatedCount = 0;
-      if (key) {
-        await enrichmentCache.invalidate(key);
-        invalidatedCount = 1;
-      } else if (pattern) {
-        invalidatedCount = await enrichmentCache.invalidateByPattern(pattern);
+      for (const leadId of leadIds) {
+        const key = `lead:${leadId}`;
+        enrichmentCache.invalidate(key);
+        invalidatedCount++;
       }
+      
+      await auditTrail.log({
+        type: AuditEventType.CACHE_INVALIDATION,
+        userId: req.user?.id || 'system',
+        leadId: undefined,
+        action: `Invalidated ${invalidatedCount} cache entries`,
+        severity: AuditSeverity.INFO,
+        metadata: {
+          leadIds,
+          invalidatedBy: req.user?.username || 'unknown'
+        }
+      });
       
       res.json({
         success: true,
-        message: `${invalidatedCount} cache entries invalidated`,
-        invalidatedCount
+        message: `Invalidated ${invalidatedCount} cache entries`,
+        count: invalidatedCount
       });
     } catch (error) {
       console.error("[Dashboard] Error invalidating cache:", error);
@@ -585,27 +478,70 @@ export function registerEnrichmentDashboardRoutes(app: Express) {
       });
     }
   });
-  
-  // POST /api/enrichment/quality/validate - Validate lead data quality
-  app.post("/api/enrichment/quality/validate", requireAuth, requireAdmin, async (req, res) => {
+
+  // GET /api/enrichment/quality/issues - Get quality issues
+  app.get("/api/enrichment/quality/issues", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const { lead, options = {} } = req.body;
-      
-      const qaReport = await qualityAssurance.performQualityAssurance(lead, options);
+      const { limit = '50' } = req.query;
+      const issues = qualityAssurance.getRecentIssues(parseInt(limit as string));
       
       res.json({
         success: true,
-        data: qaReport
+        data: {
+          issues,
+          total: issues.length
+        }
       });
     } catch (error) {
-      console.error("[Dashboard] Error validating lead quality:", error);
+      console.error("[Dashboard] Error fetching quality issues:", error);
       res.status(500).json({ 
-        error: "Failed to validate lead quality",
+        error: "Failed to fetch quality issues",
         details: error instanceof Error ? error.message : "Unknown error"
       });
     }
   });
-  
+
+  // GET /api/enrichment/quality/metrics - Get quality metrics
+  app.get("/api/enrichment/quality/metrics", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const metrics = qualityAssurance.getQualityMetrics();
+      
+      res.json({
+        success: true,
+        data: metrics
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error fetching quality metrics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch quality metrics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
+  // GET /api/enrichment/audit/report - Get audit report
+  app.get("/api/enrichment/audit/report", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      const start = startDate ? new Date(startDate as string) : undefined;
+      const end = endDate ? new Date(endDate as string) : undefined;
+      
+      const report = auditTrail.generateAuditReport(start, end);
+      
+      res.json({
+        success: true,
+        data: report
+      });
+    } catch (error) {
+      console.error("[Dashboard] Error generating audit report:", error);
+      res.status(500).json({ 
+        error: "Failed to generate audit report",
+        details: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  });
+
   // GET /api/enrichment/performance-insights - Get performance insights
   app.get("/api/enrichment/performance-insights", requireAuth, requireAdmin, async (req, res) => {
     try {
@@ -635,7 +571,7 @@ async function getIntelligenceMetrics() {
     const [successfulDecisions] = await db
       .select({ count: sql<number>`count(*)` })
       .from(intelligenceDecisions)
-      .where(eq(intelligenceDecisions.outcome, 'successful'));
+      .where(eq(intelligenceDecisions.success, true));
 
     const [savedCredits] = await db
       .select({ 
@@ -708,67 +644,71 @@ function calculateServicePerformance(logs: any[]) {
   const serviceStats = new Map();
   
   logs.forEach(log => {
-    if (log.servicesUsed && Array.isArray(log.servicesUsed)) {
-      log.servicesUsed.forEach((service: string) => {
-        if (!serviceStats.has(service)) {
-          serviceStats.set(service, { total: 0, successful: 0 });
-        }
-        
-        const stats = serviceStats.get(service);
-        stats.total++;
-        
-        if (log.status === 'completed') {
-          stats.successful++;
-        }
-      });
-    }
+    const services = log.servicesUsed || [];
+    services.forEach((service: string) => {
+      if (!serviceStats.has(service)) {
+        serviceStats.set(service, { total: 0, successful: 0, failed: 0 });
+      }
+      const stats = serviceStats.get(service);
+      stats.total++;
+      if (log.status === 'completed') {
+        stats.successful++;
+      } else if (log.status === 'failed') {
+        stats.failed++;
+      }
+    });
   });
-
+  
   return Array.from(serviceStats.entries()).map(([service, stats]) => ({
     service,
-    successRate: stats.total > 0 ? (stats.successful / stats.total) * 100 : 0,
-    totalCalls: stats.total
+    ...stats,
+    successRate: stats.total > 0 ? (stats.successful / stats.total) * 100 : 0
   }));
 }
 
 function calculateCostTrends(logs: any[], period: string) {
-  const dailyCosts = new Map();
+  if (logs.length === 0) return [];
+  
+  const bucketType = period === '24h' ? 'hour' : 'day';
+  const costBuckets = new Map();
   
   logs.forEach(log => {
-    const date = new Date(log.createdAt).toISOString().split('T')[0];
+    const date = new Date(log.createdAt);
+    const key = bucketType === 'hour' 
+      ? `${date.getHours()}:00`
+      : date.toISOString().split('T')[0];
     
-    if (!dailyCosts.has(date)) {
-      dailyCosts.set(date, { totalCost: 0, count: 0 });
+    if (!costBuckets.has(key)) {
+      costBuckets.set(key, { totalCost: 0, count: 0 });
     }
     
-    const dayCost = dailyCosts.get(date);
-    dayCost.totalCost += log.totalCost || 0;
-    dayCost.count++;
+    const bucket = costBuckets.get(key);
+    bucket.totalCost += parseFloat(log.totalCost || '0');
+    bucket.count++;
   });
-
-  return Array.from(dailyCosts.entries()).map(([date, stats]) => ({
-    date,
-    avgCost: stats.count > 0 ? stats.totalCost / stats.count : 0,
-    totalCost: stats.totalCost,
-    leadCount: stats.count,
-    target: 0.05 // Target cost per lead
+  
+  return Array.from(costBuckets.entries()).map(([key, value]) => ({
+    [bucketType]: key,
+    totalCost: value.totalCost,
+    averageCost: value.count > 0 ? value.totalCost / value.count : 0,
+    count: value.count
   }));
 }
 
-function calculateSuccessRate(logs: any[]) {
+function calculateSuccessRate(logs: any[]): number {
   if (logs.length === 0) return 0;
-  const successful = logs.filter(l => l.status === 'completed').length;
-  return (successful / logs.length) * 100;
+  const successCount = logs.filter(log => log.status === 'completed').length;
+  return (successCount / logs.length) * 100;
 }
 
-function calculateAverageCost(logs: any[]) {
+function calculateAverageCost(logs: any[]): number {
   if (logs.length === 0) return 0;
-  const totalCost = logs.reduce((sum, l) => sum + (l.totalCost || 0), 0);
+  const totalCost = logs.reduce((sum, log) => sum + parseFloat(log.totalCost || '0'), 0);
   return totalCost / logs.length;
 }
 
-function calculateAverageProcessingTime(logs: any[]) {
+function calculateAverageProcessingTime(logs: any[]): number {
   if (logs.length === 0) return 0;
-  const totalTime = logs.reduce((sum, l) => sum + (l.processingTime || 0), 0);
+  const totalTime = logs.reduce((sum, log) => sum + (log.processingTime || 0), 0);
   return totalTime / logs.length;
 }

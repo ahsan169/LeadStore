@@ -177,7 +177,11 @@ export default function EnrichmentDashboard() {
       ? ((stats.stats.successful / stats.stats.totalProcessed) * 100).toFixed(1)
       : 0;
 
-    const totalCreditsUsed = Object.values(stats.creditUsage || {}).reduce((sum, val) => sum + val, 0);
+    const totalCreditsUsed = Object.values(stats.creditUsage || {}).reduce((sum, val) => {
+      const numVal = typeof val === 'number' ? val : 0;
+      return sum + numVal;
+    }, 0);
+    
     const averageCostPerLead = stats.stats.successful > 0
       ? (totalCreditsUsed / stats.stats.successful).toFixed(3)
       : 0;
@@ -300,7 +304,7 @@ export default function EnrichmentDashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${metrics?.totalCreditsUsed?.toFixed(2) || 0}</div>
+            <div className="text-2xl font-bold">${metrics ? metrics.totalCreditsUsed.toFixed(2) : 0}</div>
             <p className="text-xs text-muted-foreground">
               ${metrics?.averageCostPerLead || 0} per lead
             </p>
