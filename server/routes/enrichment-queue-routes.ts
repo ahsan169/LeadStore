@@ -288,5 +288,231 @@ export function registerEnrichmentQueueRoutes(app: Express) {
     }
   });
   
+  // POST /api/leads/enrich-single - Enrich a single lead (alias for manual enrichment)
+  app.post("/api/leads/enrich-single", requireAuth, async (req, res) => {
+    try {
+      const { leadId } = req.body;
+      const priority = 'high';
+      
+      // Get the lead
+      const lead = await storage.getLead(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      // Check if user has access to this lead
+      const user = await storage.getUser(req.session.userId!);
+      if (!user || (user.role !== 'admin' && lead.soldTo !== user.id)) {
+        return res.status(403).json({ error: "Access denied to this lead" });
+      }
+      
+      // Analyze lead completion
+      const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(lead);
+      
+      // Queue for enrichment
+      const queueId = await enrichmentQueue.addToQueue(
+        lead,
+        priority,
+        'manual',
+        { userId: user.id }
+      );
+      
+      res.json({
+        success: true,
+        message: `Lead queued for enrichment`,
+        queueId,
+        analysis: {
+          completionScore: analysis.completionScore,
+          dataQualityScore: analysis.dataQualityScore,
+          enrichmentPriority: analysis.enrichmentPriority,
+          canBeAutoEnriched: analysis.canBeAutoEnriched,
+          missingFields: analysis.missingFields.map(f => ({
+            field: f.field,
+            importance: f.importance
+          }))
+        }
+      });
+    } catch (error) {
+      console.error("Error enriching single lead:", error);
+      res.status(500).json({ error: "Failed to enrich lead" });
+    }
+  });
+
+  // POST /api/leads/enrich-bulk - Enrich multiple selected leads
+  app.post("/api/leads/enrich-bulk", requireAuth, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "leadIds must be a non-empty array" });
+      }
+      
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      
+      const results = [];
+      
+      // Process each lead
+      for (const leadId of leadIds) {
+        try {
+          const lead = await storage.getLead(leadId);
+          if (!lead) {
+            results.push({ leadId, success: false, error: "Lead not found" });
+            continue;
+          }
+          
+          // Check if user has access to this lead
+          if (user.role !== 'admin' && lead.soldTo !== user.id) {
+            results.push({ leadId, success: false, error: "Access denied" });
+            continue;
+          }
+          
+          // Queue for enrichment
+          const queueId = await enrichmentQueue.addToQueue(
+            lead,
+            'high',
+            'manual',
+            { userId: user.id }
+          );
+          
+          results.push({ leadId, success: true, queueId });
+        } catch (error: any) {
+          results.push({ leadId, success: false, error: error.message });
+        }
+      }
+      
+      const successCount = results.filter(r => r.success).length;
+      
+      res.json({
+        success: true,
+        message: `Queued ${successCount} of ${leadIds.length} leads for enrichment`,
+        results,
+        totalQueued: successCount
+      });
+    } catch (error) {
+      console.error("Error enriching bulk leads:", error);
+      res.status(500).json({ error: "Failed to enrich bulk leads" });
+    }
+  });
+
+  // POST /api/leads/enrich-all-incomplete - Enrich all incomplete leads
+  app.post("/api/leads/enrich-all-incomplete", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { minCompletionScore = 80, maxLeads = 1000, priority = 'medium' } = req.body;
+      
+      const queuedCount = await enrichmentQueue.queueIncompleteLeads({
+        minCompletionScore,
+        maxLeads,
+        priority
+      });
+      
+      res.json({
+        success: true,
+        message: `Queued ${queuedCount} incomplete leads for enrichment`,
+        queuedCount
+      });
+    } catch (error) {
+      console.error("Error queuing all incomplete leads:", error);
+      res.status(500).json({ error: "Failed to queue incomplete leads" });
+    }
+  });
+
+  // POST /api/leads/quick-enrich - Quick enrich a new lead from minimal data
+  app.post("/api/leads/quick-enrich", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { businessName, ownerName, phone, email, address } = req.body;
+      
+      // Create a new lead with minimal data
+      const newLead = await storage.createLead({
+        businessName: businessName || undefined,
+        ownerName: ownerName || undefined,
+        phone: phone || undefined,
+        email: email || undefined,
+        fullAddress: address || undefined,
+        sold: false,
+        qualityScore: 40, // Initial low score
+        leadSource: 'quick-enrich'
+      });
+      
+      // Queue for enrichment with high priority
+      await enrichmentQueue.addToQueue(
+        newLead,
+        'high',
+        'quick-enrich',
+        { userId: req.session.userId }
+      );
+      
+      res.json({
+        success: true,
+        message: "Lead created and queued for enrichment",
+        lead: newLead
+      });
+    } catch (error) {
+      console.error("Error quick enriching lead:", error);
+      res.status(500).json({ error: "Failed to quick enrich lead" });
+    }
+  });
+
+  // GET /api/leads/enrichment-status - Get leads with enrichment status and completion data
+  app.get("/api/leads/enrichment-status", requireAuth, async (req, res) => {
+    try {
+      const { completion, status, search, limit = '100' } = req.query;
+      
+      const user = await storage.getUser(req.session.userId!);
+      if (!user) {
+        return res.status(401).json({ error: "User not found" });
+      }
+      
+      // Get all leads (admin sees all, buyers see only their purchased leads)
+      let leads = user.role === 'admin' 
+        ? await storage.getLeads(parseInt(limit as string)) 
+        : await storage.getLeadsByUser(user.id);
+      
+      // SECURITY: For non-admin users, verify ownership of each lead
+      if (user.role !== 'admin') {
+        leads = leads.filter(lead => lead.soldTo === user.id);
+      }
+      
+      // Apply search filter
+      if (search && typeof search === 'string') {
+        const searchLower = search.toLowerCase();
+        leads = leads.filter(lead => 
+          lead.businessName?.toLowerCase().includes(searchLower) ||
+          lead.ownerName?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Calculate completion percentage for each lead
+      const leadsWithCompletion = leads.map(lead => {
+        const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(lead);
+        return {
+          ...lead,
+          completionPercentage: analysis.completionScore,
+          missingFields: analysis.missingFields.map(f => f.field)
+        };
+      });
+      
+      // Apply completion filter
+      let filteredLeads = leadsWithCompletion;
+      if (completion && completion !== 'all') {
+        const [min, max] = (completion as string).split('-').map(Number);
+        filteredLeads = leadsWithCompletion.filter(lead => 
+          lead.completionPercentage >= min && lead.completionPercentage <= max
+        );
+      }
+      
+      res.json({
+        success: true,
+        leads: filteredLeads,
+        totalCount: filteredLeads.length
+      });
+    } catch (error) {
+      console.error("Error fetching enrichment status:", error);
+      res.status(500).json({ error: "Failed to fetch enrichment status" });
+    }
+  });
+  
   console.log('[EnrichmentQueueRoutes] Registered enrichment queue management endpoints');
 }
