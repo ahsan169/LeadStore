@@ -164,6 +164,20 @@ export const leads = pgTable("leads", {
   
   // Simplified Lead Scoring System
   unifiedLeadScore: integer("unified_lead_score").default(0), // 0-100 unified score
+  
+  // Colorado MCA Enrichment Methodology Fields
+  mcaScore: decimal("mca_score", { precision: 5, scale: 1 }), // MCA suitability score from Colorado methodology
+  mcaQualityTier: text("mca_quality_tier"), // 'excellent', 'good', 'fair', 'poor'
+  hasBank: boolean("has_bank").default(false), // Secured party includes bank
+  hasEquipment: boolean("has_equipment").default(false), // Secured party includes equipment lender
+  hasIRS: boolean("has_irs").default(false), // Has IRS lien (negative signal)
+  hasSBA: boolean("has_sba").default(false), // Has SBA lien (negative signal)
+  mcaSector: text("mca_sector"), // Sector classification for MCA (e.g., "Heavy Civil/Construction")
+  whyGoodForMCA: text("why_good_for_mca"), // Explanation of MCA suitability
+  mcaInsights: jsonb("mca_insights"), // Array of insights/badges for MCA suitability
+  isGovernmentEntity: boolean("is_government_entity").default(false), // Excluded from MCA
+  mcaRecencyScore: integer("mca_recency_score").default(0), // 0-10 score for filing recency
+  lastMCAEnrichmentAt: timestamp("last_mca_enrichment_at"), // When MCA methodology was last applied
   dataCompletenessScore: integer("data_completeness_score").default(0), // 0-100
   leadScoreCategory: text("lead_score_category"), // 'excellent', 'good', 'fair', 'poor'
   

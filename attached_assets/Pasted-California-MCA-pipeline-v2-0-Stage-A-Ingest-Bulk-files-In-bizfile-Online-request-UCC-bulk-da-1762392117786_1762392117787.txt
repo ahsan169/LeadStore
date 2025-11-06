@@ -1,0 +1,176 @@
+California MCA pipeline (v2.0)
+Stage A — Ingest (Bulk files)
+
+In bizfile Online, request UCC bulk data (full snapshot + periodic deltas). 
+California Secretary of State
+
+You’ll receive ZIPs containing Debtors / Secured Parties (and often Filing/Action tables).
+
+In Replit, mount/upload the ZIPs (or sync from your cloud) and extract.
+
+If/when California adds or changes bulk formats, this design keeps working because we don’t hardcode field names—we pick from a list of aliases per field.
+
+Stage B — Score (business roll-up)
+
+Exactly like Colorado, tuned for CA lender landscape:
+
+Positives
+
+has_bank: tokens like “ bank”, “credit union”, “ national association”, “ n.a”, “ fsb”, “savings bank”.
+(Think CA lenders you’ll see a lot: Bank of America, Wells Fargo, U.S. Bank, JPMorgan, Zions, First Citizens/CIT, City National, etc.)
+
+has_equipment: tokens like john deere, caterpillar, CNH, Kubota, DLL, Komatsu, Volvo Financial, Vermeer, Doosan, plus CA-common: Key Equipment Finance, PNC Equipment Finance, Banc of California Equipment Finance, Toyota Industries/TCF legacy, Balboa Capital, Leaf Capital.
+
+Negatives: has_irs, has_sba, and public-sector names (e.g., “City of ”, “County of ”, “Unified School District”, “Authority”, “University”, “State of California”).
+
+Counts: active_filing_count, secured_party_count.
+
+Recency (if the file/action date is included in CA bulk—many bundles include it).
+
+Score (weights can live in YAML as before):
+
+score =
+  +25*has_bank   +25*has_equipment
+  +20*min(secured_party_count,10)/10
+  +20*min(active_filing_count,10)/10
+  +10*recency_bucket   # if CA data includes filed/action date
+  -60*has_irs          -40*has_sba
+
+
+Deduping: normalize (name, zip) + fuzzy collapse (RapidFuzz). Suppress entities previously exported (SQLite “seen” table).
+
+Stage C — Enrich (web)
+
+Google Places Text Search ➜ Place Details for phone/website/address (most reliable at scale). 
+LexisNexis Support Center
++1
+
+OpenCorporates (optional) to pull status / company_number (jurisdiction: us_ca).
+
+bizfile Online UCC/Business Search for manual edge-cases. 
+BizFile Online
++1
+
+Stage D — Export + State
+
+CSV columns (same shape we used):
+debtor_name, address, city, state, zip, website, phone, sector, why_good_for_MCA, has_bank, has_equipment, secured_party_count, active_filing_count, last_filing_date, place_id, oc_status, oc_company_number
+
+SQLite tables for state (watermarks) and seen (no repeats).
+
+Replit quick-start (California)
+
+1) config.yaml (CA edition)
+
+california_bulk:
+  # set these to the folder(s) where you place your CA bulk CSVs after download/unzip
+  debtor_glob: "data_ca/ucc/*debtor*.csv"
+  secured_glob: "data_ca/ucc/*secured*.csv"
+  # if you also get a filings/actions file, add a glob and we’ll pick the best date column automatically
+  filings_glob: "data_ca/ucc/*filing*.csv"
+
+filters:
+  state_allow: ["CA","CALIFORNIA"]
+  exclude_terms:
+    - "city of "
+    - "county of "
+    - "unified school district"
+    - "school district"
+    - "authority"
+    - "university"
+    - "state of california"
+  months_lookback: 36   # set to 0 if your bulk doesn’t contain a usable filing date
+
+scoring:
+  w_bank: 25
+  w_equipment: 25
+  w_secparties: 20
+  w_filings: 20
+  w_recency: 10
+  p_irs: 60
+  p_sba: 40
+
+terms:
+  bank: [" bank", "credit union", " national association", " n.a", " fsb", "savings bank", "banc of california", "city national bank"]
+  equipment: ["john deere", "deere & company", "caterpillar", "cat financial", "dell/leasing","leaf capital",
+              "dll", "komatsu", "kubota", "volvo financial", "vermeer", "doosan",
+              "key equipment finance", "pnc equipment", "first citizens", "cit commercial", "balboa capital",
+              "toyota industries", "tcf equipment", "bmo equipment"]
+  irs: ["internal revenue service", " irs", "department of revenue", "franchise tax board"]   # FTB shows up in some CA lien contexts
+  sba: ["small business administration", "u.s. small business administration"]
+
+enrichment:
+  google_places_api_key: "YOUR_PLACES_KEY"
+  use_opencorporates: true
+  opencorporates_api_token: "YOUR_OC_TOKEN"
+
+output:
+  csv: "ca_mca_enriched.csv"
+  state_db: "state_ca.sqlite"
+
+
+2) main_ca.py (drop-in; same structure as the CO script—but reads local CA bulk CSVs instead of calling an API)
+
+Changes vs. CO:
+
+load_csvs(glob) → stream multiple CSVs (some CA bulks split by year/month).
+
+Robust column pickers: fileid|filenumber|fileno|recordnumber, organizationname|orgname, lastname|firstname, address1|addressline1|address, zipcode|zip|postalcode, recordstatus|recordstatuscd|status, filedate|filingdate|recorddate|eventdate.
+
+If you have a filings/actions table with dates keyed by fileid, left-join to populate last_filing_date.
+
+I’m keeping the code payload compact here; you can reuse the CO main.py I gave you and replace the Socrata “pull” with a tiny “load from glob” function:
+
+# snippet you’ll paste into your existing main.py, replacing the Socrata pull
+import glob
+
+def load_many(glob_pattern, nrows=None):
+    dfs = []
+    for path in glob.glob(glob_pattern):
+        try:
+            dfs.append(pd.read_csv(path, dtype=str, nrows=nrows, encoding="utf-8", low_memory=False))
+        except UnicodeDecodeError:
+            dfs.append(pd.read_csv(path, dtype=str, nrows=nrows, encoding="latin-1", low_memory=False))
+    return norm_cols(pd.concat(dfs, ignore_index=True)) if dfs else pd.DataFrame()
+
+def pull_debtors_ca():
+    g = cfg["california_bulk"]["debtor_glob"]
+    return load_many(g)
+
+def pull_secured_ca():
+    g = cfg["california_bulk"]["secured_glob"]
+    return load_many(g)
+
+def pull_filings_ca():
+    g = cfg["california_bulk"].get("filings_glob")
+    return load_many(g) if g else pd.DataFrame()
+
+# then in main(): use pull_debtors_ca(), pull_secured_ca(), and optionally pull_filings_ca()
+# if filings_df is not empty, join 'last_filing_date' by fileid before scoring.
+
+
+Everything downstream (scoring, dedupe, Google Places enrichment, OpenCorporates, exports, SQLite state) is identical to what you already have.
+
+Tips that boost quantity & quality in California
+
+Use the deltas: after the full snapshot, request weekly/monthly updates from BE & UCC Bulk Orders, then append + re-score. 
+California Secretary of State
+
+Heavier lender dictionary: start with the CA-heavy list in terms.equipment and expand as you see new secured parties in the data; each time you add a token, your equipment-positive recall increases.
+
+Recency if available: many CA bulk bundles include an action/filing date—if you’ve got it, give +recency weight for last 12–24 months.
+
+Sectors that convert: prioritize horizontal construction, paving, grading, trenching, pipeline, drilling, electrical, mechanical, concrete, aggregates, materials, trucking—then let outcomes fine-tune weights.
+
+Blacklist public sector early (school districts/cities/counties/authorities), and suppress IRS/SBA/FTB tokens.
+
+Where to manually check or order data (for your team’s reference)
+
+CA UCC Search / filing portal (free searches & copies; interactive): bizfile Online UCC. 
+BizFile Online
++1
+
+BE & UCC Bulk Orders (snapshot + periodic updates): via bizfile Online login. 
+California Secretary of State
+
+CA Business Search (entity status): bizfile Online search.

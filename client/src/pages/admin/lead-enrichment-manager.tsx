@@ -1061,6 +1061,87 @@ export default function LeadEnrichmentManager() {
 
               <Separator />
 
+              {/* MCA Scoring Insights */}
+              {(selectedLead.mcaScore || selectedLead.mcaInsights) && (
+                <>
+                  <div className="space-y-4">
+                    <h3 className="font-semibold">MCA Suitability Analysis</h3>
+                    
+                    {selectedLead.mcaScore !== undefined && (
+                      <div className="flex items-center gap-3">
+                        <div>
+                          <p className="text-sm text-muted-foreground">MCA Score</p>
+                          <p className="text-2xl font-bold">{Number(selectedLead.mcaScore).toFixed(1)}</p>
+                        </div>
+                        {selectedLead.mcaQualityTier && (
+                          <Badge className={cn(
+                            selectedLead.mcaQualityTier === 'excellent' && "bg-green-500/10 text-green-500 border-green-500/20",
+                            selectedLead.mcaQualityTier === 'good' && "bg-blue-500/10 text-blue-500 border-blue-500/20",
+                            selectedLead.mcaQualityTier === 'fair' && "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+                            selectedLead.mcaQualityTier === 'poor' && "bg-red-500/10 text-red-500 border-red-500/20"
+                          )}>
+                            {selectedLead.mcaQualityTier.charAt(0).toUpperCase() + selectedLead.mcaQualityTier.slice(1)}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+
+                    {/* MCA Signals */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedLead.hasBank && (
+                        <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                          🏦 Bank Relationship
+                        </Badge>
+                      )}
+                      {selectedLead.hasEquipment && (
+                        <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20">
+                          🚜 Equipment Finance
+                        </Badge>
+                      )}
+                      {selectedLead.hasIRS && (
+                        <Badge variant="outline" className="bg-red-500/10 text-red-500 border-red-500/20">
+                          ⚠️ IRS Lien
+                        </Badge>
+                      )}
+                      {selectedLead.hasSBA && (
+                        <Badge variant="outline" className="bg-orange-500/10 text-orange-500 border-orange-500/20">
+                          ⚠️ SBA Lien
+                        </Badge>
+                      )}
+                    </div>
+
+                    {selectedLead.mcaSector && (
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Sector</p>
+                        <p className="font-medium">{selectedLead.mcaSector}</p>
+                      </div>
+                    )}
+
+                    {selectedLead.whyGoodForMCA && (
+                      <div className="space-y-1">
+                        <p className="text-sm text-muted-foreground">Why Good for MCA</p>
+                        <p className="text-sm">{selectedLead.whyGoodForMCA}</p>
+                      </div>
+                    )}
+
+                    {selectedLead.mcaInsights && Array.isArray(selectedLead.mcaInsights) && selectedLead.mcaInsights.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-muted-foreground">Insights</p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedLead.mcaInsights.map((insight: string, idx: number) => (
+                            <Badge key={idx} variant="outline" className="text-xs">
+                              {insight}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+                </>
+              )}
+
               {/* Enrichment History */}
               <div className="space-y-4">
                 <h3 className="font-semibold">Enrichment History</h3>

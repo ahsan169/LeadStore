@@ -40,6 +40,28 @@ The application has been fully configured and tested. All major issues have been
 ❌ **Optional/Not Configured**:
 - Google Drive - Optional feature, not critical for core functionality
 
+## Recent Enhancements (November 6, 2025)
+
+### Colorado MCA Enrichment Methodology (NEW)
+Professional-grade Colorado MCA lead scoring using industry-proven methodology:
+- **MCA Suitability Scoring**: Comprehensive 0-100 score based on Colorado Secretary of State UCC filings
+  - Bank relationships (+25 points): Existing operating lines/term debt profiles
+  - Equipment financing (+25 points): Capex-heavy operations indicating cash flow needs
+  - Secured party diversity (+20 points): Multiple lenders indicate active credit usage
+  - Active filings (+20 points): Ongoing business activity and creditworthiness
+  - Filing recency (+10 points): Recent activity shows current operations
+  - Penalties: IRS liens (-60), SBA liens (-40) for poor MCA fit
+- **Quality Tiers**: Excellent (70+), Good (50-70), Fair (30-50), Poor (<30)
+- **Sector Classification**: Automatic categorization (Heavy Civil/Construction, General Contractor, etc.)
+- **Intelligent Filtering**: Auto-excludes government entities and poor fits
+- **MCA Insights**: Visual badges showing "Why Good for MCA" with specific reasoning
+- **Terminology Detection**: 
+  - Bank terms: "bank", "credit union", "national association", "FSB"
+  - Equipment terms: John Deere, Caterpillar, Komatsu, Kubota, Volvo Financial, DLL
+  - Negative signals: IRS, SBA, Department of Revenue
+- **UI Integration**: MCA scores, quality tiers, and insights displayed in lead detail modals
+- **Automated Application**: Runs automatically during lead enrichment when UCC data present
+
 ## Recent Enhancements (November 4, 2025)
 
 ### Enhanced Admin Panel

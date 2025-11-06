@@ -12,6 +12,7 @@ import { cacheManager } from "./cache-manager";
 import { hunterService } from "./enrichment/hunter-service";
 import { numverifyService } from "../numverify-service";
 import { perplexityResearch } from "./perplexity-research";
+import { mcaScoringService } from "./mca-scoring-service";
 import OpenAI from "openai";
 
 // Initialize OpenAI
@@ -289,6 +290,41 @@ export class MasterEnrichmentOrchestrator {
       parallelTasks.push(
         this.runWithTracking('UccIntelligence', async () => {
           return await this.uccIntelligenceExtractor.extractIntelligence(leadData);
+        })
+      );
+    }
+    
+    // MCA Scoring (Colorado methodology)
+    if (leadData.securedParties || leadData.uccNumber || leadData.businessName) {
+      parallelTasks.push(
+        this.runWithTracking('MCAScoring', async () => {
+          let uccFilings: Array<{ securedParty: string; filingDate: Date }> = [];
+          
+          if (leadData.businessName) {
+            try {
+              const filings = await storage.findUccFilingsByBusinessName(leadData.businessName);
+              uccFilings = filings.map(f => ({
+                securedParty: f.securedParty || '',
+                filingDate: new Date(f.filingDate)
+              }));
+            } catch (error) {
+              console.error('[MCAScoring] Error fetching UCC filings:', error);
+            }
+          }
+          
+          if (uccFilings.length === 0 && leadData.securedParties) {
+            uccFilings = [{
+              securedParty: leadData.securedParties,
+              filingDate: leadData.lastFilingDate || new Date()
+            }];
+          }
+          
+          const mcaResult = mcaScoringService.enrichLeadWithMCAScore({
+            businessName: leadData.businessName || '',
+            uccFilings
+          });
+          
+          return mcaResult;
         })
       );
     }
@@ -603,14 +639,31 @@ export class MasterEnrichmentOrchestrator {
     if (!result.leadId) return;
     
     try {
-      // Update lead with enriched data
-      await storage.updateLead(result.leadId, {
+      const updateData: any = {
         ...result.finalData,
         masterEnrichmentScore: result.masterEnrichmentScore,
         dataCompleteness: JSON.stringify(result.dataCompleteness),
         enrichmentSystems: JSON.stringify(result.enrichmentSystems.map(s => s.systemName)),
         lastEnrichedAt: new Date()
-      } as any);
+      };
+      
+      if (result.finalData.mcaScore !== undefined) {
+        updateData.mcaScore = result.finalData.mcaScore;
+        updateData.mcaQualityTier = result.finalData.mcaQualityTier;
+        updateData.hasBank = result.finalData.hasBank;
+        updateData.hasEquipment = result.finalData.hasEquipment;
+        updateData.hasIRS = result.finalData.hasIRS;
+        updateData.hasSBA = result.finalData.hasSBA;
+        updateData.mcaSector = result.finalData.mcaSector;
+        updateData.whyGoodForMCA = result.finalData.whyGoodForMCA;
+        updateData.mcaInsights = result.finalData.mcaInsights ? JSON.stringify(result.finalData.mcaInsights) : null;
+        updateData.isGovernmentEntity = result.finalData.isGovernmentEntity;
+        updateData.mcaRecencyScore = result.finalData.mcaRecencyScore;
+        updateData.lastMCAEnrichmentAt = new Date();
+      }
+      
+      // Update lead with enriched data
+      await storage.updateLead(result.leadId, updateData);
       
       // Save enrichment metadata
       await storage.createLeadEnrichment({
