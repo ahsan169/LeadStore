@@ -24,7 +24,7 @@ import {
 } from "./email";
 import { db } from "./db";
 import { leadPerformance, purchases, leadScoringModels, leads, users } from "@shared/schema";
-import { gte, lte, and, or, sql, eq, desc, like, isNotNull, inArray } from "drizzle-orm";
+import { gte, lte, and, or, sql, eq, desc, like, isNotNull, isNull, inArray } from "drizzle-orm";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
@@ -69,6 +69,8 @@ import { setupEnhancedEnrichmentRoutes } from "./routes/enhanced-enrichment";
 import entityRouter from "./routes/entity";
 import feedbackRouter from "./routes/feedback";
 import intelligenceRouter from "./routes/intelligence";
+import { unifiedEnrichmentService } from "./services/unified-enrichment-service";
+import { unifiedValidationService } from "./services/unified-validation-service";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -3269,33 +3271,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/leads/enrichment-queue", requireAuth, async (req, res) => {
     try {
       // Get leads with low completeness scores or missing key fields
-      const leads = await db.select()
+      const leadsData = await db.select()
         .from(leads)
         .where(
           or(
-            lte(leads.completenessScore, 50),
-            eq(leads.email, null),
-            eq(leads.phone, null),
-            eq(leads.annualRevenue, null)
+            lte(leads.dataCompletenessScore, 70),
+            isNull(leads.email),
+            isNull(leads.phone),
+            isNull(leads.annualRevenue),
+            isNull(leads.emailVerificationScore),
+            isNull(leads.phoneVerificationScore),
+            isNull(leads.masterEnrichmentScore)
           )
         )
         .orderBy(desc(leads.createdAt))
         .limit(100);
 
       // Add enrichment priority based on data gaps
-      const enrichmentQueue = leads.map(lead => ({
-        ...lead,
-        priority: lead.completenessScore ? 
-          (lead.completenessScore < 30 ? 'high' : lead.completenessScore < 60 ? 'medium' : 'low') : 
-          'high',
-        dataGaps: [
-          !lead.email && 'Email',
-          !lead.phone && 'Phone',
-          !lead.annualRevenue && 'Revenue',
-          !lead.industry && 'Industry',
-          !lead.creditScore && 'Credit Score'
-        ].filter(Boolean)
-      }));
+      const enrichmentQueue = leadsData.map(lead => {
+        // Calculate completeness for display
+        const fields = [
+          lead.businessName,
+          lead.ownerName,
+          lead.email,
+          lead.phone,
+          lead.annualRevenue,
+          lead.industry,
+          lead.creditScore,
+          lead.city,
+          lead.stateCode,
+          lead.websiteUrl,
+          lead.employeeCount,
+          lead.timeInBusiness
+        ];
+        
+        const filledCount = fields.filter(f => f !== null && f !== undefined && f !== '').length;
+        const completenessPercentage = Math.round((filledCount / fields.length) * 100);
+        
+        return {
+          ...lead,
+          completenessPercentage,
+          priority: lead.dataCompletenessScore ? 
+            (lead.dataCompletenessScore < 30 ? 'high' : lead.dataCompletenessScore < 60 ? 'medium' : 'low') : 
+            'high',
+          dataGaps: [
+            !lead.email && 'Email',
+            !lead.phone && 'Phone',
+            !lead.annualRevenue && 'Revenue',
+            !lead.industry && 'Industry',
+            !lead.creditScore && 'Credit Score',
+            !lead.websiteUrl && 'Website',
+            !lead.employeeCount && 'Employee Count'
+          ].filter(Boolean),
+          enrichmentNeeded: !lead.masterEnrichmentScore || lead.masterEnrichmentScore < 80
+        };
+      });
 
       res.json(enrichmentQueue);
     } catch (error) {
@@ -3307,21 +3337,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Validation Queue - Get leads that need validation
   app.get("/api/leads/validation-queue", requireAuth, async (req, res) => {
     try {
-      // Get leads that haven't been verified or have low verification scores
-      const leads = await db.select()
-        .from(leads)
-        .where(
-          or(
-            eq(leads.emailVerificationScore, null),
-            eq(leads.phoneVerificationScore, null),
-            lte(leads.emailVerificationScore, 60),
-            lte(leads.phoneVerificationScore, 60)
-          )
-        )
-        .orderBy(desc(leads.createdAt))
-        .limit(100);
+      // Use unified validation service to get queue
+      const queue = await unifiedValidationService.getValidationQueue(100);
+      
+      // Enhance with validation status info
+      const validationQueue = queue.map(lead => {
+        const needsValidation = !lead.emailVerificationScore || !lead.phoneVerificationScore ||
+                               lead.emailVerificationScore < 60 || lead.phoneVerificationScore < 60;
+        
+        return {
+          ...lead,
+          validationStatus: lead.verificationStatus || 'unverified',
+          emailStatus: !lead.emailVerificationScore ? 'not_checked' : 
+                       lead.emailVerificationScore >= 80 ? 'valid' :
+                       lead.emailVerificationScore >= 60 ? 'partial' : 'invalid',
+          phoneStatus: !lead.phoneVerificationScore ? 'not_checked' :
+                       lead.phoneVerificationScore >= 80 ? 'valid' :
+                       lead.phoneVerificationScore >= 60 ? 'partial' : 'invalid',
+          needsValidation,
+          validationPriority: !lead.emailVerificationScore || !lead.phoneVerificationScore ? 'high' :
+                            lead.emailVerificationScore < 60 || lead.phoneVerificationScore < 60 ? 'medium' : 'low'
+        };
+      });
 
-      res.json(leads);
+      res.json(validationQueue);
     } catch (error) {
       console.error('Error fetching validation queue:', error);
       res.status(500).json({ error: "Failed to fetch validation queue" });
@@ -3331,30 +3370,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Validation Stats - Get validation statistics
   app.get("/api/validation/stats", requireAuth, async (req, res) => {
     try {
-      // Get validation statistics
-      const allLeads = await db.select({
+      // Use unified validation service to get stats
+      const stats = await unifiedValidationService.getValidationStats();
+      
+      // Also get some additional stats from database
+      const additionalStats = await db.select({
         totalCount: sql<number>`count(*)`,
-        fullyValidated: sql<number>`count(*) filter (where ${leads.emailVerificationScore} >= 80 and ${leads.phoneVerificationScore} >= 80)`,
-        partiallyValidated: sql<number>`count(*) filter (where (${leads.emailVerificationScore} >= 60 and ${leads.emailVerificationScore} < 80) or (${leads.phoneVerificationScore} >= 60 and ${leads.phoneVerificationScore} < 80))`,
-        failedValidation: sql<number>`count(*) filter (where ${leads.emailVerificationScore} < 60 or ${leads.phoneVerificationScore} < 60)`,
-        avgEmailScore: sql<number>`avg(${leads.emailVerificationScore})`,
-        avgPhoneScore: sql<number>`avg(${leads.phoneVerificationScore})`
+        unvalidated: sql<number>`count(*) filter (where ${leads.emailVerificationScore} is null and ${leads.phoneVerificationScore} is null)`,
+        recentlyValidated: sql<number>`count(*) filter (where ${leads.lastVerifiedAt} > now() - interval '7 days')`
       })
       .from(leads);
-
-      const stats = allLeads[0] || {};
       
-      // Calculate validation rate
-      const validationRate = stats.totalCount > 0 ? 
-        Math.round((stats.fullyValidated / stats.totalCount) * 100) : 0;
-
       res.json({
-        fullyValidated: stats.fullyValidated || 0,
-        partiallyValidated: stats.partiallyValidated || 0,
-        failedValidation: stats.failedValidation || 0,
-        validationRate,
-        avgEmailScore: Math.round(stats.avgEmailScore || 0),
-        avgPhoneScore: Math.round(stats.avgPhoneScore || 0)
+        ...stats,
+        totalLeads: additionalStats[0]?.totalCount || 0,
+        unvalidated: stats.unvalidated || additionalStats[0]?.unvalidated || 0,
+        recentlyValidated: additionalStats[0]?.recentlyValidated || 0
       });
     } catch (error) {
       console.error('Error fetching validation stats:', error);
@@ -3486,25 +3517,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Enrichment Analytics Stats
   app.get("/api/enrichment/analytics/stats", requireAuth, async (req, res) => {
     try {
-      const stats = await db.select({
-        totalEnriched: sql<number>`count(*) filter (where ${leads.completenessScore} >= 80)`,
-        inQueue: sql<number>`count(*) filter (where ${leads.completenessScore} < 50 or ${leads.completenessScore} is null)`,
-        avgCompleteness: sql<number>`avg(${leads.completenessScore})`
+      // Get enrichment stats from unified service
+      const enrichmentStats = await unifiedEnrichmentService.getEnrichmentStats();
+      
+      // Get additional stats from database
+      const dbStats = await db.select({
+        totalEnriched: sql<number>`count(*) filter (where ${leads.masterEnrichmentScore} >= 80 or ${leads.dataCompletenessScore} >= 80)`,
+        processing: sql<number>`count(*) filter (where ${leads.enrichmentStatus} = 'processing')`,
+        avgCompleteness: sql<number>`avg(COALESCE(${leads.masterEnrichmentScore}, ${leads.dataCompletenessScore}, 0))`,
+        recentlyEnriched: sql<number>`count(*) filter (where ${leads.lastEnrichedAt} > now() - interval '24 hours')`
       })
       .from(leads);
 
-      const successRate = stats[0]?.avgCompleteness || 0;
+      const successRate = dbStats[0]?.avgCompleteness || enrichmentStats.successRate || 0;
       
-      // Calculate cost saved (example calculation)
-      const costPerEnrichment = 0.50; // $0.50 per API call
-      const cachedEnrichments = Math.floor((stats[0]?.totalEnriched || 0) * 0.3); // Assume 30% were cached
-      const costSaved = cachedEnrichments * costPerEnrichment;
-
       res.json({
-        totalEnriched: stats[0]?.totalEnriched || 0,
-        inQueue: stats[0]?.inQueue || 0,
+        totalEnriched: enrichmentStats.totalEnriched || dbStats[0]?.totalEnriched || 0,
         successRate: Math.round(successRate),
-        costSaved
+        inQueue: enrichmentStats.inQueue || 0,
+        processing: enrichmentStats.processing || dbStats[0]?.processing || 0,
+        costSaved: enrichmentStats.costSaved || 0,
+        avgEnrichmentTime: enrichmentStats.avgEnrichmentTime || 0,
+        recentlyEnriched: dbStats[0]?.recentlyEnriched || 0
       });
     } catch (error) {
       console.error('Error fetching enrichment stats:', error);
@@ -3520,11 +3554,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         id: leads.id,
         businessName: leads.businessName,
         status: sql<string>`case 
-          when ${leads.completenessScore} >= 80 then 'completed'
-          when ${leads.completenessScore} >= 50 then 'processing'
+          when ${leads.dataCompletenessScore} >= 80 then 'completed'
+          when ${leads.dataCompletenessScore} >= 50 then 'processing'
           else 'pending'
         end`,
-        completenessScore: leads.completenessScore,
+        completenessScore: leads.dataCompletenessScore,
         updatedAt: leads.updatedAt
       })
       .from(leads)

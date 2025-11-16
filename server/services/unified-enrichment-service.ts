@@ -13,10 +13,10 @@
 import { db } from '../db';
 import { leads } from '@shared/schema';
 import { eq, and, isNull, lt, or, desc } from 'drizzle-orm';
-import { IntelligentEnrichmentOrchestrator } from './intelligent-enrichment-orchestrator';
-import { EnrichmentQueue } from './enrichment-queue';
-import { EnrichmentAnalytics } from './enrichment-analytics';
-import { AuditTrail } from './audit-trail';
+import { intelligentEnrichmentOrchestrator } from './intelligent-enrichment-orchestrator';
+import { enrichmentQueue } from './enrichment-queue';
+import { enrichmentAnalytics } from './enrichment-analytics';
+import { enrichmentAuditTrail } from './enrichment-audit-trail';
 import { eventBus } from './event-bus';
 
 export interface EnrichmentStrategy {
@@ -38,16 +38,12 @@ export interface EnrichmentResult {
 }
 
 export class UnifiedEnrichmentService {
-  private orchestrator: IntelligentEnrichmentOrchestrator;
-  private queue: EnrichmentQueue;
-  private analytics: EnrichmentAnalytics;
-  private auditTrail: AuditTrail;
+  private orchestrator = intelligentEnrichmentOrchestrator;
+  private queue = enrichmentQueue;
+  private analytics = enrichmentAnalytics;
+  private auditTrail = enrichmentAuditTrail;
 
   constructor() {
-    this.orchestrator = IntelligentEnrichmentOrchestrator.getInstance();
-    this.queue = EnrichmentQueue.getInstance();
-    this.analytics = EnrichmentAnalytics.getInstance();
-    this.auditTrail = AuditTrail.getInstance();
     
     console.log('[UnifiedEnrichmentService] Initialized with all components');
   }
@@ -75,7 +71,8 @@ export class UnifiedEnrichmentService {
       if (completeness >= 90) {
         priority = 'skip';
         reason = 'Lead is already fully enriched';
-      } else if (leadData.revenue && leadData.revenue > 5000000) {
+      } else if ((leadData.annualRevenue && parseInt(leadData.annualRevenue) > 5000000) || 
+                 (leadData.estimatedRevenue && leadData.estimatedRevenue > 5000000)) {
         priority = 'high';
         reason = 'High-revenue lead with enrichment opportunities';
       } else if (completeness < 50) {
@@ -93,9 +90,9 @@ export class UnifiedEnrichmentService {
       const enrichmentPlan: string[] = [];
       if (!leadData.emailVerificationScore) enrichmentPlan.push('email_verification');
       if (!leadData.phoneVerificationScore) enrichmentPlan.push('phone_verification');
-      if (!leadData.revenue) enrichmentPlan.push('revenue_estimation');
+      if (!leadData.annualRevenue && !leadData.estimatedRevenue) enrichmentPlan.push('revenue_estimation');
       if (!leadData.employeeCount) enrichmentPlan.push('employee_count');
-      if (!leadData.website) enrichmentPlan.push('website_discovery');
+      if (!leadData.websiteUrl) enrichmentPlan.push('website_discovery');
       if (!leadData.mcaQualityTier) enrichmentPlan.push('mca_analysis');
 
       // Estimate cost and quality gain
@@ -249,7 +246,7 @@ export class UnifiedEnrichmentService {
             )
           )
         )
-        .orderBy(desc(leads.revenue))
+        .orderBy(desc(leads.annualRevenue))
         .limit(50);
 
       let queued = 0;
@@ -301,11 +298,11 @@ export class UnifiedEnrichmentService {
    */
   private calculateCompleteness(lead: any): number {
     const fields = [
-      'businessName', 'ownerName', 'email', 'phoneNumber',
-      'address', 'city', 'state', 'zipCode',
-      'website', 'revenue', 'employeeCount', 'industry',
+      'businessName', 'ownerName', 'email', 'phone',
+      'fullAddress', 'city', 'stateCode',
+      'websiteUrl', 'annualRevenue', 'estimatedRevenue', 'employeeCount', 'industry',
       'emailVerificationScore', 'phoneVerificationScore',
-      'mcaQualityTier', 'uccDebtAmount'
+      'mcaQualityTier', 'totalUccDebt', 'dataCompletenessScore'
     ];
 
     const filledFields = fields.filter(field => 

@@ -14,7 +14,7 @@
 import { db } from '../db';
 import { leads } from '@shared/schema';
 import { eq, and, isNull, or, sql } from 'drizzle-orm';
-import { MultiSourceVerificationEngine } from './multi-source-verification';
+import { multiSourceVerificationEngine } from './multi-source-verification-engine';
 import { eventBus } from './event-bus';
 
 export interface ValidationResult {
@@ -42,10 +42,9 @@ export interface ValidationStats {
 }
 
 export class UnifiedValidationService {
-  private verificationEngine: MultiSourceVerificationEngine;
+  private verificationEngine = multiSourceVerificationEngine;
 
   constructor() {
-    this.verificationEngine = MultiSourceVerificationEngine.getInstance();
     console.log('[UnifiedValidationService] Initialized');
   }
 
@@ -94,12 +93,12 @@ export class UnifiedValidationService {
       let phoneScore: number | null = leadData.phoneVerificationScore;
       let phoneValid = false;
       
-      if (!leadData.phoneNumber) {
+      if (!leadData.phone) {
         issues.push('Phone number is missing');
         recommendations.push('Add phone number for better contact rates');
       } else if (phoneScore === null) {
         // Perform phone verification if not done
-        const phoneResult = await this.verificationEngine.verifyPhone(leadData.phoneNumber);
+        const phoneResult = await this.verificationEngine.verifyPhone(leadData.phone);
         phoneScore = phoneResult.score;
         phoneValid = phoneScore >= 60;
         
@@ -111,7 +110,7 @@ export class UnifiedValidationService {
         phoneValid = phoneScore >= 60;
       }
 
-      if (!phoneValid && leadData.phoneNumber) {
+      if (!phoneValid && leadData.phone) {
         issues.push(`Phone validation failed (score: ${phoneScore})`);
         recommendations.push('Verify phone number format and validity');
       }
@@ -360,13 +359,13 @@ export class UnifiedValidationService {
 
   private calculateDataCompleteness(lead: any): number {
     const requiredFields = [
-      'businessName', 'ownerName', 'email', 'phoneNumber',
-      'address', 'city', 'state', 'zipCode'
+      'businessName', 'ownerName', 'email', 'phone',
+      'fullAddress', 'city', 'stateCode'
     ];
     
     const optionalFields = [
-      'website', 'revenue', 'employeeCount', 'industry',
-      'fundingAmount', 'monthlyRevenue', 'timeInBusiness'
+      'websiteUrl', 'annualRevenue', 'estimatedRevenue', 'employeeCount', 'industry',
+      'requestedAmount', 'timeInBusiness'
     ];
 
     // Required fields are worth 70% of the score
