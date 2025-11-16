@@ -8,15 +8,10 @@ import { Button } from "@/components/ui/button";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import HomePage from "@/pages/home";
-import SimplifiedDashboard from "@/pages/simplified-dashboard";
-import SimplifiedPurchasePage from "@/pages/simplified-purchase";
-import PurchasesPage from "@/pages/purchases";
-import PaymentSuccessPage from "@/pages/payment-success";
-import PaymentCancelPage from "@/pages/payment-cancel";
 import SimplifiedAdminPage from "@/pages/admin/simplified-admin";
-import IntelligenceDashboard from "@/pages/intelligence-dashboard";
-import EnrichmentDashboard from "@/pages/admin/enrichment-dashboard";
-import { Home, Package, DollarSign, Users, Upload, LogOut, ShoppingCart, CreditCard, Settings, Brain, Zap } from "lucide-react";
+import EnrichmentWorkspace from "@/pages/enrichment-workspace";
+import ValidationCenter from "@/pages/validation-center";
+import { Home, Upload, LogOut, Zap, Shield } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -42,22 +37,15 @@ function AppSidebar() {
 
   const isAdmin = user?.role === "admin";
 
-  const buyerMenuItems = [
-    { title: "Dashboard", url: "/dashboard", icon: Home },
-    { title: "Buy Leads", url: "/purchase", icon: ShoppingCart },
-    { title: "My Purchases", url: "/purchases", icon: Package },
-  ];
-
-  const adminMenuItems = [
-    { title: "Dashboard", url: "/dashboard", icon: Home },
-    { title: "Buy Leads", url: "/purchase", icon: ShoppingCart },
-    { title: "My Purchases", url: "/purchases", icon: Package },
-    { title: "Intelligence", url: "/intelligence", icon: Brain },
+  // Simplified navigation - only essential features
+  const menuItems = isAdmin ? [
+    { title: "Dashboard", url: "/", icon: Home },
+    { title: "Upload Leads", url: "/admin", icon: Upload },
     { title: "Enrichment", url: "/enrichment", icon: Zap },
-    { title: "Admin Panel", url: "/admin", icon: Settings },
+    { title: "Validation", url: "/validation", icon: Shield },
+  ] : [
+    { title: "Dashboard", url: "/", icon: Home },
   ];
-
-  const menuItems = isAdmin ? adminMenuItems : buyerMenuItems;
 
   return (
     <Sidebar>
@@ -171,21 +159,14 @@ function Router() {
           <main className="flex-1 overflow-auto">
             <Switch>
               {/* Main routes */}
-              <Route path="/" component={SimplifiedDashboard} />
-              <Route path="/dashboard" component={SimplifiedDashboard} />
-              <Route path="/purchase" component={SimplifiedPurchasePage} />
-              <Route path="/purchases" component={PurchasesPage} />
-              <Route path="/payment-success" component={PaymentSuccessPage} />
-              <Route path="/payment-cancel" component={PaymentCancelPage} />
-
-              {/* Admin routes */}
+              <Route path="/" component={SimplifiedAdminPage} />
+              
+              {/* Admin-only routes */}
               {user.role === "admin" && (
                 <>
-                  <Route path="/intelligence" component={IntelligenceDashboard} />
-                  <Route path="/enrichment" component={EnrichmentDashboard} />
                   <Route path="/admin" component={SimplifiedAdminPage} />
-                  <Route path="/admin/upload" component={SimplifiedAdminPage} />
-                  <Route path="/admin/customers" component={SimplifiedAdminPage} />
+                  <Route path="/enrichment" component={EnrichmentWorkspace} />
+                  <Route path="/validation" component={ValidationCenter} />
                 </>
               )}
 
