@@ -1,0 +1,320 @@
+/**
+ * Unified Enrichment Service
+ * 
+ * This is the single facade for all enrichment operations, consolidating:
+ * - AI Decision Engine (strategy planning)
+ * - Intelligent Orchestrator (execution)
+ * - Queue Management (processing)
+ * - Analytics & Monitoring (observability)
+ * 
+ * This simplifies the previously fragmented enrichment system into one coherent service.
+ */
+
+import { db } from '../db';
+import { leads } from '@shared/schema';
+import { eq, and, isNull, lt, or, desc } from 'drizzle-orm';
+import { IntelligentEnrichmentOrchestrator } from './intelligent-enrichment-orchestrator';
+import { EnrichmentQueue } from './enrichment-queue';
+import { EnrichmentAnalytics } from './enrichment-analytics';
+import { AuditTrail } from './audit-trail';
+import { eventBus } from './event-bus';
+
+export interface EnrichmentStrategy {
+  leadId: number;
+  priority: 'high' | 'medium' | 'low' | 'skip';
+  estimatedCost: number;
+  expectedQualityGain: number;
+  enrichmentPlan: string[];
+  reason: string;
+}
+
+export interface EnrichmentResult {
+  success: boolean;
+  leadId: number;
+  fieldsEnriched: string[];
+  cost: number;
+  duration: number;
+  errors?: string[];
+}
+
+export class UnifiedEnrichmentService {
+  private orchestrator: IntelligentEnrichmentOrchestrator;
+  private queue: EnrichmentQueue;
+  private analytics: EnrichmentAnalytics;
+  private auditTrail: AuditTrail;
+
+  constructor() {
+    this.orchestrator = IntelligentEnrichmentOrchestrator.getInstance();
+    this.queue = EnrichmentQueue.getInstance();
+    this.analytics = EnrichmentAnalytics.getInstance();
+    this.auditTrail = AuditTrail.getInstance();
+    
+    console.log('[UnifiedEnrichmentService] Initialized with all components');
+  }
+
+  /**
+   * STRATEGY PLANNING
+   * Analyze a lead and determine enrichment strategy
+   */
+  async analyzeLeadForEnrichment(leadId: number): Promise<EnrichmentStrategy> {
+    try {
+      const lead = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      if (!lead.length) {
+        throw new Error(`Lead ${leadId} not found`);
+      }
+
+      const leadData = lead[0];
+      
+      // Calculate completeness score
+      const completeness = this.calculateCompleteness(leadData);
+      
+      // Determine priority based on completeness and value
+      let priority: 'high' | 'medium' | 'low' | 'skip' = 'medium';
+      let reason = '';
+      
+      if (completeness >= 90) {
+        priority = 'skip';
+        reason = 'Lead is already fully enriched';
+      } else if (leadData.revenue && leadData.revenue > 5000000) {
+        priority = 'high';
+        reason = 'High-revenue lead with enrichment opportunities';
+      } else if (completeness < 50) {
+        priority = 'high';
+        reason = 'Lead has significant data gaps';
+      } else if (completeness < 70) {
+        priority = 'medium';
+        reason = 'Lead has moderate enrichment potential';
+      } else {
+        priority = 'low';
+        reason = 'Lead has minimal enrichment needs';
+      }
+
+      // Determine what needs enrichment
+      const enrichmentPlan: string[] = [];
+      if (!leadData.emailVerificationScore) enrichmentPlan.push('email_verification');
+      if (!leadData.phoneVerificationScore) enrichmentPlan.push('phone_verification');
+      if (!leadData.revenue) enrichmentPlan.push('revenue_estimation');
+      if (!leadData.employeeCount) enrichmentPlan.push('employee_count');
+      if (!leadData.website) enrichmentPlan.push('website_discovery');
+      if (!leadData.mcaQualityTier) enrichmentPlan.push('mca_analysis');
+
+      // Estimate cost and quality gain
+      const estimatedCost = enrichmentPlan.length * 0.05; // $0.05 per enrichment
+      const expectedQualityGain = Math.min(100 - completeness, enrichmentPlan.length * 15);
+
+      const strategy: EnrichmentStrategy = {
+        leadId,
+        priority,
+        estimatedCost,
+        expectedQualityGain,
+        enrichmentPlan,
+        reason
+      };
+
+      // Log strategy decision
+      await this.auditTrail.logActivity({
+        action: 'enrichment_strategy_created',
+        entityType: 'lead',
+        entityId: leadId,
+        details: strategy,
+        userId: 'system'
+      });
+
+      return strategy;
+    } catch (error) {
+      console.error('[UnifiedEnrichmentService] Error analyzing lead:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * EXECUTION ENGINE
+   * Execute enrichment for a lead based on strategy
+   */
+  async enrichLead(leadId: number, strategy?: EnrichmentStrategy): Promise<EnrichmentResult> {
+    const startTime = Date.now();
+    
+    try {
+      // If no strategy provided, analyze first
+      if (!strategy) {
+        strategy = await this.analyzeLeadForEnrichment(leadId);
+      }
+
+      // Skip if priority is skip
+      if (strategy.priority === 'skip') {
+        return {
+          success: true,
+          leadId,
+          fieldsEnriched: [],
+          cost: 0,
+          duration: Date.now() - startTime
+        };
+      }
+
+      // Execute enrichment via orchestrator
+      const result = await this.orchestrator.enrichLead(leadId);
+      
+      // Track analytics
+      await this.analytics.trackEnrichment({
+        leadId,
+        source: 'unified_service',
+        success: result.success,
+        duration: Date.now() - startTime,
+        dataPoints: result.enrichedFields?.length || 0,
+        cost: strategy.estimatedCost
+      });
+
+      // Emit event for other systems
+      eventBus.emit('lead:enrichment-complete', {
+        leadId,
+        success: result.success,
+        fieldsEnriched: result.enrichedFields
+      });
+
+      return {
+        success: result.success,
+        leadId,
+        fieldsEnriched: result.enrichedFields || [],
+        cost: strategy.estimatedCost,
+        duration: Date.now() - startTime
+      };
+    } catch (error) {
+      console.error('[UnifiedEnrichmentService] Error enriching lead:', error);
+      
+      // Track failure
+      await this.analytics.trackEnrichment({
+        leadId,
+        source: 'unified_service',
+        success: false,
+        duration: Date.now() - startTime,
+        error: error.message
+      });
+
+      return {
+        success: false,
+        leadId,
+        fieldsEnriched: [],
+        cost: 0,
+        duration: Date.now() - startTime,
+        errors: [error.message]
+      };
+    }
+  }
+
+  /**
+   * QUEUE MANAGEMENT
+   * Queue leads for enrichment based on priority
+   */
+  async queueLeadForEnrichment(leadId: number, priority?: 'high' | 'medium' | 'low'): Promise<void> {
+    try {
+      const strategy = await this.analyzeLeadForEnrichment(leadId);
+      
+      if (strategy.priority === 'skip') {
+        console.log(`[UnifiedEnrichmentService] Skipping lead ${leadId} - already enriched`);
+        return;
+      }
+
+      await this.queue.addToQueue({
+        leadId,
+        priority: priority || strategy.priority,
+        type: 'enrichment',
+        metadata: {
+          strategy,
+          attemptNumber: 1
+        }
+      });
+
+      console.log(`[UnifiedEnrichmentService] Queued lead ${leadId} with ${priority || strategy.priority} priority`);
+    } catch (error) {
+      console.error('[UnifiedEnrichmentService] Error queueing lead:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * BULK OPERATIONS
+   * Analyze and enrich multiple leads
+   */
+  async bulkEnrichHighPriority(): Promise<{ queued: number; skipped: number }> {
+    try {
+      // Get leads that need enrichment (low quality score, missing data)
+      const leadsToEnrich = await db.select()
+        .from(leads)
+        .where(
+          and(
+            or(
+              lt(leads.qualityScore, 70),
+              isNull(leads.emailVerificationScore),
+              isNull(leads.phoneVerificationScore)
+            )
+          )
+        )
+        .orderBy(desc(leads.revenue))
+        .limit(50);
+
+      let queued = 0;
+      let skipped = 0;
+
+      for (const lead of leadsToEnrich) {
+        const strategy = await this.analyzeLeadForEnrichment(lead.id);
+        
+        if (strategy.priority === 'high' || strategy.priority === 'medium') {
+          await this.queueLeadForEnrichment(lead.id, strategy.priority);
+          queued++;
+        } else {
+          skipped++;
+        }
+      }
+
+      console.log(`[UnifiedEnrichmentService] Bulk enrichment: ${queued} queued, ${skipped} skipped`);
+      return { queued, skipped };
+    } catch (error) {
+      console.error('[UnifiedEnrichmentService] Error in bulk enrichment:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * OBSERVABILITY
+   * Get enrichment statistics and monitoring data
+   */
+  async getEnrichmentStats() {
+    const stats = await this.analytics.getStats();
+    const queueStatus = await this.queue.getQueueStatus();
+    
+    return {
+      totalEnriched: stats.totalEnrichments,
+      successRate: stats.successRate,
+      inQueue: queueStatus.pending,
+      processing: queueStatus.processing,
+      costSaved: stats.costSavings || 0,
+      avgEnrichmentTime: stats.avgDuration || 0
+    };
+  }
+
+  async getRecentJobs(limit: number = 20) {
+    return await this.queue.getRecentJobs(limit);
+  }
+
+  /**
+   * HELPER METHODS
+   */
+  private calculateCompleteness(lead: any): number {
+    const fields = [
+      'businessName', 'ownerName', 'email', 'phoneNumber',
+      'address', 'city', 'state', 'zipCode',
+      'website', 'revenue', 'employeeCount', 'industry',
+      'emailVerificationScore', 'phoneVerificationScore',
+      'mcaQualityTier', 'uccDebtAmount'
+    ];
+
+    const filledFields = fields.filter(field => 
+      lead[field] !== null && lead[field] !== undefined && lead[field] !== ''
+    );
+
+    return Math.round((filledFields.length / fields.length) * 100);
+  }
+}
+
+// Export singleton instance
+export const unifiedEnrichmentService = new UnifiedEnrichmentService();
