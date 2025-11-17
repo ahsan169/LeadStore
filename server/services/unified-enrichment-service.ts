@@ -276,17 +276,30 @@ export class UnifiedEnrichmentService {
    * Get enrichment statistics and monitoring data
    */
   async getEnrichmentStats() {
-    const stats = await this.analytics.getStats();
-    const queueStatus = await this.queue.getQueueStatus();
-    
-    return {
-      totalEnriched: stats.totalEnrichments,
-      successRate: stats.successRate,
-      inQueue: queueStatus.pending,
-      processing: queueStatus.processing,
-      costSaved: stats.costSavings || 0,
-      avgEnrichmentTime: stats.avgDuration || 0
-    };
+    try {
+      const metrics = await this.analytics.getEnrichmentMetrics('day');
+      const queueStatus = await this.queue.getQueueStatus();
+      
+      return {
+        totalEnriched: metrics.totalEnrichments || 0,
+        successRate: metrics.successRate || 0,
+        inQueue: queueStatus.pending || 0,
+        processing: queueStatus.processing || 0,
+        costSaved: metrics.totalCost || 0,
+        avgEnrichmentTime: metrics.averageProcessingTime || 0
+      };
+    } catch (error) {
+      console.error('[UnifiedEnrichmentService] Error getting enrichment stats:', error);
+      // Return default values if there's an error
+      return {
+        totalEnriched: 0,
+        successRate: 0,
+        inQueue: 0,
+        processing: 0,
+        costSaved: 0,
+        avgEnrichmentTime: 0
+      };
+    }
   }
 
   async getRecentJobs(limit: number = 20) {
