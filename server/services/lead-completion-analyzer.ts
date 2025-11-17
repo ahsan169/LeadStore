@@ -132,7 +132,7 @@ export class LeadCompletionAnalyzer {
     const enrichmentPriority = this.determineEnrichmentPriority(completionScore, missingFields);
     
     // Generate enrichment strategies
-    const enrichmentStrategies = this.generateEnrichmentStrategies(lead, missingFields);
+    const enrichmentStrategies = this.generateEnrichmentStrategies(lead, missingFields, completionScore);
     
     // Estimate enrichment time and confidence
     const estimatedEnrichmentTime = enrichmentStrategies
@@ -291,7 +291,8 @@ export class LeadCompletionAnalyzer {
    */
   private generateEnrichmentStrategies(
     lead: Partial<Lead | InsertLead>,
-    missingFields: FieldAnalysis[]
+    missingFields: FieldAnalysis[],
+    completionScore: number = 0
   ): EnrichmentStrategy[] {
     const strategies: EnrichmentStrategy[] = [];
     

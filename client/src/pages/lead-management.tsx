@@ -131,8 +131,10 @@ export default function LeadManagementPage() {
 
   // Bulk enrichment mutation
   const enrichMutation = useMutation({
-    mutationFn: (leadIds: string[]) =>
-      apiRequest("POST", "/api/leads/bulk-enrich", { leadIds }),
+    mutationFn: async (leadIds: string[]) => {
+      const response = await apiRequest("POST", "/api/leads/bulk-enrich", { leadIds });
+      return response.json();
+    },
     onSuccess: () => {
       toast({
         title: "Enrichment Started",
@@ -152,8 +154,10 @@ export default function LeadManagementPage() {
 
   // Bulk validation mutation
   const validateMutation = useMutation({
-    mutationFn: (leadIds: string[]) =>
-      apiRequest("POST", "/api/leads/bulk-validate", { leadIds }),
+    mutationFn: async (leadIds: string[]) => {
+      const response = await apiRequest("POST", "/api/leads/bulk-validate", { leadIds });
+      return response.json();
+    },
     onSuccess: () => {
       toast({
         title: "Validation Started",

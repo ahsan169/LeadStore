@@ -1417,8 +1417,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (!isNaN(min) && !isNaN(max)) {
           whereConditions.push(
             and(
-              gte(leads.mcaQualityScore, min),
-              lte(leads.mcaQualityScore, max)
+              gte(leads.mcaScore, min),
+              lte(leads.mcaScore, max)
             )
           );
         }
@@ -1431,15 +1431,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
 
-      // Validation status filter
+      // Validation status filter  
       if (parsedFilters.validationStatus !== undefined) {
         whereConditions.push(
-          eq(leads.isValidated, parsedFilters.validationStatus === 'validated')
+          parsedFilters.validationStatus === 'validated' 
+            ? eq(leads.verificationStatus, 'verified')
+            : or(
+                eq(leads.verificationStatus, 'unverified'),
+                eq(leads.verificationStatus, 'partial'),
+                eq(leads.verificationStatus, 'failed')
+              )
         );
       }
 
-      // Build order by clause
-      const orderByColumn = leads[sortField as keyof typeof leads] || leads.uploadedAt;
+      // Build order by clause with validation
+      // Create a mapping for sort fields
+      const sortFieldMap: Record<string, any> = {
+        'id': leads.id,
+        'businessName': leads.businessName,
+        'ownerName': leads.ownerName,
+        'email': leads.email,
+        'phone': leads.phone,
+        'industry': leads.industry,
+        'annualRevenue': leads.annualRevenue,
+        'qualityScore': leads.qualityScore,
+        'mcaQualityScore': leads.mcaScore,
+        'isEnriched': leads.isEnriched,
+        'isValidated': leads.verificationStatus,
+        'uploadedAt': leads.uploadedAt,
+        'lastEnrichedAt': leads.lastEnrichedAt,
+        'conversionProbability': leads.conversionProbability,
+        'expectedDealSize': leads.expectedDealSize,
+        'estimatedRevenue': leads.estimatedRevenue,
+        'enrichmentStatus': leads.enrichmentStatus
+      };
+      
+      // Get the column for sorting
+      const validSortField = sortFieldMap[sortField] ? sortField : 'uploadedAt';
+      const orderByColumn = sortFieldMap[validSortField];
+      
+      // Create order by clause
       const orderByClause = sortOrder === 'asc' ? orderByColumn : desc(orderByColumn);
 
       // Get total count
@@ -1448,6 +1479,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(leads)
         .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
       const totalCount = Number(countResult[0]?.count || 0);
+
+      // Return early if no leads found
+      if (totalCount === 0) {
+        return res.json({
+          leads: [],
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total: 0,
+            totalPages: 0
+          }
+        });
+      }
 
       // Get paginated results with derived fields
       const results = await db
@@ -1460,9 +1504,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           industry: leads.industry,
           annualRevenue: leads.annualRevenue,
           qualityScore: leads.qualityScore,
-          mcaQualityScore: leads.mcaQualityScore,
+          mcaQualityScore: leads.mcaScore,
           isEnriched: leads.isEnriched,
-          isValidated: leads.isValidated,
+          isValidated: sql<boolean>`${leads.verificationStatus} = 'verified'`,
           enrichmentStatus: leads.enrichmentStatus,
           uploadedAt: leads.uploadedAt,
           lastEnrichedAt: leads.lastEnrichedAt,
@@ -1473,17 +1517,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           readinessStatus: sql<string>`
             CASE 
               WHEN ${leads.isEnriched} = true 
-                AND ${leads.isValidated} = true 
+                AND ${leads.verificationStatus} = 'verified' 
                 AND ${leads.qualityScore} > 60 
               THEN 'ready'
               WHEN ${leads.isEnriched} = true 
-                AND ${leads.isValidated} = false 
+                AND ${leads.verificationStatus} != 'verified' 
               THEN 'needs_validation'
               WHEN ${leads.isEnriched} = false 
-                AND ${leads.isValidated} = true 
+                AND ${leads.verificationStatus} = 'verified' 
               THEN 'needs_enrichment'
               WHEN ${leads.isEnriched} = false 
-                AND ${leads.isValidated} = false 
+                AND ${leads.verificationStatus} != 'verified' 
               THEN 'needs_processing'
               ELSE 'not_ready'
             END
@@ -1496,7 +1540,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .offset(offset);
 
       res.json({
-        leads: results,
+        leads: results || [],
         pagination: {
           page: pageNum,
           limit: limitNum,
@@ -1506,7 +1550,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       console.error("Lead management error:", error);
-      res.status(500).json({ error: "Failed to fetch leads" });
+      res.status(500).json({ 
+        error: "Failed to fetch leads",
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   });
 
