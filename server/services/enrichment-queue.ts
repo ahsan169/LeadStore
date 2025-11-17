@@ -401,6 +401,8 @@ export class EnrichmentQueue {
         result = {
           businessName: orchestratorResult.businessName,
           ownerName: orchestratorResult.ownerName,
+          firstName: orchestratorResult.firstName,
+          lastName: orchestratorResult.lastName,
           email: orchestratorResult.email,
           phone: orchestratorResult.phone,
           secondaryPhone: orchestratorResult.secondaryPhone,
@@ -523,11 +525,19 @@ export class EnrichmentQueue {
     if (!item.leadId) return;
     
     try {
-      // Prepare update data
+      // Parse owner name into first and last names
+      const ownerName = result.ownerName || item.leadData.ownerName || '';
+      const nameParts = ownerName.trim().split(/\s+/);
+      const firstName = result.firstName || nameParts[0] || '';
+      const lastName = result.lastName || nameParts.slice(1).join(' ') || nameParts[1] || '';
+      
+      // Prepare update data - fill ALL available fields
       const updateData: Partial<InsertLead> = {
         // Basic fields
         businessName: result.businessName || item.leadData.businessName,
-        ownerName: result.ownerName || item.leadData.ownerName,
+        ownerName: ownerName,
+        firstName: firstName,
+        lastName: lastName,
         email: result.email || item.leadData.email,
         phone: result.phone || item.leadData.phone,
         secondaryPhone: result.secondaryPhone || item.leadData.secondaryPhone,
