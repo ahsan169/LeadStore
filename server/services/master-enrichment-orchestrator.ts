@@ -854,9 +854,25 @@ export class MasterEnrichmentOrchestrator {
     try {
       const result = await perplexityResearch.researchBusiness({
         businessName,
-        specificQuestions: ['Who is the owner or CEO of this business?']
+        specificQuestions: ['Who is the owner or CEO of this business? Provide their full name.']
       });
-      return result?.researchInsights?.ownerInformation || {};
+      
+      const ownerInfo = result?.researchInsights?.ownerInformation || {};
+      
+      // Parse the owner name into first and last names if available
+      if (ownerInfo.name || ownerInfo.ownerName) {
+        const fullName = (ownerInfo.name || ownerInfo.ownerName || '').trim();
+        const nameParts = fullName.split(/\s+/);
+        
+        return {
+          ownerName: fullName,
+          firstName: nameParts[0] || '',
+          lastName: nameParts.slice(1).join(' ') || nameParts[1] || '',
+          ...ownerInfo
+        };
+      }
+      
+      return ownerInfo;
     } catch (error) {
       console.error('[MasterEnrichment] Error searching for owner:', error);
       return {};
