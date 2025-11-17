@@ -11,7 +11,8 @@ import HomePage from "@/pages/home";
 import SimplifiedAdminPage from "@/pages/admin/simplified-admin";
 import EnrichmentWorkspace from "@/pages/enrichment-workspace";
 import ValidationCenter from "@/pages/validation-center";
-import { Home, Upload, LogOut, Zap, Shield } from "lucide-react";
+import LeadManagementPage from "@/pages/lead-management";
+import { Home, Upload, LogOut, Zap, Shield, Database } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -40,6 +41,7 @@ function AppSidebar() {
   // Simplified navigation - only essential features
   const menuItems = isAdmin ? [
     { title: "Dashboard", url: "/", icon: Home },
+    { title: "Lead Management", url: "/lead-management", icon: Database },
     { title: "Upload Leads", url: "/admin", icon: Upload },
     { title: "Enrichment", url: "/enrichment", icon: Zap },
     { title: "Validation", url: "/validation", icon: Shield },
@@ -165,6 +167,7 @@ function Router() {
               {user.role === "admin" && (
                 <>
                   <Route path="/admin" component={SimplifiedAdminPage} />
+                  <Route path="/lead-management" component={LeadManagementPage} />
                   <Route path="/enrichment" component={EnrichmentWorkspace} />
                   <Route path="/validation" component={ValidationCenter} />
                 </>

@@ -1361,6 +1361,234 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Lead Management endpoint
+  app.get("/api/leads/management", requireAuth, async (req, res) => {
+    try {
+      const {
+        search = "",
+        sortField = "uploadedAt",
+        sortOrder = "desc",
+        filters = "{}",
+        page = "1",
+        limit = "20"
+      } = req.query as any;
+
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      const offset = (pageNum - 1) * limitNum;
+      
+      // Parse filters
+      let parsedFilters: any = {};
+      try {
+        parsedFilters = JSON.parse(filters);
+      } catch {
+        parsedFilters = {};
+      }
+
+      // Build where conditions
+      const whereConditions: any[] = [];
+      
+      // Search filter
+      if (search) {
+        whereConditions.push(
+          or(
+            like(leads.businessName, `%${search}%`),
+            like(leads.ownerName, `%${search}%`)
+          )
+        );
+      }
+
+      // Quality score range filter
+      if (parsedFilters.scoreRange) {
+        const [min, max] = parsedFilters.scoreRange.split('-').map(Number);
+        if (!isNaN(min) && !isNaN(max)) {
+          whereConditions.push(
+            and(
+              gte(leads.qualityScore, min),
+              lte(leads.qualityScore, max)
+            )
+          );
+        }
+      }
+
+      // MCA score range filter
+      if (parsedFilters.mcaScoreRange) {
+        const [min, max] = parsedFilters.mcaScoreRange.split('-').map(Number);
+        if (!isNaN(min) && !isNaN(max)) {
+          whereConditions.push(
+            and(
+              gte(leads.mcaQualityScore, min),
+              lte(leads.mcaQualityScore, max)
+            )
+          );
+        }
+      }
+
+      // Enrichment status filter
+      if (parsedFilters.enrichmentStatus !== undefined) {
+        whereConditions.push(
+          eq(leads.isEnriched, parsedFilters.enrichmentStatus === 'enriched')
+        );
+      }
+
+      // Validation status filter
+      if (parsedFilters.validationStatus !== undefined) {
+        whereConditions.push(
+          eq(leads.isValidated, parsedFilters.validationStatus === 'validated')
+        );
+      }
+
+      // Build order by clause
+      const orderByColumn = leads[sortField as keyof typeof leads] || leads.uploadedAt;
+      const orderByClause = sortOrder === 'asc' ? orderByColumn : desc(orderByColumn);
+
+      // Get total count
+      const countResult = await db
+        .select({ count: sql`count(*)` })
+        .from(leads)
+        .where(whereConditions.length > 0 ? and(...whereConditions) : undefined);
+      const totalCount = Number(countResult[0]?.count || 0);
+
+      // Get paginated results with derived fields
+      const results = await db
+        .select({
+          id: leads.id,
+          businessName: leads.businessName,
+          ownerName: leads.ownerName,
+          email: leads.email,
+          phone: leads.phone,
+          industry: leads.industry,
+          annualRevenue: leads.annualRevenue,
+          qualityScore: leads.qualityScore,
+          mcaQualityScore: leads.mcaQualityScore,
+          isEnriched: leads.isEnriched,
+          isValidated: leads.isValidated,
+          enrichmentStatus: leads.enrichmentStatus,
+          uploadedAt: leads.uploadedAt,
+          lastEnrichedAt: leads.lastEnrichedAt,
+          conversionProbability: leads.conversionProbability,
+          expectedDealSize: leads.expectedDealSize,
+          estimatedRevenue: leads.estimatedRevenue,
+          // Derived readiness status
+          readinessStatus: sql<string>`
+            CASE 
+              WHEN ${leads.isEnriched} = true 
+                AND ${leads.isValidated} = true 
+                AND ${leads.qualityScore} > 60 
+              THEN 'ready'
+              WHEN ${leads.isEnriched} = true 
+                AND ${leads.isValidated} = false 
+              THEN 'needs_validation'
+              WHEN ${leads.isEnriched} = false 
+                AND ${leads.isValidated} = true 
+              THEN 'needs_enrichment'
+              WHEN ${leads.isEnriched} = false 
+                AND ${leads.isValidated} = false 
+              THEN 'needs_processing'
+              ELSE 'not_ready'
+            END
+          `.as('readinessStatus')
+        })
+        .from(leads)
+        .where(whereConditions.length > 0 ? and(...whereConditions) : undefined)
+        .orderBy(orderByClause)
+        .limit(limitNum)
+        .offset(offset);
+
+      res.json({
+        leads: results,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / limitNum)
+        }
+      });
+    } catch (error: any) {
+      console.error("Lead management error:", error);
+      res.status(500).json({ error: "Failed to fetch leads" });
+    }
+  });
+
+  // Bulk enrichment endpoint
+  app.post("/api/leads/bulk-enrich", requireAuth, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "No lead IDs provided" });
+      }
+
+      // Queue leads for enrichment
+      const enrichmentPromises = leadIds.map(leadId => 
+        enrichmentQueue.addToQueue('enrich', leadId, 1)
+      );
+      
+      await Promise.all(enrichmentPromises);
+      
+      res.json({ 
+        success: true, 
+        message: `${leadIds.length} leads queued for enrichment` 
+      });
+    } catch (error: any) {
+      console.error("Bulk enrichment error:", error);
+      res.status(500).json({ error: "Failed to enrich leads" });
+    }
+  });
+
+  // Bulk validation endpoint
+  app.post("/api/leads/bulk-validate", requireAuth, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "No lead IDs provided" });
+      }
+
+      // Queue leads for validation
+      const validationPromises = leadIds.map(async (leadId) => {
+        const lead = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+        if (lead[0]) {
+          return unifiedValidationService.validateLead(lead[0]);
+        }
+      });
+      
+      await Promise.all(validationPromises);
+      
+      res.json({ 
+        success: true, 
+        message: `${leadIds.length} leads queued for validation` 
+      });
+    } catch (error: any) {
+      console.error("Bulk validation error:", error);
+      res.status(500).json({ error: "Failed to validate leads" });
+    }
+  });
+
+  // Bulk export endpoint
+  app.post("/api/leads/bulk-export", requireAuth, async (req, res) => {
+    try {
+      const { leadIds } = req.body;
+      if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: "No lead IDs provided" });
+      }
+
+      // Fetch leads for export
+      const exportLeads = await db
+        .select()
+        .from(leads)
+        .where(inArray(leads.id, leadIds));
+
+      // Convert to CSV format
+      const csv = Papa.unparse(exportLeads);
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="leads_export.csv"');
+      res.send(csv);
+    } catch (error: any) {
+      console.error("Bulk export error:", error);
+      res.status(500).json({ error: "Failed to export leads" });
+    }
+  });
+
   // CSV/Excel Upload route
   app.post("/api/batches/upload", requireAuth, requireAdmin, upload.single('file'), async (req, res) => {
     try {

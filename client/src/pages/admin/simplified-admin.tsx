@@ -100,6 +100,30 @@ export default function SimplifiedAdminPage() {
         </p>
       </div>
 
+      {/* Lead Management CTA */}
+      <Card className="mb-8 bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/20">
+        <CardContent className="py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Lead Management Center</h2>
+              <p className="text-muted-foreground">
+                View, sort, filter, and manage all your leads in one powerful interface
+              </p>
+            </div>
+            <Button
+              size="lg"
+              onClick={() => setLocation('/lead-management')}
+              className="gap-2"
+              data-testid="button-go-to-lead-management"
+            >
+              <Database className="w-5 h-5" />
+              Open Lead Management
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Key Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <Card>
