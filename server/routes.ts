@@ -1556,6 +1556,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Get single lead by ID
+  app.get("/api/leads/:id", requireAuth, async (req, res) => {
+    try {
+      const leadId = req.params.id;
+      const lead = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+      
+      if (lead.length === 0) {
+        return res.status(404).json({ error: "Lead not found" });
+      }
+      
+      // Check if user has access to this lead (admin or buyer who purchased it)
+      const leadData = lead[0];
+      if (req.user.role !== 'admin' && leadData.soldTo !== req.user.id) {
+        return res.status(403).json({ error: "Access denied to this lead" });
+      }
+      
+      res.json(leadData);
+    } catch (error: any) {
+      console.error("Error fetching lead:", error);
+      res.status(500).json({ error: "Failed to fetch lead" });
+    }
+  });
 
   // Bulk enrichment endpoint
   app.post("/api/leads/bulk-enrich", requireAuth, async (req, res) => {

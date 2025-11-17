@@ -263,7 +263,7 @@ export class EnrichmentQueue {
       this.stats.pending = this.queue.size;
       
       // Process items in parallel (up to BATCH_SIZE)
-      const promises = itemsToProcess.map(item => this.processItemWithBrain(item));
+      const promises = itemsToProcess.map(item => this.processItem(item));
       const results = await Promise.allSettled(promises);
       
       // Emit batch processing status
