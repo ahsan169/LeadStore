@@ -240,9 +240,9 @@ export class MarketInsightsService {
         industry: leads.industry,
         totalLeads: count(leads.id),
         soldLeads: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
-        avgDealSize: avg(sql<number>`CAST(${leads.requestedAmount} AS INTEGER)`),
-        avgCreditScore: avg(sql<number>`CAST(${leads.creditScore} AS INTEGER)`),
-        avgRevenue: avg(sql<number>`CAST(${leads.annualRevenue} AS INTEGER)`)
+        avgDealSize: sql<number>`AVG(CAST(NULLIF(${leads.requestedAmount}, '') AS INTEGER))`,
+        avgCreditScore: sql<number>`AVG(CAST(NULLIF(${leads.creditScore}, '') AS INTEGER))`,
+        avgRevenue: sql<number>`AVG(CAST(NULLIF(${leads.annualRevenue}, '') AS INTEGER))`
       })
       .from(leads)
       .where(targetIndustry ? eq(leads.industry, targetIndustry) : sql`1=1`)
@@ -308,7 +308,7 @@ export class MarketInsightsService {
         .select({
           totalLeads: count(leads.id),
           soldLeads: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
-          avgDealSize: avg(sql<number>`CAST(${leads.requestedAmount} AS INTEGER)`),
+          avgDealSize: sql<number>`AVG(CAST(NULLIF(${leads.requestedAmount}, '') AS INTEGER))`,
           avgTimeToClose: avg(leadPerformance.timeToClose)
         })
         .from(leads)
@@ -364,8 +364,8 @@ export class MarketInsightsService {
         region: leads.stateCode,
         totalLeads: count(leads.id),
         soldLeads: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
-        avgDealSize: avg(sql<number>`CAST(${leads.requestedAmount} AS INTEGER)`),
-        avgCreditScore: avg(sql<number>`CAST(${leads.creditScore} AS INTEGER)`)
+        avgDealSize: sql<number>`AVG(CAST(NULLIF(${leads.requestedAmount}, '') AS INTEGER))`,
+        avgCreditScore: sql<number>`AVG(CAST(NULLIF(${leads.creditScore}, '') AS INTEGER))`
       })
       .from(leads)
       .where(
@@ -523,7 +523,7 @@ export class MarketInsightsService {
       .select({
         totalLeads: count(leads.id),
         soldLeads: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
-        avgDealSize: avg(sql<number>`CAST(${leads.requestedAmount} AS INTEGER)`)
+        avgDealSize: sql<number>`AVG(CAST(NULLIF(${leads.requestedAmount}, '') AS INTEGER))`
       })
       .from(leads)
       .where(
@@ -601,7 +601,7 @@ export class MarketInsightsService {
       .select({
         totalLeads: count(leads.id),
         soldLeads: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
-        avgDealSize: avg(sql<number>`CAST(${leads.requestedAmount} AS INTEGER)`)
+        avgDealSize: sql<number>`AVG(CAST(NULLIF(${leads.requestedAmount}, '') AS INTEGER))`
       })
       .from(leads)
       .where(
@@ -709,7 +709,7 @@ export class MarketInsightsService {
         date: sql<string>`DATE(${leads.createdAt})`,
         totalLeads: count(leads.id),
         soldLeads: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
-        avgDealSize: avg(sql<number>`CAST(${leads.requestedAmount} AS INTEGER)`)
+        avgDealSize: sql<number>`AVG(CAST(NULLIF(${leads.requestedAmount}, '') AS INTEGER))`
       })
       .from(leads)
       .where(
