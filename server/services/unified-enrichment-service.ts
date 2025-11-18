@@ -278,13 +278,13 @@ export class UnifiedEnrichmentService {
   async getEnrichmentStats() {
     try {
       const metrics = await this.analytics.getEnrichmentMetrics('day');
-      const queueStatus = await this.queue.getQueueStatus();
+      const queueStats = this.queue.getStats();
       
       return {
         totalEnriched: metrics.totalEnrichments || 0,
         successRate: metrics.successRate || 0,
-        inQueue: queueStatus.pending || 0,
-        processing: queueStatus.processing || 0,
+        inQueue: queueStats.pending || 0,
+        processing: queueStats.processing || 0,
         costSaved: metrics.totalCost || 0,
         avgEnrichmentTime: metrics.averageProcessingTime || 0
       };

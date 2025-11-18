@@ -1557,7 +1557,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Get single lead by ID
+  // Enrichment Queue - Get leads that need enrichment (must be before :id route)
+  app.get("/api/leads/enrichment-queue", requireAuth, async (req, res) => {
+    try {
+      // Get leads with low completeness scores or missing key fields
+      const leadsData = await db.select()
+        .from(leads)
+        .where(
+          or(
+            lte(leads.dataCompletenessScore, 70),
+            isNull(leads.email),
+            isNull(leads.phone),
+            isNull(leads.annualRevenue),
+            isNull(leads.emailVerificationScore),
+            isNull(leads.phoneVerificationScore),
+            isNull(leads.masterEnrichmentScore)
+          )
+        )
+        .orderBy(desc(leads.createdAt))
+        .limit(100);
+
+      // Add enrichment priority based on data gaps
+      const enrichmentQueue = leadsData.map(lead => {
+        // Calculate completeness for display
+        const fields = [
+          lead.businessName,
+          lead.ownerName,
+          lead.email,
+          lead.phone,
+          lead.annualRevenue,
+          lead.industry,
+          lead.creditScore,
+          lead.city,
+          lead.stateCode,
+          lead.websiteUrl,
+          lead.employeeCount,
+          lead.timeInBusiness
+        ];
+        
+        const filledCount = fields.filter(f => f !== null && f !== undefined && f !== '').length;
+        const completenessPercentage = Math.round((filledCount / fields.length) * 100);
+        
+        return {
+          ...lead,
+          completenessPercentage,
+          priority: lead.dataCompletenessScore ? 
+            (lead.dataCompletenessScore < 30 ? 'high' : lead.dataCompletenessScore < 60 ? 'medium' : 'low') : 
+            'high',
+          dataGaps: [
+            !lead.email && 'Email',
+            !lead.phone && 'Phone',
+            !lead.annualRevenue && 'Revenue',
+            !lead.industry && 'Industry',
+            !lead.creditScore && 'Credit Score',
+            !lead.websiteUrl && 'Website',
+            !lead.employeeCount && 'Employee Count'
+          ].filter(Boolean),
+          enrichmentNeeded: !lead.masterEnrichmentScore || lead.masterEnrichmentScore < 80
+        };
+      });
+
+      res.json(enrichmentQueue);
+    } catch (error) {
+      console.error('Error fetching enrichment queue:', error);
+      res.status(500).json({ error: "Failed to fetch enrichment queue" });
+    }
+  });
+
+  // Validation Queue - Get leads that need validation (must be before :id route)
+  app.get("/api/leads/validation-queue", requireAuth, async (req, res) => {
+    try {
+      // Use unified validation service to get queue
+      const queue = await unifiedValidationService.getValidationQueue(100);
+      
+      // Enhance with validation status info
+      const validationQueue = queue.map(lead => {
+        const needsValidation = !lead.emailVerificationScore || !lead.phoneVerificationScore ||
+                               lead.emailVerificationScore < 60 || lead.phoneVerificationScore < 60;
+        
+        return {
+          ...lead,
+          validationStatus: lead.verificationStatus || 'unverified',
+          emailStatus: !lead.emailVerificationScore ? 'not_checked' : 
+                       lead.emailVerificationScore >= 80 ? 'valid' :
+                       lead.emailVerificationScore >= 60 ? 'partial' : 'invalid',
+          phoneStatus: !lead.phoneVerificationScore ? 'not_checked' :
+                       lead.phoneVerificationScore >= 80 ? 'valid' :
+                       lead.phoneVerificationScore >= 60 ? 'partial' : 'invalid',
+          needsValidation,
+          validationPriority: !lead.emailVerificationScore || !lead.phoneVerificationScore ? 'high' :
+                            lead.emailVerificationScore < 60 || lead.phoneVerificationScore < 60 ? 'medium' : 'low'
+        };
+      });
+
+      res.json(validationQueue);
+    } catch (error) {
+      console.error('Error fetching validation queue:', error);
+      res.status(500).json({ error: "Failed to fetch validation queue" });
+    }
+  });
+  
+  // Get single lead by ID (must be after specific routes)
   app.get("/api/leads/:id", requireAuth, async (req, res) => {
     try {
       const leadId = req.params.id;
@@ -3564,106 +3664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ========== SIMPLIFIED ENRICHMENT & VALIDATION ENDPOINTS ==========
   // These endpoints support the new simplified app structure with two main features
-
-  // Enrichment Queue - Get leads that need enrichment
-  app.get("/api/leads/enrichment-queue", requireAuth, async (req, res) => {
-    try {
-      // Get leads with low completeness scores or missing key fields
-      const leadsData = await db.select()
-        .from(leads)
-        .where(
-          or(
-            lte(leads.dataCompletenessScore, 70),
-            isNull(leads.email),
-            isNull(leads.phone),
-            isNull(leads.annualRevenue),
-            isNull(leads.emailVerificationScore),
-            isNull(leads.phoneVerificationScore),
-            isNull(leads.masterEnrichmentScore)
-          )
-        )
-        .orderBy(desc(leads.createdAt))
-        .limit(100);
-
-      // Add enrichment priority based on data gaps
-      const enrichmentQueue = leadsData.map(lead => {
-        // Calculate completeness for display
-        const fields = [
-          lead.businessName,
-          lead.ownerName,
-          lead.email,
-          lead.phone,
-          lead.annualRevenue,
-          lead.industry,
-          lead.creditScore,
-          lead.city,
-          lead.stateCode,
-          lead.websiteUrl,
-          lead.employeeCount,
-          lead.timeInBusiness
-        ];
-        
-        const filledCount = fields.filter(f => f !== null && f !== undefined && f !== '').length;
-        const completenessPercentage = Math.round((filledCount / fields.length) * 100);
-        
-        return {
-          ...lead,
-          completenessPercentage,
-          priority: lead.dataCompletenessScore ? 
-            (lead.dataCompletenessScore < 30 ? 'high' : lead.dataCompletenessScore < 60 ? 'medium' : 'low') : 
-            'high',
-          dataGaps: [
-            !lead.email && 'Email',
-            !lead.phone && 'Phone',
-            !lead.annualRevenue && 'Revenue',
-            !lead.industry && 'Industry',
-            !lead.creditScore && 'Credit Score',
-            !lead.websiteUrl && 'Website',
-            !lead.employeeCount && 'Employee Count'
-          ].filter(Boolean),
-          enrichmentNeeded: !lead.masterEnrichmentScore || lead.masterEnrichmentScore < 80
-        };
-      });
-
-      res.json(enrichmentQueue);
-    } catch (error) {
-      console.error('Error fetching enrichment queue:', error);
-      res.status(500).json({ error: "Failed to fetch enrichment queue" });
-    }
-  });
-
-  // Validation Queue - Get leads that need validation
-  app.get("/api/leads/validation-queue", requireAuth, async (req, res) => {
-    try {
-      // Use unified validation service to get queue
-      const queue = await unifiedValidationService.getValidationQueue(100);
-      
-      // Enhance with validation status info
-      const validationQueue = queue.map(lead => {
-        const needsValidation = !lead.emailVerificationScore || !lead.phoneVerificationScore ||
-                               lead.emailVerificationScore < 60 || lead.phoneVerificationScore < 60;
-        
-        return {
-          ...lead,
-          validationStatus: lead.verificationStatus || 'unverified',
-          emailStatus: !lead.emailVerificationScore ? 'not_checked' : 
-                       lead.emailVerificationScore >= 80 ? 'valid' :
-                       lead.emailVerificationScore >= 60 ? 'partial' : 'invalid',
-          phoneStatus: !lead.phoneVerificationScore ? 'not_checked' :
-                       lead.phoneVerificationScore >= 80 ? 'valid' :
-                       lead.phoneVerificationScore >= 60 ? 'partial' : 'invalid',
-          needsValidation,
-          validationPriority: !lead.emailVerificationScore || !lead.phoneVerificationScore ? 'high' :
-                            lead.emailVerificationScore < 60 || lead.phoneVerificationScore < 60 ? 'medium' : 'low'
-        };
-      });
-
-      res.json(validationQueue);
-    } catch (error) {
-      console.error('Error fetching validation queue:', error);
-      res.status(500).json({ error: "Failed to fetch validation queue" });
-    }
-  });
+  // Note: enrichment-queue and validation-queue routes have been moved before the :id route
 
   // Validation Stats - Get validation statistics
   app.get("/api/validation/stats", requireAuth, async (req, res) => {
