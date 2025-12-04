@@ -192,8 +192,238 @@ export const leads = pgTable("leads", {
   lastCrmExportAt: timestamp("last_crm_export_at"),
   crmExportHistory: jsonb("crm_export_history"), // Array of export records
   
+  // CRM Pipeline & Status Fields
+  pipelineStageId: varchar("pipeline_stage_id"), // References pipelineStages.id
+  leadStatus: text("lead_status").default("new"), // 'new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost'
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  lastContactedAt: timestamp("last_contacted_at"),
+  nextFollowUpAt: timestamp("next_follow_up_at"),
+  tags: text("tags").array(), // Custom tags for categorization
+  priority: text("priority").default("medium"), // 'low', 'medium', 'high', 'urgent'
+  source: text("lead_source"), // Where the lead came from
+  estimatedValue: decimal("estimated_value", { precision: 12, scale: 2 }), // Deal value
+  probability: integer("probability").default(0), // Win probability 0-100
+  lostReason: text("lost_reason"), // Why lead was lost
+  wonDate: timestamp("won_date"),
+  lostDate: timestamp("lost_date"),
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ========================================
+// CRM TABLES
+// ========================================
+
+// Pipeline stages for Kanban board
+export const pipelineStages = pgTable("pipeline_stages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  color: text("color").notNull().default("#3B82F6"), // Hex color for stage
+  order: integer("order").notNull().default(0), // Display order
+  isDefault: boolean("is_default").notNull().default(false), // Default stage for new leads
+  isWonStage: boolean("is_won_stage").notNull().default(false), // Marks deal as won
+  isLostStage: boolean("is_lost_stage").notNull().default(false), // Marks deal as lost
+  probability: integer("probability").default(0), // Default win probability for this stage
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Tasks for lead follow-up and activities
+export const tasks = pgTable("tasks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id).notNull(),
+  
+  title: text("title").notNull(),
+  description: text("description"),
+  taskType: text("task_type").notNull().default("follow_up"), // 'call', 'email', 'meeting', 'follow_up', 'proposal', 'other'
+  priority: text("priority").notNull().default("medium"), // 'low', 'medium', 'high', 'urgent'
+  status: text("status").notNull().default("pending"), // 'pending', 'in_progress', 'completed', 'cancelled'
+  
+  dueDate: timestamp("due_date"),
+  dueTime: text("due_time"), // Time of day for the task
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id),
+  
+  reminderAt: timestamp("reminder_at"), // When to send reminder
+  reminderSent: boolean("reminder_sent").notNull().default(false),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Notes for leads - rich text notes and comments
+export const notes = pgTable("notes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  createdBy: varchar("created_by").references(() => users.id).notNull(),
+  
+  content: text("content").notNull(),
+  isPinned: boolean("is_pinned").notNull().default(false),
+  noteType: text("note_type").default("general"), // 'general', 'call_summary', 'meeting_notes', 'important'
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Reminders for follow-ups
+export const reminders = pgTable("reminders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  taskId: varchar("task_id").references(() => tasks.id),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  
+  title: text("title").notNull(),
+  description: text("description"),
+  reminderAt: timestamp("reminder_at").notNull(),
+  
+  isRecurring: boolean("is_recurring").notNull().default(false),
+  recurringPattern: text("recurring_pattern"), // 'daily', 'weekly', 'monthly', 'custom'
+  recurringEndDate: timestamp("recurring_end_date"),
+  
+  status: text("status").notNull().default("pending"), // 'pending', 'sent', 'snoozed', 'dismissed'
+  sentAt: timestamp("sent_at"),
+  snoozedUntil: timestamp("snoozed_until"),
+  
+  notificationChannels: text("notification_channels").array().default(sql`ARRAY['in_app']::text[]`), // 'in_app', 'email', 'sms'
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Activity timeline for leads
+export const activities = pgTable("activities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  userId: varchar("user_id").references(() => users.id),
+  
+  activityType: text("activity_type").notNull(), // 'call', 'email_sent', 'email_received', 'meeting', 'note_added', 'status_change', 'stage_change', 'task_completed', 'document_sent', 'sms', 'linkedin_message'
+  title: text("title").notNull(),
+  description: text("description"),
+  
+  // Activity details
+  outcome: text("outcome"), // For calls: 'connected', 'voicemail', 'no_answer', 'busy', 'wrong_number'
+  duration: integer("duration"), // Duration in seconds for calls/meetings
+  direction: text("direction"), // 'inbound', 'outbound' for calls/emails
+  
+  // Related entities
+  relatedTaskId: varchar("related_task_id").references(() => tasks.id),
+  relatedNoteId: varchar("related_note_id").references(() => notes.id),
+  
+  // Metadata
+  metadata: jsonb("metadata"), // Additional activity-specific data
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Additional contacts for a lead/company
+export const contacts = pgTable("contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name"),
+  title: text("title"), // Job title
+  role: text("role"), // 'decision_maker', 'influencer', 'champion', 'blocker', 'end_user'
+  department: text("department"),
+  
+  email: text("email"),
+  phone: text("phone"),
+  mobilePhone: text("mobile_phone"),
+  linkedinUrl: text("linkedin_url"),
+  
+  isPrimary: boolean("is_primary").notNull().default(false),
+  isOptedOut: boolean("is_opted_out").notNull().default(false), // Opted out of communications
+  
+  notes: text("notes"),
+  lastContactedAt: timestamp("last_contacted_at"),
+  
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Email tracking for sent emails
+export const emailTracking = pgTable("email_tracking", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  contactId: varchar("contact_id").references(() => contacts.id),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  
+  subject: text("subject").notNull(),
+  body: text("body"),
+  toEmail: text("to_email").notNull(),
+  fromEmail: text("from_email"),
+  
+  status: text("status").notNull().default("sent"), // 'draft', 'sent', 'delivered', 'opened', 'clicked', 'bounced', 'failed'
+  sentAt: timestamp("sent_at"),
+  deliveredAt: timestamp("delivered_at"),
+  openedAt: timestamp("opened_at"),
+  clickedAt: timestamp("clicked_at"),
+  
+  openCount: integer("open_count").notNull().default(0),
+  clickCount: integer("click_count").notNull().default(0),
+  
+  templateId: varchar("template_id"),
+  metadata: jsonb("metadata"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Call logs for phone calls
+export const callLogs = pgTable("call_logs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  contactId: varchar("contact_id").references(() => contacts.id),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  
+  phoneNumber: text("phone_number").notNull(),
+  direction: text("direction").notNull(), // 'inbound', 'outbound'
+  outcome: text("outcome").notNull(), // 'connected', 'voicemail', 'no_answer', 'busy', 'wrong_number', 'callback_requested'
+  
+  duration: integer("duration"), // Duration in seconds
+  recordingUrl: text("recording_url"),
+  
+  summary: text("summary"), // Call summary/notes
+  nextSteps: text("next_steps"),
+  
+  scheduledAt: timestamp("scheduled_at"), // If it was a scheduled call
+  startedAt: timestamp("started_at"),
+  endedAt: timestamp("ended_at"),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Document attachments for leads
+export const documents = pgTable("documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id),
+  
+  name: text("name").notNull(),
+  description: text("description"),
+  fileType: text("file_type").notNull(), // 'pdf', 'doc', 'xlsx', 'image', 'other'
+  fileSize: integer("file_size"), // Size in bytes
+  storageKey: text("storage_key").notNull(), // Object storage path
+  
+  category: text("category"), // 'proposal', 'contract', 'invoice', 'application', 'other'
+  version: integer("version").notNull().default(1),
+  
+  uploadedBy: varchar("uploaded_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Tags for organizing leads
+export const leadTags = pgTable("lead_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  color: text("color").notNull().default("#6B7280"), // Hex color
+  description: text("description"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // UCC filings table for tracking business financing history
@@ -1154,6 +1384,124 @@ export const insertUccFilingSchema = createInsertSchema(uccFilings).omit({
   filingDate: z.string().datetime(),
   loanAmount: z.number().optional(),
   filingType: z.enum(["original", "amendment", "termination"]).optional(),
+});
+
+// ========================================
+// CRM INSERT SCHEMAS
+// ========================================
+
+export const insertPipelineStageSchema = createInsertSchema(pipelineStages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  name: z.string().min(1).max(100),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#3B82F6"),
+  order: z.number().int().min(0).default(0),
+  probability: z.number().int().min(0).max(100).default(0),
+});
+
+export const insertTaskSchema = createInsertSchema(tasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  completedAt: true,
+  reminderSent: true,
+}).extend({
+  title: z.string().min(1).max(200),
+  taskType: z.enum(["call", "email", "meeting", "follow_up", "proposal", "other"]).default("follow_up"),
+  priority: z.enum(["low", "medium", "high", "urgent"]).default("medium"),
+  status: z.enum(["pending", "in_progress", "completed", "cancelled"]).default("pending"),
+  dueDate: z.string().datetime().optional(),
+});
+
+export const insertNoteSchema = createInsertSchema(notes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  content: z.string().min(1),
+  noteType: z.enum(["general", "call_summary", "meeting_notes", "important"]).default("general"),
+  isPinned: z.boolean().default(false),
+});
+
+export const insertReminderSchema = createInsertSchema(reminders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  sentAt: true,
+}).extend({
+  title: z.string().min(1).max(200),
+  reminderAt: z.string().datetime(),
+  status: z.enum(["pending", "sent", "snoozed", "dismissed"]).default("pending"),
+  recurringPattern: z.enum(["daily", "weekly", "monthly", "custom"]).optional(),
+});
+
+export const insertActivitySchema = createInsertSchema(activities).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  activityType: z.enum([
+    "call", "email_sent", "email_received", "meeting", "note_added",
+    "status_change", "stage_change", "task_completed", "document_sent", "sms", "linkedin_message"
+  ]),
+  title: z.string().min(1).max(200),
+  outcome: z.enum(["connected", "voicemail", "no_answer", "busy", "wrong_number"]).optional(),
+  direction: z.enum(["inbound", "outbound"]).optional(),
+});
+
+export const insertContactSchema = createInsertSchema(contacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  firstName: z.string().min(1).max(100),
+  lastName: z.string().max(100).optional(),
+  email: z.string().email().optional(),
+  role: z.enum(["decision_maker", "influencer", "champion", "blocker", "end_user"]).optional(),
+});
+
+export const insertEmailTrackingSchema = createInsertSchema(emailTracking).omit({
+  id: true,
+  createdAt: true,
+  sentAt: true,
+  deliveredAt: true,
+  openedAt: true,
+  clickedAt: true,
+  openCount: true,
+  clickCount: true,
+}).extend({
+  subject: z.string().min(1).max(500),
+  toEmail: z.string().email(),
+  status: z.enum(["draft", "sent", "delivered", "opened", "clicked", "bounced", "failed"]).default("sent"),
+});
+
+export const insertCallLogSchema = createInsertSchema(callLogs).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  phoneNumber: z.string().min(1),
+  direction: z.enum(["inbound", "outbound"]),
+  outcome: z.enum(["connected", "voicemail", "no_answer", "busy", "wrong_number", "callback_requested"]),
+  duration: z.number().int().min(0).optional(),
+});
+
+export const insertDocumentSchema = createInsertSchema(documents).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  name: z.string().min(1).max(255),
+  fileType: z.enum(["pdf", "doc", "xlsx", "image", "other"]),
+  storageKey: z.string().min(1),
+  category: z.enum(["proposal", "contract", "invoice", "application", "other"]).optional(),
+});
+
+export const insertLeadTagSchema = createInsertSchema(leadTags).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  name: z.string().min(1).max(50),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#6B7280"),
 });
 
 export const insertUccMonitoringAlertsSchema = createInsertSchema(uccMonitoringAlerts).omit({
@@ -2594,3 +2942,37 @@ export type EntityGroup = typeof entityGroups.$inferSelect;
 
 export type InsertEntityRelationship = z.infer<typeof insertEntityRelationshipSchema>;
 export type EntityRelationship = typeof entityRelationships.$inferSelect;
+
+// ========================================
+// CRM TYPE EXPORTS
+// ========================================
+
+export type InsertPipelineStage = z.infer<typeof insertPipelineStageSchema>;
+export type PipelineStage = typeof pipelineStages.$inferSelect;
+
+export type InsertTask = z.infer<typeof insertTaskSchema>;
+export type Task = typeof tasks.$inferSelect;
+
+export type InsertNote = z.infer<typeof insertNoteSchema>;
+export type Note = typeof notes.$inferSelect;
+
+export type InsertReminder = z.infer<typeof insertReminderSchema>;
+export type Reminder = typeof reminders.$inferSelect;
+
+export type InsertActivity = z.infer<typeof insertActivitySchema>;
+export type Activity = typeof activities.$inferSelect;
+
+export type InsertContact = z.infer<typeof insertContactSchema>;
+export type Contact = typeof contacts.$inferSelect;
+
+export type InsertEmailTracking = z.infer<typeof insertEmailTrackingSchema>;
+export type EmailTracking = typeof emailTracking.$inferSelect;
+
+export type InsertCallLog = z.infer<typeof insertCallLogSchema>;
+export type CallLog = typeof callLogs.$inferSelect;
+
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type Document = typeof documents.$inferSelect;
+
+export type InsertLeadTag = z.infer<typeof insertLeadTagSchema>;
+export type LeadTag = typeof leadTags.$inferSelect;
