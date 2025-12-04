@@ -29,7 +29,7 @@ export default function ValidationCenter() {
 
   // Validate single lead
   const validateMutation = useMutation({
-    mutationFn: async (leadId: number) => {
+    mutationFn: async (leadId: string) => {
       const response = await apiRequest("POST", `/api/validation/validate/${leadId}`);
       return response.json();
     },

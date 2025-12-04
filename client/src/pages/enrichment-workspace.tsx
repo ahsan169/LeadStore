@@ -33,7 +33,7 @@ export default function EnrichmentWorkspace() {
 
   // Start enrichment mutation
   const enrichMutation = useMutation({
-    mutationFn: async (leadId: number) => {
+    mutationFn: async (leadId: string) => {
       const response = await apiRequest("POST", `/api/enrichment/analyze/${leadId}`);
       return response.json();
     },

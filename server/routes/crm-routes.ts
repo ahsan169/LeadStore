@@ -33,13 +33,13 @@ router.get("/api/crm/pipeline-stages", requireAuth, async (req, res) => {
     
     if (stages.length === 0) {
       const defaultStages = [
-        { name: "New", color: "#6B7280", order: 0, probability: 10, userId: req.user!.id },
-        { name: "Contacted", color: "#3B82F6", order: 1, probability: 20, userId: req.user!.id },
-        { name: "Qualified", color: "#8B5CF6", order: 2, probability: 40, userId: req.user!.id },
-        { name: "Proposal", color: "#F59E0B", order: 3, probability: 60, userId: req.user!.id },
-        { name: "Negotiation", color: "#EC4899", order: 4, probability: 80, userId: req.user!.id },
-        { name: "Closed Won", color: "#10B981", order: 5, probability: 100, userId: req.user!.id },
-        { name: "Closed Lost", color: "#EF4444", order: 6, probability: 0, userId: req.user!.id },
+        { name: "New", color: "#6B7280", order: 0, probability: 10, createdBy: req.user!.id },
+        { name: "Contacted", color: "#3B82F6", order: 1, probability: 20, createdBy: req.user!.id },
+        { name: "Qualified", color: "#8B5CF6", order: 2, probability: 40, createdBy: req.user!.id },
+        { name: "Proposal", color: "#F59E0B", order: 3, probability: 60, createdBy: req.user!.id },
+        { name: "Negotiation", color: "#EC4899", order: 4, probability: 80, createdBy: req.user!.id },
+        { name: "Closed Won", color: "#10B981", order: 5, probability: 100, createdBy: req.user!.id },
+        { name: "Closed Lost", color: "#EF4444", order: 6, probability: 0, createdBy: req.user!.id },
       ];
       
       const createdStages = [];
@@ -61,7 +61,7 @@ router.post("/api/crm/pipeline-stages", requireAuth, async (req, res) => {
   try {
     const validated = insertPipelineStageSchema.parse({
       ...req.body,
-      userId: req.user!.id,
+      createdBy: req.user!.id,
     });
     const stage = await storage.createPipelineStage(validated);
     res.status(201).json(stage);
@@ -231,7 +231,7 @@ router.post("/api/crm/notes", requireAuth, async (req, res) => {
   try {
     const validated = insertNoteSchema.parse({
       ...req.body,
-      userId: req.user!.id,
+      createdBy: req.user!.id,
     });
     const note = await storage.createNote(validated);
     
@@ -438,7 +438,7 @@ router.post("/api/crm/contacts", requireAuth, async (req, res) => {
   try {
     const validated = insertContactSchema.parse({
       ...req.body,
-      userId: req.user!.id,
+      createdBy: req.user!.id,
     });
     const contact = await storage.createContact(validated);
     res.status(201).json(contact);
@@ -809,13 +809,13 @@ router.get("/api/crm/pipeline-board", requireAuth, async (req, res) => {
     
     if (stages.length === 0) {
       const defaultStages = [
-        { name: "New", color: "#6B7280", order: 0, probability: 10, userId: req.user!.id },
-        { name: "Contacted", color: "#3B82F6", order: 1, probability: 20, userId: req.user!.id },
-        { name: "Qualified", color: "#8B5CF6", order: 2, probability: 40, userId: req.user!.id },
-        { name: "Proposal", color: "#F59E0B", order: 3, probability: 60, userId: req.user!.id },
-        { name: "Negotiation", color: "#EC4899", order: 4, probability: 80, userId: req.user!.id },
-        { name: "Closed Won", color: "#10B981", order: 5, probability: 100, userId: req.user!.id },
-        { name: "Closed Lost", color: "#EF4444", order: 6, probability: 0, userId: req.user!.id },
+        { name: "New", color: "#6B7280", order: 0, probability: 10, createdBy: req.user!.id },
+        { name: "Contacted", color: "#3B82F6", order: 1, probability: 20, createdBy: req.user!.id },
+        { name: "Qualified", color: "#8B5CF6", order: 2, probability: 40, createdBy: req.user!.id },
+        { name: "Proposal", color: "#F59E0B", order: 3, probability: 60, createdBy: req.user!.id },
+        { name: "Negotiation", color: "#EC4899", order: 4, probability: 80, createdBy: req.user!.id },
+        { name: "Closed Won", color: "#10B981", order: 5, probability: 100, createdBy: req.user!.id },
+        { name: "Closed Lost", color: "#EF4444", order: 6, probability: 0, createdBy: req.user!.id },
       ];
       
       for (const stage of defaultStages) {

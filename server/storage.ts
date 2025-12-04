@@ -3790,7 +3790,7 @@ export class DbStorage implements IStorage {
 
   async getPipelineStagesByUserId(userId: string): Promise<PipelineStage[]> {
     return db.select().from(pipelineStages)
-      .where(eq(pipelineStages.userId, userId))
+      .where(eq(pipelineStages.createdBy, userId))
       .orderBy(asc(pipelineStages.order));
   }
 

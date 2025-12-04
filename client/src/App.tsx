@@ -12,7 +12,12 @@ import SimplifiedAdminPage from "@/pages/admin/simplified-admin";
 import EnrichmentWorkspace from "@/pages/enrichment-workspace";
 import ValidationCenter from "@/pages/validation-center";
 import LeadManagementPage from "@/pages/lead-management";
-import { Home, Upload, LogOut, Zap, Shield, Database } from "lucide-react";
+import PipelineBoardPage from "@/pages/pipeline-board";
+import TaskManagerPage from "@/pages/task-manager";
+import ContactManagerPage from "@/pages/contact-manager";
+import ActivityTimelinePage from "@/pages/activity-timeline";
+import CrmDashboardPage from "@/pages/crm-dashboard";
+import { Home, Upload, LogOut, Zap, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -38,9 +43,13 @@ function AppSidebar() {
 
   const isAdmin = user?.role === "admin";
 
-  // Simplified navigation - only essential features
+  // CRM-focused navigation
   const menuItems = isAdmin ? [
-    { title: "Dashboard", url: "/", icon: Home },
+    { title: "CRM Dashboard", url: "/", icon: LayoutDashboard },
+    { title: "Pipeline Board", url: "/pipeline", icon: Kanban },
+    { title: "Task Manager", url: "/tasks", icon: CheckSquare },
+    { title: "Contacts", url: "/contacts", icon: Users },
+    { title: "Activity Timeline", url: "/activity", icon: Activity },
     { title: "Lead Management", url: "/lead-management", icon: Database },
     { title: "Upload Leads", url: "/admin", icon: Upload },
     { title: "Enrichment", url: "/enrichment", icon: Zap },
@@ -161,12 +170,16 @@ function Router() {
           <main className="flex-1 overflow-auto">
             <Switch>
               {/* Main routes */}
-              <Route path="/" component={SimplifiedAdminPage} />
+              <Route path="/" component={CrmDashboardPage} />
               
               {/* Admin-only routes */}
               {user.role === "admin" && (
                 <>
                   <Route path="/admin" component={SimplifiedAdminPage} />
+                  <Route path="/pipeline" component={PipelineBoardPage} />
+                  <Route path="/tasks" component={TaskManagerPage} />
+                  <Route path="/contacts" component={ContactManagerPage} />
+                  <Route path="/activity" component={ActivityTimelinePage} />
                   <Route path="/lead-management" component={LeadManagementPage} />
                   <Route path="/enrichment" component={EnrichmentWorkspace} />
                   <Route path="/validation" component={ValidationCenter} />
