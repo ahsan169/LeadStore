@@ -122,6 +122,37 @@ import {
   learnedPatterns,
   type LearnedPattern,
   type InsertLearnedPattern,
+  // CRM Tables
+  pipelineStages,
+  tasks,
+  notes,
+  reminders,
+  activities,
+  contacts,
+  emailTracking,
+  callLogs,
+  documents,
+  leadTags,
+  type PipelineStage,
+  type InsertPipelineStage,
+  type Task,
+  type InsertTask,
+  type Note,
+  type InsertNote,
+  type Reminder,
+  type InsertReminder,
+  type Activity,
+  type InsertActivity,
+  type Contact,
+  type InsertContact,
+  type EmailTracking,
+  type InsertEmailTracking,
+  type CallLog,
+  type InsertCallLog,
+  type Document,
+  type InsertDocument,
+  type LeadTag,
+  type InsertLeadTag,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -641,6 +672,109 @@ export interface IStorage {
     state?: string;
     revenueRange?: string | number;
   }): Promise<Lead[]>;
+  
+  // ========================================
+  // CRM OPERATIONS
+  // ========================================
+  
+  // Pipeline Stage operations
+  getPipelineStage(id: string): Promise<PipelineStage | undefined>;
+  getPipelineStagesByUserId(userId: string): Promise<PipelineStage[]>;
+  createPipelineStage(stage: InsertPipelineStage): Promise<PipelineStage>;
+  updatePipelineStage(id: string, data: Partial<InsertPipelineStage>): Promise<PipelineStage | undefined>;
+  deletePipelineStage(id: string): Promise<void>;
+  getDefaultPipelineStages(): Promise<PipelineStage[]>;
+  
+  // Task operations
+  getTask(id: string): Promise<Task | undefined>;
+  getTasksByLeadId(leadId: string): Promise<Task[]>;
+  getTasksByUserId(userId: string): Promise<Task[]>;
+  getTasksDueToday(userId: string): Promise<Task[]>;
+  getOverdueTasks(userId: string): Promise<Task[]>;
+  createTask(task: InsertTask): Promise<Task>;
+  updateTask(id: string, data: Partial<InsertTask>): Promise<Task | undefined>;
+  deleteTask(id: string): Promise<void>;
+  completeTask(id: string): Promise<Task | undefined>;
+  
+  // Note operations
+  getNote(id: string): Promise<Note | undefined>;
+  getNotesByLeadId(leadId: string): Promise<Note[]>;
+  getNotesByContactId(contactId: string): Promise<Note[]>;
+  getPinnedNotes(leadId: string): Promise<Note[]>;
+  createNote(note: InsertNote): Promise<Note>;
+  updateNote(id: string, data: Partial<InsertNote>): Promise<Note | undefined>;
+  deleteNote(id: string): Promise<void>;
+  
+  // Reminder operations
+  getReminder(id: string): Promise<Reminder | undefined>;
+  getRemindersByLeadId(leadId: string): Promise<Reminder[]>;
+  getRemindersByUserId(userId: string): Promise<Reminder[]>;
+  getUpcomingReminders(userId: string, hours?: number): Promise<Reminder[]>;
+  createReminder(reminder: InsertReminder): Promise<Reminder>;
+  updateReminder(id: string, data: Partial<InsertReminder>): Promise<Reminder | undefined>;
+  deleteReminder(id: string): Promise<void>;
+  dismissReminder(id: string): Promise<Reminder | undefined>;
+  snoozeReminder(id: string, newTime: Date): Promise<Reminder | undefined>;
+  
+  // Activity operations
+  getActivity(id: string): Promise<Activity | undefined>;
+  getActivitiesByLeadId(leadId: string): Promise<Activity[]>;
+  getActivitiesByContactId(contactId: string): Promise<Activity[]>;
+  getRecentActivities(userId: string, limit?: number): Promise<Activity[]>;
+  createActivity(activity: InsertActivity): Promise<Activity>;
+  getActivityTimeline(leadId: string): Promise<Activity[]>;
+  
+  // Contact operations
+  getContact(id: string): Promise<Contact | undefined>;
+  getContactsByLeadId(leadId: string): Promise<Contact[]>;
+  getContactsByUserId(userId: string): Promise<Contact[]>;
+  searchContacts(query: string, userId: string): Promise<Contact[]>;
+  createContact(contact: InsertContact): Promise<Contact>;
+  updateContact(id: string, data: Partial<InsertContact>): Promise<Contact | undefined>;
+  deleteContact(id: string): Promise<void>;
+  
+  // Email Tracking operations
+  getEmailTracking(id: string): Promise<EmailTracking | undefined>;
+  getEmailsByLeadId(leadId: string): Promise<EmailTracking[]>;
+  getEmailsByContactId(contactId: string): Promise<EmailTracking[]>;
+  createEmailTracking(email: InsertEmailTracking): Promise<EmailTracking>;
+  updateEmailTracking(id: string, data: Partial<InsertEmailTracking>): Promise<EmailTracking | undefined>;
+  recordEmailOpen(id: string): Promise<EmailTracking | undefined>;
+  recordEmailClick(id: string): Promise<EmailTracking | undefined>;
+  
+  // Call Log operations
+  getCallLog(id: string): Promise<CallLog | undefined>;
+  getCallLogsByLeadId(leadId: string): Promise<CallLog[]>;
+  getCallLogsByContactId(contactId: string): Promise<CallLog[]>;
+  createCallLog(callLog: InsertCallLog): Promise<CallLog>;
+  updateCallLog(id: string, data: Partial<InsertCallLog>): Promise<CallLog | undefined>;
+  
+  // Document operations
+  getDocument(id: string): Promise<Document | undefined>;
+  getDocumentsByLeadId(leadId: string): Promise<Document[]>;
+  createDocument(document: InsertDocument): Promise<Document>;
+  updateDocument(id: string, data: Partial<InsertDocument>): Promise<Document | undefined>;
+  deleteDocument(id: string): Promise<void>;
+  
+  // Lead Tag operations
+  getLeadTag(id: string): Promise<LeadTag | undefined>;
+  getLeadTagsByUserId(userId: string): Promise<LeadTag[]>;
+  createLeadTag(tag: InsertLeadTag): Promise<LeadTag>;
+  updateLeadTag(id: string, data: Partial<InsertLeadTag>): Promise<LeadTag | undefined>;
+  deleteLeadTag(id: string): Promise<void>;
+  
+  // CRM Analytics
+  getCrmDashboardStats(userId: string): Promise<{
+    totalLeads: number;
+    leadsInPipeline: number;
+    tasksDueToday: number;
+    overdueTasks: number;
+    activitiesThisWeek: number;
+    pipelineByStage: Array<{ stageId: string; stageName: string; count: number; value: number }>;
+  }>;
+  
+  // Pipeline Board
+  getLeadsInPipelineStage(stageId: string): Promise<Lead[]>;
 }
 
 export class DbStorage implements IStorage {
@@ -3642,6 +3776,560 @@ export class DbStorage implements IStorage {
       .where(eq(leads.id, leadId))
       .returning();
     return result[0];
+  }
+
+  // ========================================
+  // CRM OPERATIONS IMPLEMENTATION
+  // ========================================
+
+  // Pipeline Stage operations
+  async getPipelineStage(id: string): Promise<PipelineStage | undefined> {
+    const result = await db.select().from(pipelineStages).where(eq(pipelineStages.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getPipelineStagesByUserId(userId: string): Promise<PipelineStage[]> {
+    return db.select().from(pipelineStages)
+      .where(eq(pipelineStages.userId, userId))
+      .orderBy(asc(pipelineStages.order));
+  }
+
+  async createPipelineStage(stage: InsertPipelineStage): Promise<PipelineStage> {
+    const result = await db.insert(pipelineStages).values(stage).returning();
+    return result[0];
+  }
+
+  async updatePipelineStage(id: string, data: Partial<InsertPipelineStage>): Promise<PipelineStage | undefined> {
+    const result = await db.update(pipelineStages)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(pipelineStages.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deletePipelineStage(id: string): Promise<void> {
+    await db.delete(pipelineStages).where(eq(pipelineStages.id, id));
+  }
+
+  async getDefaultPipelineStages(): Promise<PipelineStage[]> {
+    return db.select().from(pipelineStages)
+      .where(eq(pipelineStages.isDefault, true))
+      .orderBy(asc(pipelineStages.order));
+  }
+
+  // Task operations
+  async getTask(id: string): Promise<Task | undefined> {
+    const result = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getTasksByLeadId(leadId: string): Promise<Task[]> {
+    return db.select().from(tasks)
+      .where(eq(tasks.leadId, leadId))
+      .orderBy(desc(tasks.createdAt));
+  }
+
+  async getTasksByUserId(userId: string): Promise<Task[]> {
+    return db.select().from(tasks)
+      .where(eq(tasks.assignedTo, userId))
+      .orderBy(asc(tasks.dueDate));
+  }
+
+  async getTasksDueToday(userId: string): Promise<Task[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    return db.select().from(tasks)
+      .where(and(
+        eq(tasks.assignedTo, userId),
+        gte(tasks.dueDate, today),
+        lte(tasks.dueDate, tomorrow),
+        ne(tasks.status, 'completed')
+      ))
+      .orderBy(asc(tasks.dueDate));
+  }
+
+  async getOverdueTasks(userId: string): Promise<Task[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return db.select().from(tasks)
+      .where(and(
+        eq(tasks.assignedTo, userId),
+        lte(tasks.dueDate, today),
+        ne(tasks.status, 'completed'),
+        ne(tasks.status, 'cancelled')
+      ))
+      .orderBy(asc(tasks.dueDate));
+  }
+
+  async createTask(task: InsertTask): Promise<Task> {
+    const result = await db.insert(tasks).values(task).returning();
+    return result[0];
+  }
+
+  async updateTask(id: string, data: Partial<InsertTask>): Promise<Task | undefined> {
+    const result = await db.update(tasks)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(tasks.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteTask(id: string): Promise<void> {
+    await db.delete(tasks).where(eq(tasks.id, id));
+  }
+
+  async completeTask(id: string): Promise<Task | undefined> {
+    const result = await db.update(tasks)
+      .set({ 
+        status: 'completed', 
+        completedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(tasks.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Note operations
+  async getNote(id: string): Promise<Note | undefined> {
+    const result = await db.select().from(notes).where(eq(notes.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getNotesByLeadId(leadId: string): Promise<Note[]> {
+    return db.select().from(notes)
+      .where(eq(notes.leadId, leadId))
+      .orderBy(desc(notes.createdAt));
+  }
+
+  async getNotesByContactId(contactId: string): Promise<Note[]> {
+    return db.select().from(notes)
+      .where(eq(notes.contactId, contactId))
+      .orderBy(desc(notes.createdAt));
+  }
+
+  async getPinnedNotes(leadId: string): Promise<Note[]> {
+    return db.select().from(notes)
+      .where(and(eq(notes.leadId, leadId), eq(notes.isPinned, true)))
+      .orderBy(desc(notes.createdAt));
+  }
+
+  async createNote(note: InsertNote): Promise<Note> {
+    const result = await db.insert(notes).values(note).returning();
+    return result[0];
+  }
+
+  async updateNote(id: string, data: Partial<InsertNote>): Promise<Note | undefined> {
+    const result = await db.update(notes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(notes.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteNote(id: string): Promise<void> {
+    await db.delete(notes).where(eq(notes.id, id));
+  }
+
+  // Reminder operations
+  async getReminder(id: string): Promise<Reminder | undefined> {
+    const result = await db.select().from(reminders).where(eq(reminders.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getRemindersByLeadId(leadId: string): Promise<Reminder[]> {
+    return db.select().from(reminders)
+      .where(eq(reminders.leadId, leadId))
+      .orderBy(asc(reminders.reminderAt));
+  }
+
+  async getRemindersByUserId(userId: string): Promise<Reminder[]> {
+    return db.select().from(reminders)
+      .where(eq(reminders.userId, userId))
+      .orderBy(asc(reminders.reminderAt));
+  }
+
+  async getUpcomingReminders(userId: string, hours: number = 24): Promise<Reminder[]> {
+    const now = new Date();
+    const future = new Date(now.getTime() + hours * 60 * 60 * 1000);
+    
+    return db.select().from(reminders)
+      .where(and(
+        eq(reminders.userId, userId),
+        gte(reminders.reminderAt, now),
+        lte(reminders.reminderAt, future),
+        eq(reminders.status, 'pending')
+      ))
+      .orderBy(asc(reminders.reminderAt));
+  }
+
+  async createReminder(reminder: InsertReminder): Promise<Reminder> {
+    const result = await db.insert(reminders).values(reminder).returning();
+    return result[0];
+  }
+
+  async updateReminder(id: string, data: Partial<InsertReminder>): Promise<Reminder | undefined> {
+    const result = await db.update(reminders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(reminders.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteReminder(id: string): Promise<void> {
+    await db.delete(reminders).where(eq(reminders.id, id));
+  }
+
+  async dismissReminder(id: string): Promise<Reminder | undefined> {
+    const result = await db.update(reminders)
+      .set({ status: 'dismissed', updatedAt: new Date() })
+      .where(eq(reminders.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async snoozeReminder(id: string, newTime: Date): Promise<Reminder | undefined> {
+    const result = await db.update(reminders)
+      .set({ 
+        reminderAt: newTime, 
+        status: 'snoozed',
+        updatedAt: new Date() 
+      })
+      .where(eq(reminders.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Activity operations
+  async getActivity(id: string): Promise<Activity | undefined> {
+    const result = await db.select().from(activities).where(eq(activities.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getActivitiesByLeadId(leadId: string): Promise<Activity[]> {
+    return db.select().from(activities)
+      .where(eq(activities.leadId, leadId))
+      .orderBy(desc(activities.createdAt));
+  }
+
+  async getActivitiesByContactId(contactId: string): Promise<Activity[]> {
+    return db.select().from(activities)
+      .where(eq(activities.contactId, contactId))
+      .orderBy(desc(activities.createdAt));
+  }
+
+  async getRecentActivities(userId: string, limit: number = 50): Promise<Activity[]> {
+    return db.select().from(activities)
+      .where(eq(activities.userId, userId))
+      .orderBy(desc(activities.createdAt))
+      .limit(limit);
+  }
+
+  async createActivity(activity: InsertActivity): Promise<Activity> {
+    const result = await db.insert(activities).values(activity).returning();
+    return result[0];
+  }
+
+  async getActivityTimeline(leadId: string): Promise<Activity[]> {
+    return db.select().from(activities)
+      .where(eq(activities.leadId, leadId))
+      .orderBy(desc(activities.createdAt));
+  }
+
+  // Contact operations
+  async getContact(id: string): Promise<Contact | undefined> {
+    const result = await db.select().from(contacts).where(eq(contacts.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getContactsByLeadId(leadId: string): Promise<Contact[]> {
+    return db.select().from(contacts)
+      .where(eq(contacts.leadId, leadId))
+      .orderBy(asc(contacts.firstName));
+  }
+
+  async getContactsByUserId(userId: string): Promise<Contact[]> {
+    return db.select().from(contacts)
+      .where(eq(contacts.userId, userId))
+      .orderBy(asc(contacts.firstName));
+  }
+
+  async searchContacts(query: string, userId: string): Promise<Contact[]> {
+    const searchPattern = `%${query}%`;
+    return db.select().from(contacts)
+      .where(and(
+        eq(contacts.userId, userId),
+        or(
+          like(contacts.firstName, searchPattern),
+          like(contacts.lastName, searchPattern),
+          like(contacts.email, searchPattern),
+          like(contacts.phone, searchPattern),
+          like(contacts.company, searchPattern)
+        )
+      ))
+      .orderBy(asc(contacts.firstName))
+      .limit(50);
+  }
+
+  async createContact(contact: InsertContact): Promise<Contact> {
+    const result = await db.insert(contacts).values(contact).returning();
+    return result[0];
+  }
+
+  async updateContact(id: string, data: Partial<InsertContact>): Promise<Contact | undefined> {
+    const result = await db.update(contacts)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(contacts.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteContact(id: string): Promise<void> {
+    await db.delete(contacts).where(eq(contacts.id, id));
+  }
+
+  // Email Tracking operations
+  async getEmailTracking(id: string): Promise<EmailTracking | undefined> {
+    const result = await db.select().from(emailTracking).where(eq(emailTracking.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getEmailsByLeadId(leadId: string): Promise<EmailTracking[]> {
+    return db.select().from(emailTracking)
+      .where(eq(emailTracking.leadId, leadId))
+      .orderBy(desc(emailTracking.createdAt));
+  }
+
+  async getEmailsByContactId(contactId: string): Promise<EmailTracking[]> {
+    return db.select().from(emailTracking)
+      .where(eq(emailTracking.contactId, contactId))
+      .orderBy(desc(emailTracking.createdAt));
+  }
+
+  async createEmailTracking(email: InsertEmailTracking): Promise<EmailTracking> {
+    const result = await db.insert(emailTracking).values(email).returning();
+    return result[0];
+  }
+
+  async updateEmailTracking(id: string, data: Partial<InsertEmailTracking>): Promise<EmailTracking | undefined> {
+    const result = await db.update(emailTracking)
+      .set(data)
+      .where(eq(emailTracking.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async recordEmailOpen(id: string): Promise<EmailTracking | undefined> {
+    const result = await db.update(emailTracking)
+      .set({ 
+        status: 'opened',
+        openedAt: new Date(),
+        openCount: sql`${emailTracking.openCount} + 1`
+      })
+      .where(eq(emailTracking.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async recordEmailClick(id: string): Promise<EmailTracking | undefined> {
+    const result = await db.update(emailTracking)
+      .set({ 
+        status: 'clicked',
+        clickedAt: new Date(),
+        clickCount: sql`${emailTracking.clickCount} + 1`
+      })
+      .where(eq(emailTracking.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Call Log operations
+  async getCallLog(id: string): Promise<CallLog | undefined> {
+    const result = await db.select().from(callLogs).where(eq(callLogs.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getCallLogsByLeadId(leadId: string): Promise<CallLog[]> {
+    return db.select().from(callLogs)
+      .where(eq(callLogs.leadId, leadId))
+      .orderBy(desc(callLogs.createdAt));
+  }
+
+  async getCallLogsByContactId(contactId: string): Promise<CallLog[]> {
+    return db.select().from(callLogs)
+      .where(eq(callLogs.contactId, contactId))
+      .orderBy(desc(callLogs.createdAt));
+  }
+
+  async createCallLog(callLog: InsertCallLog): Promise<CallLog> {
+    const result = await db.insert(callLogs).values(callLog).returning();
+    return result[0];
+  }
+
+  async updateCallLog(id: string, data: Partial<InsertCallLog>): Promise<CallLog | undefined> {
+    const result = await db.update(callLogs)
+      .set(data)
+      .where(eq(callLogs.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Document operations
+  async getDocument(id: string): Promise<Document | undefined> {
+    const result = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getDocumentsByLeadId(leadId: string): Promise<Document[]> {
+    return db.select().from(documents)
+      .where(eq(documents.leadId, leadId))
+      .orderBy(desc(documents.createdAt));
+  }
+
+  async createDocument(document: InsertDocument): Promise<Document> {
+    const result = await db.insert(documents).values(document).returning();
+    return result[0];
+  }
+
+  async updateDocument(id: string, data: Partial<InsertDocument>): Promise<Document | undefined> {
+    const result = await db.update(documents)
+      .set(data)
+      .where(eq(documents.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    await db.delete(documents).where(eq(documents.id, id));
+  }
+
+  // Lead Tag operations
+  async getLeadTag(id: string): Promise<LeadTag | undefined> {
+    const result = await db.select().from(leadTags).where(eq(leadTags.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getLeadTagsByUserId(userId: string): Promise<LeadTag[]> {
+    return db.select().from(leadTags)
+      .where(eq(leadTags.userId, userId))
+      .orderBy(asc(leadTags.name));
+  }
+
+  async createLeadTag(tag: InsertLeadTag): Promise<LeadTag> {
+    const result = await db.insert(leadTags).values(tag).returning();
+    return result[0];
+  }
+
+  async updateLeadTag(id: string, data: Partial<InsertLeadTag>): Promise<LeadTag | undefined> {
+    const result = await db.update(leadTags)
+      .set(data)
+      .where(eq(leadTags.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async deleteLeadTag(id: string): Promise<void> {
+    await db.delete(leadTags).where(eq(leadTags.id, id));
+  }
+
+  // CRM Dashboard Analytics
+  async getCrmDashboardStats(userId: string): Promise<{
+    totalLeads: number;
+    leadsInPipeline: number;
+    tasksDueToday: number;
+    overdueTasks: number;
+    activitiesThisWeek: number;
+    pipelineByStage: Array<{ stageId: string; stageName: string; count: number; value: number }>;
+  }> {
+    // Get total leads for user
+    const totalLeadsResult = await db.select({ count: sql<number>`count(*)` })
+      .from(leads)
+      .where(eq(leads.assignedTo, userId));
+    
+    // Get leads in pipeline (have a pipeline stage)
+    const pipelineLeadsResult = await db.select({ count: sql<number>`count(*)` })
+      .from(leads)
+      .where(and(
+        eq(leads.assignedTo, userId),
+        isNotNull(leads.pipelineStageId)
+      ));
+    
+    // Get tasks due today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const tasksDueTodayResult = await db.select({ count: sql<number>`count(*)` })
+      .from(tasks)
+      .where(and(
+        eq(tasks.assignedTo, userId),
+        gte(tasks.dueDate, today),
+        lte(tasks.dueDate, tomorrow),
+        ne(tasks.status, 'completed')
+      ));
+    
+    // Get overdue tasks
+    const overdueTasksResult = await db.select({ count: sql<number>`count(*)` })
+      .from(tasks)
+      .where(and(
+        eq(tasks.assignedTo, userId),
+        lte(tasks.dueDate, today),
+        ne(tasks.status, 'completed'),
+        ne(tasks.status, 'cancelled')
+      ));
+    
+    // Get activities this week
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    
+    const activitiesResult = await db.select({ count: sql<number>`count(*)` })
+      .from(activities)
+      .where(and(
+        eq(activities.userId, userId),
+        gte(activities.createdAt, oneWeekAgo)
+      ));
+    
+    // Get pipeline by stage
+    const pipelineByStage = await db.select({
+      stageId: pipelineStages.id,
+      stageName: pipelineStages.name,
+      count: sql<number>`count(${leads.id})`,
+      value: sql<number>`COALESCE(sum(CAST(${leads.estimatedValue} AS DECIMAL)), 0)`
+    })
+      .from(pipelineStages)
+      .leftJoin(leads, and(
+        eq(leads.pipelineStageId, pipelineStages.id),
+        eq(leads.assignedTo, userId)
+      ))
+      .where(eq(pipelineStages.userId, userId))
+      .groupBy(pipelineStages.id, pipelineStages.name)
+      .orderBy(asc(pipelineStages.order));
+    
+    return {
+      totalLeads: Number(totalLeadsResult[0]?.count || 0),
+      leadsInPipeline: Number(pipelineLeadsResult[0]?.count || 0),
+      tasksDueToday: Number(tasksDueTodayResult[0]?.count || 0),
+      overdueTasks: Number(overdueTasksResult[0]?.count || 0),
+      activitiesThisWeek: Number(activitiesResult[0]?.count || 0),
+      pipelineByStage: pipelineByStage.map(s => ({
+        stageId: s.stageId,
+        stageName: s.stageName,
+        count: Number(s.count || 0),
+        value: Number(s.value || 0)
+      }))
+    };
+  }
+
+  // Get leads in a specific pipeline stage
+  async getLeadsInPipelineStage(stageId: string): Promise<Lead[]> {
+    return db.select().from(leads)
+      .where(eq(leads.pipelineStageId, stageId))
+      .orderBy(desc(leads.createdAt));
   }
 }
 

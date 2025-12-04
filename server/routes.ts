@@ -71,6 +71,7 @@ import feedbackRouter from "./routes/feedback";
 import intelligenceRouter from "./routes/intelligence";
 import { unifiedEnrichmentService } from "./services/unified-enrichment-service";
 import { unifiedValidationService } from "./services/unified-validation-service";
+import { registerCrmRoutes } from "./routes/crm-routes";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1163,6 +1164,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register intelligence routes
   app.use('/api/intelligence', intelligenceRouter);
   
+  // Register CRM routes
+  registerCrmRoutes(app);
+  
   // Auth routes
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -2045,67 +2049,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Don't fail the upload if alert checking fails
       }
       
-      // Auto-enrich all leads using Master Enrichment Orchestrator
-      try {
-        console.log(`[Master Enrichment] Processing ${createdLeads.length} new leads for automatic enrichment`);
-        let enrichedCount = 0;
-        let queuedCount = 0;
-        
-        // Process leads in batches for better performance
-        const batchSize = 10;
-        for (let i = 0; i < createdLeads.length; i += batchSize) {
-          const batch = createdLeads.slice(i, Math.min(i + batchSize, createdLeads.length));
-          
-          // Process batch in parallel
-          await Promise.all(batch.map(async (lead) => {
-            try {
-              // Analyze lead completion first
-              const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(lead);
-              
-              // Determine priority based on lead quality and completeness
-              const priority = lead.qualityScore >= 80 ? 'high' :
-                             lead.qualityScore >= 70 ? 'medium' : 'low';
-              
-              // Always enrich leads to maximize data quality
-              // Even "complete" leads can benefit from verification and additional data
-              if (analysis.completionScore < 95 || !lead.masterEnrichmentScore || lead.masterEnrichmentScore < 80) {
-                // Queue for async enrichment through master orchestrator
-                await enrichmentQueue.addToQueue(
-                  lead,
-                  priority,
-                  'upload',
-                  { 
-                    userId: req.user!.id,
-                    batchId: batch.id,
-                    useOrchestrator: true,  // Flag to use master enrichment orchestrator
-                    cascadeDepth: 3,       // Allow deep enrichment cascades
-                    forceRefresh: false
-                  }
-                );
-                queuedCount++;
-                console.log(`[Master Enrichment] Queued lead ${lead.id} for orchestrated enrichment (${analysis.completionScore}% complete, priority: ${priority})`);
-              }
-            } catch (error) {
-              console.error(`[Master Enrichment] Error processing lead ${lead.id}:`, error);
-            }
-          }));
-        }
-        
-        if (queuedCount > 0) {
-          console.log(`[Master Enrichment] Queued ${queuedCount} leads for master enrichment orchestration`);
-        }
-        
-        // Emit event for tracking
-        eventBus.emit('lead:batch-uploaded', {
-          batchId: batch.id,
-          leadCount: createdLeads.length,
-          userId: req.user!.id,
-          enrichmentQueued: queuedCount
-        });
-      } catch (enrichmentError) {
-        console.error('[Master Enrichment] Error queuing leads for orchestrated enrichment:', enrichmentError);
-        // Don't fail the upload if enrichment queueing fails
-      }
+      // CRM Mode: Leads are assumed to be pre-enriched
+      // Auto-enrichment is disabled - leads should come with complete data
+      // Emit event for tracking only
+      eventBus.emit('lead:batch-uploaded', {
+        batchId: batch.id,
+        leadCount: createdLeads.length,
+        userId: req.user!.id,
+        enrichmentQueued: 0
+      });
+      
+      console.log(`[CRM] ${createdLeads.length} pre-enriched leads imported successfully`);
 
       // Calculate tier distribution
       const tierDistribution = {
