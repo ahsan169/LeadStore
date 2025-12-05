@@ -8,12 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   Phone, Mail, Building2, User, DollarSign, CheckCircle2, 
-  XCircle, Clock, MessageSquare, RefreshCcw, TrendingUp,
-  AlertTriangle, ThumbsUp, ThumbsDown, Filter, Search
+  XCircle, Clock, MessageSquare, TrendingUp, Sparkles,
+  Filter, Search, ChevronLeft, ChevronRight, Zap, Award,
+  ArrowUpRight, Briefcase, MapPin, Target
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -158,24 +158,61 @@ export default function MyLeadsPage() {
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-green-600 dark:text-green-400";
     if (score >= 60) return "text-blue-600 dark:text-blue-400";
-    if (score >= 40) return "text-yellow-600 dark:text-yellow-400";
+    if (score >= 40) return "text-amber-600 dark:text-amber-400";
     return "text-red-600 dark:text-red-400";
+  };
+
+  const getScoreBg = (score: number) => {
+    if (score >= 80) return "bg-green-100 dark:bg-green-900/30 border-green-200 dark:border-green-800";
+    if (score >= 60) return "bg-blue-100 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800";
+    if (score >= 40) return "bg-amber-100 dark:bg-amber-900/30 border-amber-200 dark:border-amber-800";
+    return "bg-red-100 dark:bg-red-900/30 border-red-200 dark:border-red-800";
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "new":
-        return <Badge variant="secondary">New</Badge>;
+        return (
+          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+            <Sparkles className="h-3 w-3 mr-1" />
+            New
+          </Badge>
+        );
       case "working":
-        return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">Working</Badge>;
+        return (
+          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+            <Zap className="h-3 w-3 mr-1" />
+            Working
+          </Badge>
+        );
       case "contacted":
-        return <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">Contacted</Badge>;
+        return (
+          <Badge className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+            <Phone className="h-3 w-3 mr-1" />
+            Contacted
+          </Badge>
+        );
       case "funded":
-        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Funded</Badge>;
+        return (
+          <Badge className="metric-badge metric-badge-success">
+            <DollarSign className="h-3 w-3 mr-1" />
+            Funded
+          </Badge>
+        );
       case "bad_lead":
-        return <Badge variant="destructive">Bad Lead</Badge>;
+        return (
+          <Badge className="metric-badge metric-badge-danger">
+            <XCircle className="h-3 w-3 mr-1" />
+            Bad Lead
+          </Badge>
+        );
       case "no_response":
-        return <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">No Response</Badge>;
+        return (
+          <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+            <Clock className="h-3 w-3 mr-1" />
+            No Response
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -191,308 +228,409 @@ export default function MyLeadsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="text-page-title">My Leads</h1>
-          <p className="text-muted-foreground">Track and provide feedback on your purchased leads</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card data-testid="card-stat-total">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Leads</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.stats.total || 0}</div>
-            <p className="text-xs text-muted-foreground">Assigned to you</p>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-stat-funded">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Funded</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {stats?.stats.funded || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats?.fundRate || "0.00"}% fund rate
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-stat-working">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Working</CardTitle>
-            <Clock className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {(stats?.stats.working || 0) + (stats?.stats.contacted || 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">In progress</p>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="card-stat-feedback">
-          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Feedback Given</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.feedbackGiven || 0}</div>
-            <Progress 
-              value={parseFloat(stats?.feedbackRate || "0")} 
-              className="mt-2"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats?.feedbackRate || "0.00"}% complete
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle data-testid="text-leads-table-title">Your Leads</CardTitle>
-              <CardDescription>
-                Provide feedback to improve lead quality
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search leads..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 w-48"
-                  data-testid="input-search"
-                />
+    <div className="min-h-screen bg-mesh">
+      <div className="relative z-10 p-6 space-y-6">
+        {/* Premium Page Header */}
+        <div className="page-header-gradient animate-fade-in">
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="icon-container icon-container-green w-14 h-14">
+                <Briefcase className="h-7 w-7 text-white" />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32" data-testid="select-status-filter">
-                  <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="new">New</SelectItem>
-                  <SelectItem value="working">Working</SelectItem>
-                  <SelectItem value="contacted">Contacted</SelectItem>
-                  <SelectItem value="funded">Funded</SelectItem>
-                  <SelectItem value="bad_lead">Bad Lead</SelectItem>
-                  <SelectItem value="no_response">No Response</SelectItem>
-                </SelectContent>
-              </Select>
+              <div>
+                <h1 className="text-3xl font-bold flex items-center gap-2" data-testid="text-page-title">
+                  My Leads
+                  <Award className="h-6 w-6 text-yellow-300" />
+                </h1>
+                <p className="text-white/80 mt-1">Track and provide feedback on your purchased leads</p>
+              </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Loading your leads...
-            </div>
-          ) : filteredLeads.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No leads found. Purchase leads to get started.
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Business</TableHead>
-                      <TableHead>Contact</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Assigned</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLeads.map((lead) => (
-                      <TableRow key={lead.assignmentId} data-testid={`row-lead-${lead.leadId}`}>
-                        <TableCell>
-                          <div className="font-medium">{lead.businessName || "Unknown"}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {lead.industry || "N/A"} {lead.stateCode && `• ${lead.stateCode}`}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1 text-sm">
-                            <User className="h-3 w-3" />
-                            {lead.ownerName || "N/A"}
-                          </div>
-                          {lead.phone && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                              <Phone className="h-3 w-3" />
-                              {lead.phone}
-                            </div>
-                          )}
-                          {lead.email && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground truncate max-w-40">
-                              <Mail className="h-3 w-3" />
-                              {lead.email}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className={`text-lg font-bold ${getScoreColor(lead.aiScore)}`}>
-                            {lead.aiScore}
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(lead.status)}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(lead.assignedAt)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => handleQuickAction(lead, "funded")}
-                              title="Mark as Funded"
-                              data-testid={`button-funded-${lead.leadId}`}
-                            >
-                              <DollarSign className="h-4 w-4 text-green-600" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => handleQuickAction(lead, "contacted")}
-                              title="Mark as Contacted"
-                              data-testid={`button-contacted-${lead.leadId}`}
-                            >
-                              <Phone className="h-4 w-4 text-blue-600" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => handleQuickAction(lead, "no_response")}
-                              title="No Response"
-                              data-testid={`button-no-response-${lead.leadId}`}
-                            >
-                              <Clock className="h-4 w-4 text-gray-500" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 w-8 p-0"
-                              onClick={() => handleQuickAction(lead, "bad_lead")}
-                              title="Bad Lead"
-                              data-testid={`button-bad-lead-${lead.leadId}`}
-                            >
-                              <XCircle className="h-4 w-4 text-red-500" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+        </div>
 
-              {pagination && pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {filteredLeads.length} of {pagination.total} leads
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      data-testid="button-prev-page"
-                    >
-                      Previous
-                    </Button>
-                    <span className="text-sm">
-                      Page {page} of {pagination.totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
-                      disabled={page === pagination.totalPages}
-                      data-testid="button-next-page"
-                    >
-                      Next
-                    </Button>
-                  </div>
+        {/* Premium Stat Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up">
+          <Card className="card-premium stat-card-blue overflow-visible" data-testid="card-stat-total">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Total Leads</p>
+                  <div className="text-3xl font-bold counter-animate">{stats?.stats.total || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <Target className="h-3 w-3" />
+                    Assigned to you
+                  </p>
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+                <div className="icon-container icon-container-blue w-12 h-12">
+                  <Building2 className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-      <Dialog open={activityModalOpen} onOpenChange={setActivityModalOpen}>
-        <DialogContent data-testid="dialog-activity">
-          <DialogHeader>
-            <DialogTitle>
-              {activityType === "funded" ? "Record Funded Deal" : "Add Activity Note"}
-            </DialogTitle>
-            <DialogDescription>
-              {selectedLead?.businessName && (
-                <span className="font-medium">{selectedLead.businessName}</span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            {activityType === "funded" && (
-              <div>
+          <Card className="card-premium stat-card-green overflow-visible glow-success" data-testid="card-stat-funded">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Funded</p>
+                  <div className="text-3xl font-bold text-green-600 dark:text-green-400 counter-animate">
+                    {stats?.stats.funded || 0}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <ArrowUpRight className="h-3 w-3 text-green-500" />
+                    {stats?.fundRate || "0.00"}% fund rate
+                  </p>
+                </div>
+                <div className="icon-container icon-container-green w-12 h-12">
+                  <DollarSign className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-premium stat-card-purple overflow-visible" data-testid="card-stat-working">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Working</p>
+                  <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 counter-animate">
+                    {(stats?.stats.working || 0) + (stats?.stats.contacted || 0)}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                    <Zap className="h-3 w-3 text-purple-500" />
+                    In progress
+                  </p>
+                </div>
+                <div className="icon-container icon-container-purple w-12 h-12">
+                  <Clock className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="card-premium stat-card-gold overflow-visible" data-testid="card-stat-feedback">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Feedback Given</p>
+                  <div className="text-3xl font-bold counter-animate">{stats?.feedbackGiven || 0}</div>
+                  <div className="mt-2 w-32">
+                    <div className="progress-premium">
+                      <div 
+                        className="absolute inset-y-0 left-0 bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all"
+                        style={{ width: `${Math.min(parseFloat(stats?.feedbackRate || "0"), 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {stats?.feedbackRate || "0.00"}% complete
+                  </p>
+                </div>
+                <div className="icon-container icon-container-gold w-12 h-12">
+                  <MessageSquare className="h-6 w-6 text-white" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Leads Table Card */}
+        <Card className="card-premium animate-slide-up animate-delay-100">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="icon-container icon-container-blue w-10 h-10">
+                  <Briefcase className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <CardTitle data-testid="text-leads-table-title">Your Leads</CardTitle>
+                  <CardDescription>
+                    Provide feedback to improve lead quality
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search leads..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 w-48 bg-background"
+                    data-testid="input-search"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-36 bg-background" data-testid="select-status-filter">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="new">New</SelectItem>
+                    <SelectItem value="working">Working</SelectItem>
+                    <SelectItem value="contacted">Contacted</SelectItem>
+                    <SelectItem value="funded">Funded</SelectItem>
+                    <SelectItem value="bad_lead">Bad Lead</SelectItem>
+                    <SelectItem value="no_response">No Response</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="shimmer-premium h-24 rounded-lg" />
+                ))}
+              </div>
+            ) : filteredLeads.length === 0 ? (
+              <div className="text-center py-16">
+                <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
+                <h3 className="text-lg font-semibold mb-2">No leads found</h3>
+                <p className="text-muted-foreground">Purchase leads to get started</p>
+              </div>
+            ) : (
+              <>
+                <ScrollArea className="h-[600px]">
+                  <div className="space-y-3 pr-4">
+                    {filteredLeads.map((lead) => (
+                      <div 
+                        key={lead.assignmentId} 
+                        className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-muted/30 transition-all hover:shadow-md group"
+                        data-testid={`row-lead-${lead.leadId}`}
+                      >
+                        {/* Score */}
+                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-xl border-2 ${getScoreBg(lead.aiScore)} ${getScoreColor(lead.aiScore)}`}>
+                          {lead.aiScore}
+                        </div>
+                        
+                        {/* Business Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-semibold truncate">{lead.businessName || "Unknown Business"}</h4>
+                            {getStatusBadge(lead.status)}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <User className="h-3 w-3" />
+                              {lead.ownerName || "N/A"}
+                            </span>
+                            {lead.industry && (
+                              <span className="flex items-center gap-1">
+                                <Briefcase className="h-3 w-3" />
+                                {lead.industry}
+                              </span>
+                            )}
+                            {lead.stateCode && (
+                              <span className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                {lead.stateCode}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
+                            {lead.phone && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="h-3 w-3" />
+                                {lead.phone}
+                              </span>
+                            )}
+                            {lead.email && (
+                              <span className="flex items-center gap-1 truncate max-w-48">
+                                <Mail className="h-3 w-3" />
+                                {lead.email}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Assigned Date */}
+                        <div className="hidden md:block text-right">
+                          <p className="text-xs text-muted-foreground">Assigned</p>
+                          <p className="text-sm font-medium">{formatDate(lead.assignedAt)}</p>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-10 w-10 rounded-full bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40"
+                            onClick={() => handleQuickAction(lead, "funded")}
+                            title="Mark as Funded"
+                            data-testid={`button-funded-${lead.leadId}`}
+                          >
+                            <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-10 w-10 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40"
+                            onClick={() => handleQuickAction(lead, "contacted")}
+                            title="Mark as Contacted"
+                            data-testid={`button-contacted-${lead.leadId}`}
+                          >
+                            <Phone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-10 w-10 rounded-full bg-gray-50 hover:bg-gray-100 dark:bg-gray-800/30 dark:hover:bg-gray-800/50"
+                            onClick={() => handleQuickAction(lead, "no_response")}
+                            title="No Response"
+                            data-testid={`button-no-response-${lead.leadId}`}
+                          >
+                            <Clock className="h-5 w-5 text-gray-500" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-10 w-10 rounded-full bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40"
+                            onClick={() => handleQuickAction(lead, "bad_lead")}
+                            title="Bad Lead"
+                            data-testid={`button-bad-lead-${lead.leadId}`}
+                          >
+                            <XCircle className="h-5 w-5 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+
+                {pagination && pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                    <div className="text-sm text-muted-foreground">
+                      Showing <span className="font-medium">{filteredLeads.length}</span> of <span className="font-medium">{pagination.total}</span> leads
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        className="gap-1"
+                        data-testid="button-prev-page"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1 px-3">
+                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (pagination.totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (page <= 3) {
+                            pageNum = i + 1;
+                          } else if (page >= pagination.totalPages - 2) {
+                            pageNum = pagination.totalPages - 4 + i;
+                          } else {
+                            pageNum = page - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={page === pageNum ? "default" : "ghost"}
+                              size="sm"
+                              className="w-8 h-8 p-0"
+                              onClick={() => setPage(pageNum)}
+                              data-testid={`button-page-${pageNum}`}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                        disabled={page === pagination.totalPages}
+                        className="gap-1"
+                        data-testid="button-next-page"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Activity Modal */}
+        <Dialog open={activityModalOpen} onOpenChange={setActivityModalOpen}>
+          <DialogContent className="sm:max-w-md" data-testid="dialog-activity">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <div className="icon-container icon-container-green w-8 h-8">
+                  <DollarSign className="h-4 w-4 text-white" />
+                </div>
+                Record Funded Deal
+              </DialogTitle>
+              <DialogDescription>
+                {selectedLead?.businessName && (
+                  <span className="font-medium text-foreground">{selectedLead.businessName}</span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Deal Amount ($)</label>
                 <Input
                   type="number"
                   placeholder="e.g., 50000"
                   value={dealAmount}
                   onChange={(e) => setDealAmount(e.target.value)}
-                  className="mt-1"
+                  className="bg-background"
                   data-testid="input-deal-amount"
                 />
               </div>
-            )}
-            
-            <div>
-              <label className="text-sm font-medium">Notes (optional)</label>
-              <Textarea
-                placeholder="Add any notes about this lead..."
-                value={activityNote}
-                onChange={(e) => setActivityNote(e.target.value)}
-                className="mt-1"
-                data-testid="input-notes"
-              />
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Notes (optional)</label>
+                <Textarea
+                  placeholder="Add any notes about this lead..."
+                  value={activityNote}
+                  onChange={(e) => setActivityNote(e.target.value)}
+                  className="bg-background resize-none"
+                  rows={3}
+                  data-testid="input-notes"
+                />
+              </div>
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setActivityModalOpen(false)} data-testid="button-cancel">
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleSubmitActivity} 
-              disabled={activityMutation.isPending}
-              data-testid="button-submit-activity"
-            >
-              {activityMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setActivityModalOpen(false)} data-testid="button-cancel">
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSubmitActivity} 
+                disabled={activityMutation.isPending}
+                className="gap-2"
+                data-testid="button-submit-activity"
+              >
+                {activityMutation.isPending ? (
+                  <>
+                    <span className="animate-spin">&#8987;</span>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    Save
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
