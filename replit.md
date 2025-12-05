@@ -52,15 +52,33 @@ The AI Brain calculates hot scores (0-100) for leads based on:
 - **Source Weight (0.2)**: Quality of lead source (manual, import, web, referral, paid)
 - **Attempt Weight (0.2)**: Number of contact attempts (decreases score after max attempts)
 - **Outcome Weight (0.3)**: Last call outcome (connected, voicemail, no_answer, etc.)
+- **Feedback Weight (0.2)**: Buyer feedback from conversion outcomes
 
 Lead fields for AI Brain:
 - `hotScore`: 0-100 AI-calculated priority score
+- `aiScore`: Alternative AI score field for scoring tier
 - `attemptCount`: Number of contact attempts
 - `lastCallAt`: Last call timestamp
 - `lastOutcome`: Last call outcome type
+- `lastOutcomeAt`: Timestamp of last outcome
+- `conversionLabel`: Feedback label (unknown, funded, contacted, no_response, bad)
 - `nextActionAt`: When next action is due
 - `nextActionType`: Type of next action ('call', 'email', 'follow_up', 'meeting')
 - `e164Phone`: Normalized E.164 phone format
+
+### Buyer Feedback System
+- **Lead Assignments**: Tracks which leads are assigned to which buyers after purchase
+- **Lead Activities**: Lightweight CRM history for buyer feedback (status changes, notes, outcomes)
+- **Conversion Labels**: "unknown", "funded", "contacted", "no_response", "bad"
+- **Feedback Loop**: Buyer outcomes feed back into AI Brain for source quality learning
+
+### God Mode Admin Portal
+Super admin control center for AI Brain and analytics:
+- **Dashboard**: Platform-wide stats (leads, fund rate, revenue, active buyers)
+- **Buyer Performance**: Leaderboard with fund rate and feedback rate per buyer
+- **Source Performance**: Conversion rates by lead source
+- **Brain Settings**: Adjustable weights for AI scoring (recency, source, attempt, outcome, feedback)
+- **Activity Feed**: Live feed of buyer feedback and status changes
 
 ### UI/UX Decisions
 - Streamlined 6-page interface for core functionality.
@@ -106,3 +124,15 @@ Lead fields for AI Brain:
 - Updated /api/auth/me to return { user, company, permissions } for role-based UI
 - Added Next Best Lead feature with skip functionality and call logging modal
 - Frontend App.tsx updated with role-based sidebar navigation (super_admin, company_admin, agent)
+
+### Buyer Feedback System (Latest)
+- Added `leadAssignments` table for tracking lead-buyer associations with companyId for multi-tenant isolation
+- Added `leadActivities` table for tracking buyer feedback (funded, contacted, bad_lead, no_response)
+- Added `brainConfig` table for storing AI Brain configuration settings
+- Added `sourceStats` table for learning source quality from buyer feedback
+- Created buyer feedback routes (server/routes/buyer-feedback.ts): GET /api/my-leads, POST /api/leads/:id/activity
+- Created God Mode admin portal (server/routes/god-mode.ts): dashboard, buyer performance, source stats, brain settings
+- Implemented AI Brain feedback weight integration and source quality learning
+- Created My Leads page (client/src/pages/my-leads.tsx) for buyer workspace with activity tracking
+- Created God Mode page (client/src/pages/god-mode.tsx) for super_admin with analytics and brain settings
+- Wired up Stripe webhook to create leadAssignments when purchases complete
