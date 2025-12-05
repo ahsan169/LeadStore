@@ -38,7 +38,6 @@ export function CrmExportDialog({
   const [isOpen, setIsOpen] = useState(false);
   const [format, setFormat] = useState<'csv' | 'salesforce' | 'hubspot' | 'json'>('csv');
   const [options, setOptions] = useState({
-    includeEnrichment: true,
     includeVerification: true,
     includeUccData: true,
     includeScoring: true,
@@ -198,25 +197,6 @@ export function CrmExportDialog({
           <div className="space-y-2">
             <Label>Include Data</Label>
             <div className="space-y-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="enrichment"
-                  checked={options.includeEnrichment}
-                  onCheckedChange={(checked) => 
-                    setOptions({ ...options, includeEnrichment: checked as boolean })
-                  }
-                />
-                <Label 
-                  htmlFor="enrichment" 
-                  className="text-sm font-normal cursor-pointer"
-                >
-                  Enrichment Data
-                  <span className="text-muted-foreground ml-1">
-                    (website, LinkedIn, company size, etc.)
-                  </span>
-                </Label>
-              </div>
-              
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="verification"

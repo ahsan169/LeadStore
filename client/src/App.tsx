@@ -9,7 +9,6 @@ import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import HomePage from "@/pages/home";
 import SimplifiedAdminPage from "@/pages/admin/simplified-admin";
-import EnrichmentWorkspace from "@/pages/enrichment-workspace";
 import ValidationCenter from "@/pages/validation-center";
 import LeadManagementPage from "@/pages/lead-management";
 import PipelineBoardPage from "@/pages/pipeline-board";
@@ -17,7 +16,7 @@ import TaskManagerPage from "@/pages/task-manager";
 import ContactManagerPage from "@/pages/contact-manager";
 import ActivityTimelinePage from "@/pages/activity-timeline";
 import CrmDashboardPage from "@/pages/crm-dashboard";
-import { Home, Upload, LogOut, Zap, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard } from "lucide-react";
+import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User } from "@/../../shared/schema";
@@ -52,7 +51,6 @@ function AppSidebar() {
     { title: "Activity Timeline", url: "/activity", icon: Activity },
     { title: "Lead Management", url: "/lead-management", icon: Database },
     { title: "Upload Leads", url: "/admin", icon: Upload },
-    { title: "Enrichment", url: "/enrichment", icon: Zap },
     { title: "Validation", url: "/validation", icon: Shield },
   ] : [
     { title: "Dashboard", url: "/", icon: Home },
@@ -181,7 +179,6 @@ function Router() {
                   <Route path="/contacts" component={ContactManagerPage} />
                   <Route path="/activity" component={ActivityTimelinePage} />
                   <Route path="/lead-management" component={LeadManagementPage} />
-                  <Route path="/enrichment" component={EnrichmentWorkspace} />
                   <Route path="/validation" component={ValidationCenter} />
                 </>
               )}

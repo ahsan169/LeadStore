@@ -2,7 +2,9 @@
 
 ## Overview
 
-Lakefront Leadworks is a simplified, practical MCA lead marketplace designed for ease of use. It focuses on essential functionality: user authentication, lead purchasing with clear pricing tiers, and consolidated administration. The platform has been streamlined to just 6 core pages, emphasizing practicality and user experience in the Merchant Cash Advance (MCA) lead industry. Key capabilities include comprehensive CRM, advanced lead enrichment with multi-source verification and confidence scoring, and a sophisticated UCC Intelligence System for detailed lead assessment. The business vision is to provide an "all-in-one machine" for high-quality MCA leads, leveraging AI and robust data analysis to offer significant market potential for buyers.
+Lakefront Leadworks is a CRM-focused MCA lead marketplace designed for managing pre-enriched leads. The system assumes all uploaded leads are already enriched and focuses on providing complete CRM functionality including pipeline management, task tracking, activity logging, contact management, and comprehensive lead workflow tools. The platform emphasizes practicality and user experience in the Merchant Cash Advance (MCA) lead industry. Key capabilities include comprehensive CRM, lead validation, and a sophisticated UCC Intelligence System for detailed lead assessment.
+
+**Note**: Lead enrichment features have been removed from the UI (backend routes remain intact for future use).
 
 ## User Preferences
 
@@ -39,11 +41,10 @@ Preferred communication style: Simple, everyday language.
 
 ### Feature Specifications
 - **Comprehensive CRM**: Pipeline Board, Task Manager, Contact Manager, Activity Timeline, CRM Dashboard.
-- **Advanced Lead Enrichment**: Multi-Source Verification (Hunter.io, Numverify, business data), Intelligent Enrichment Orchestrator, Quality Assurance, Enrichment Analytics, Smart Caching, Audit Trail. Includes automatic `firstName` and `lastName` extraction.
-- **Colorado MCA Enrichment**: Industry-proven scoring methodology (UCC filings, bank/equipment financing, secured party diversity, IRS/SBA liens), quality tiers (Excellent, Good, Fair, Poor), sector classification, government entity filtering, visual insights.
+- **Lead Validation Center**: Verify and validate lead data quality before use.
 - **Simplified UCC Intelligence System**: Integrates UCC data, calculates risk (Low/Medium/High) based on debt-to-revenue, visual indicators, admin UCC upload/processing, statistics dashboard. AI-powered parsing and advanced data extraction.
-- **Advanced Lead Intelligence Features**: Auto-Enrichment (high-quality leads), Auto-Verification, Unified Lead Scoring (0-100 with color coding), Practical Insights Engine, Smart Lead Matching, CRM Export Support.
-- **Enterprise Features**: Lead Performance Analytics Dashboard, CRM Integration Hub (Salesforce, HubSpot), Smart Lead Matching (AI alerts), Lead Enrichment Service, Advanced Filtering (20+ criteria), Quality Guarantee, Lead Freshness Indicators, Bulk Operations, Email/SMS Campaign Tools, Enterprise API v1, ML-Powered Lead Scoring.
+- **Advanced Lead Intelligence Features**: Auto-Verification, Unified Lead Scoring (0-100 with color coding), Practical Insights Engine, Smart Lead Matching, CRM Export Support.
+- **Enterprise Features**: Lead Performance Analytics Dashboard, CRM Integration Hub (Salesforce, HubSpot), Smart Lead Matching (AI alerts), Advanced Filtering (20+ criteria), Quality Guarantee, Lead Freshness Indicators, Bulk Operations.
 
 ### System Design Choices
 - Event-driven communication, service isolation for UCC intelligence.

@@ -1,0 +1,71 @@
+Company (name, timezone, settings, plan, lead_credit_balance)
+
+User (email, password, role = super_admin | company_admin | agent, company, name, active)
+
+Lead (company, business_name, industry, source_type, hot_score 0–100, status, contact_name, e164_phone, raw_phone, email, address, last_call_at, last_outcome, attempt_count, next_action_at, next_action_type, created_at)
+
+CallLog (company, lead, user, started_at, ended_at, duration_sec, phone_dialed, outcome, notes, recording_url)
+
+Task (company, lead, assigned_to, title, due_at, status, created_at)
+
+Multi-tenant + roles:
+
+Users belong to exactly one Company.
+
+Agents only see their Company’s data.
+
+Company_admin manages users/leads/tasks in their Company.
+
+Super_admin = platform owner “God mode”: can see all Companies, Users, Leads, CallLogs, Tasks and toggle AI settings.
+
+UI / pages:
+
+Auth: login/signup. Route super_admin to Admin panel, others to Company dashboard.
+
+Company Dashboard: show KPIs (new leads, calls today, funded, etc.) and a “Today’s Follow-ups” list (open Tasks + Leads with next_action_at <= now, default filtered to current user).
+
+Leads list: searchable/filterable table (status, hot_score, source_type, date). Clicking row opens Lead detail.
+
+Lead detail: lead info, timeline of CallLogs + Tasks, quick note box, buttons to log a call, create/edit Tasks, change status.
+
+A “Next Best Lead” button that jumps to the next highest-priority Lead returned by the AI brain.
+
+Automation / workflow:
+
+When a CallLog is created:
+
+increment Lead.attempt_count
+
+set Lead.last_outcome
+
+update Lead.last_call_at
+
+if outcome is “follow_up”, auto-create a Task and set Lead.next_action_at/next_action_type.
+
+Simple in-app “autodialer loop”: a button that loads the next Lead needing action (by next_action_at + hot_score) and opens its detail page. No external telephony needed, just simulate “next lead”.
+
+AI “Brain”:
+
+A service/module that:
+
+learns from CallLogs and Lead outcomes (e.g. funded vs not_interested)
+
+adjusts Lead.hot_score over time
+
+suggests next_action_type and a recommended follow-up time
+
+returns a sorted list of “best leads to work right now” for each user.
+
+Expose a simple UI in the Admin area to see and tweak AI parameters (e.g. how much to weight recency, source_type, attempt_count, outcome).
+
+Admin portal (super_admin):
+
+Manage Companies (create, deactivate, change plan, adjust lead_credit_balance).
+
+Manage Users across all Companies.
+
+View global reports: leads by source, funded counts, per-company performance, per-agent performance.
+
+View system-wide activity log (who changed what, when).
+
+Focus on: clean UX, fast flow for “Today’s follow-ups → open lead → log call → next best lead”, strong role-based access control, and a simple but working AI Brain module that actually updates hot_score and next_action suggestions based on outcomes.

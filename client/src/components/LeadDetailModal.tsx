@@ -30,30 +30,18 @@ import {
   FileText,
   Clock,
   Target,
-  Zap,
   Award,
   Database,
-  Brain,
   AlertTriangle,
   Info,
   ChevronRight,
   ExternalLink,
   Download,
-  RefreshCw,
   Send,
   Star,
   Copy,
   CheckSquare
 } from "lucide-react";
-
-interface EnrichmentData {
-  service: string;
-  status: 'completed' | 'pending' | 'failed';
-  data?: any;
-  timestamp?: string;
-  confidence?: number;
-  cost?: number;
-}
 
 interface Lead {
   // Basic Information
@@ -133,32 +121,19 @@ interface Lead {
   lastEnrichedAt?: string;
   tags?: string[];
   notes?: string;
-  
-  // Enrichment History
-  enrichmentHistory?: EnrichmentData[];
-  enrichmentCost?: number;
-  enrichmentDecision?: {
-    strategy: string;
-    confidence: number;
-    priority: string;
-    reasoning: string;
-    dataGaps: string[];
-  };
 }
 
 interface LeadDetailModalProps {
   lead: Lead | null;
   isOpen: boolean;
   onClose: () => void;
-  onEnrich?: (lead: Lead) => void;
   onExport?: (lead: Lead, format: string) => void;
   onPurchase?: (lead: Lead) => void;
 }
 
-export function LeadDetailModal({ lead, isOpen, onClose, onEnrich, onExport, onPurchase }: LeadDetailModalProps) {
+export function LeadDetailModal({ lead, isOpen, onClose, onExport, onPurchase }: LeadDetailModalProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
-  const [isEnriching, setIsEnriching] = useState(false);
 
   if (!lead) return null;
 
@@ -168,26 +143,6 @@ export function LeadDetailModal({ lead, isOpen, onClose, onEnrich, onExport, onP
       title: "Copied!",
       description: `${label} copied to clipboard`,
     });
-  };
-
-  const handleEnrich = async () => {
-    if (!onEnrich) return;
-    setIsEnriching(true);
-    try {
-      await onEnrich(lead);
-      toast({
-        title: "Enrichment Started",
-        description: "Lead enrichment has been queued for processing",
-      });
-    } catch (error) {
-      toast({
-        title: "Enrichment Failed",
-        description: "Failed to start enrichment process",
-        variant: "destructive"
-      });
-    } finally {
-      setIsEnriching(false);
-    }
   };
 
   const getScoreColor = (score: number) => {
@@ -258,7 +213,6 @@ export function LeadDetailModal({ lead, isOpen, onClose, onEnrich, onExport, onP
             <TabsTrigger value="financial">Financial</TabsTrigger>
             <TabsTrigger value="verification">Verification</TabsTrigger>
             <TabsTrigger value="mca">MCA Analysis</TabsTrigger>
-            <TabsTrigger value="enrichment">Enrichment</TabsTrigger>
           </TabsList>
 
           <ScrollArea className="h-[500px]">
@@ -775,119 +729,6 @@ export function LeadDetailModal({ lead, isOpen, onClose, onEnrich, onExport, onP
               </Card>
             </TabsContent>
 
-            <TabsContent value="enrichment" className="px-6 pb-6 mt-4 space-y-4">
-              {lead.enrichmentDecision && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Brain className="h-5 w-5" />
-                      AI Enrichment Decision
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Priority</span>
-                      <Badge variant={
-                        lead.enrichmentDecision.priority === 'high' ? 'default' :
-                        lead.enrichmentDecision.priority === 'medium' ? 'secondary' : 'outline'
-                      }>
-                        {lead.enrichmentDecision.priority}
-                      </Badge>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Confidence</span>
-                      <span className="text-sm font-medium">{(lead.enrichmentDecision.confidence * 100).toFixed(0)}%</span>
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-1">Strategy</div>
-                      <p className="text-sm">{lead.enrichmentDecision.strategy}</p>
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground mb-1">Reasoning</div>
-                      <p className="text-sm">{lead.enrichmentDecision.reasoning}</p>
-                    </div>
-                    {lead.enrichmentDecision.dataGaps?.length > 0 && (
-                      <div>
-                        <div className="text-sm text-muted-foreground mb-2">Data Gaps Identified</div>
-                        <div className="flex flex-wrap gap-2">
-                          {lead.enrichmentDecision.dataGaps.map((gap, index) => (
-                            <Badge key={index} variant="outline" className="text-xs">
-                              {gap}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {lead.enrichmentHistory?.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Enrichment History</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {lead.enrichmentHistory.map((enrichment, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                          <div className="flex items-center gap-3">
-                            {enrichment.status === 'completed' ? 
-                              <CheckCircle className="h-4 w-4 text-green-500" /> :
-                              enrichment.status === 'failed' ?
-                              <XCircle className="h-4 w-4 text-red-500" /> :
-                              <Clock className="h-4 w-4 text-yellow-500" />
-                            }
-                            <div>
-                              <div className="text-sm font-medium">{enrichment.service}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {enrichment.timestamp} • Cost: ${enrichment.cost?.toFixed(2) || '0.00'}
-                              </div>
-                            </div>
-                          </div>
-                          <Badge variant={
-                            enrichment.status === 'completed' ? 'default' :
-                            enrichment.status === 'failed' ? 'destructive' : 'secondary'
-                          }>
-                            {enrichment.status}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                    {lead.enrichmentCost && (
-                      <div className="mt-4 pt-3 border-t">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">Total Enrichment Cost</span>
-                          <span className="text-lg font-bold text-primary">
-                            ${lead.enrichmentCost.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              <div className="text-center py-6">
-                <Button 
-                  onClick={handleEnrich} 
-                  disabled={isEnriching}
-                  className="gap-2"
-                >
-                  {isEnriching ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      Enriching...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="h-4 w-4" />
-                      Start Enrichment
-                    </>
-                  )}
-                </Button>
-              </div>
-            </TabsContent>
           </ScrollArea>
         </Tabs>
 

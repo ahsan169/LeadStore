@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  Upload, Zap, Shield, TrendingUp, Database, AlertCircle, 
+  Upload, Shield, TrendingUp, Database, AlertCircle, 
   FileText, ChevronRight, Loader2, CheckCircle, Clock, Users
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -22,11 +22,6 @@ export default function SimplifiedAdminPage() {
   // Fetch dashboard stats
   const { data: stats } = useQuery({
     queryKey: ['/api/analytics/dashboard'],
-  });
-
-  // Fetch enrichment stats
-  const { data: enrichmentStats } = useQuery({
-    queryKey: ['/api/enrichment/analytics/stats'],
   });
 
   // Fetch validation stats
@@ -60,7 +55,6 @@ export default function SimplifiedAdminPage() {
         description: `${data.leadCount} leads uploaded successfully`,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/analytics/dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/enrichment/analytics/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/validation/stats'] });
       setIsUploading(false);
       
@@ -96,7 +90,7 @@ export default function SimplifiedAdminPage() {
           Lead Management System
         </h1>
         <p className="text-lg text-muted-foreground">
-          Simplified two-step process: Enrich your leads, then validate them
+          Upload and validate your pre-enriched MCA leads
         </p>
       </div>
 
@@ -125,7 +119,7 @@ export default function SimplifiedAdminPage() {
       </Card>
 
       {/* Key Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
@@ -136,19 +130,6 @@ export default function SimplifiedAdminPage() {
           <CardContent>
             <div className="text-2xl font-bold">{stats?.leadCount || 0}</div>
             <p className="text-xs text-muted-foreground">In database</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Enriched</CardTitle>
-              <Zap className="w-4 h-4 text-yellow-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{enrichmentStats?.totalEnriched || 0}</div>
-            <p className="text-xs text-muted-foreground">Fully enriched</p>
           </CardContent>
         </Card>
 
@@ -173,56 +154,14 @@ export default function SimplifiedAdminPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {Math.min(enrichmentStats?.totalEnriched || 0, validationStats?.fullyValidated || 0)}
-            </div>
+            <div className="text-2xl font-bold">{validationStats?.fullyValidated || 0}</div>
             <p className="text-xs text-muted-foreground">Premium quality</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Feature Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {/* Enrichment Feature */}
-        <Card className="hover-elevate cursor-pointer" onClick={() => setLocation('/enrichment')}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900">
-                  <Zap className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                </div>
-                <div>
-                  <CardTitle>Enrichment Workspace</CardTitle>
-                  <CardDescription>AI-powered data enhancement</CardDescription>
-                </div>
-              </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Leads in queue</span>
-                <Badge variant="secondary">{enrichmentStats?.inQueue || 0}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Success rate</span>
-                <span className="font-medium">{enrichmentStats?.successRate || 0}%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Cost saved</span>
-                <span className="font-medium text-green-600">
-                  ${enrichmentStats?.costSaved?.toFixed(2) || "0.00"}
-                </span>
-              </div>
-              <Button className="w-full" variant="default">
-                Open Enrichment Workspace
-                <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
+      {/* Main Feature Card */}
+      <div className="mb-8">
         {/* Validation Feature */}
         <Card className="hover-elevate cursor-pointer" onClick={() => setLocation('/validation')}>
           <CardHeader>
@@ -271,7 +210,7 @@ export default function SimplifiedAdminPage() {
             </div>
             <div>
               <CardTitle>Quick Upload</CardTitle>
-              <CardDescription>Upload new leads to start the enrichment process</CardDescription>
+              <CardDescription>Upload pre-enriched leads for validation</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -319,7 +258,7 @@ export default function SimplifiedAdminPage() {
       {/* Process Flow */}
       <Card className="bg-gradient-to-r from-primary/5 to-secondary/5">
         <CardHeader>
-          <CardTitle className="text-center">Simple Two-Step Process</CardTitle>
+          <CardTitle className="text-center">Simple Process</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center gap-4 flex-wrap">
@@ -328,13 +267,6 @@ export default function SimplifiedAdminPage() {
                 <Upload className="w-4 h-4 text-primary" />
               </div>
               <span className="font-medium">Upload Leads</span>
-            </div>
-            <ChevronRight className="w-5 h-5 text-muted-foreground" />
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-full bg-background shadow-sm">
-                <Zap className="w-4 h-4 text-yellow-600" />
-              </div>
-              <span className="font-medium">Enrich Data</span>
             </div>
             <ChevronRight className="w-5 h-5 text-muted-foreground" />
             <div className="flex items-center gap-2">
@@ -355,28 +287,7 @@ export default function SimplifiedAdminPage() {
       </Card>
 
       {/* System Status */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Enrichment Queue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              {(enrichmentStats?.inQueue || 0) > 0 ? (
-                <>
-                  <Clock className="w-4 h-4 text-yellow-500" />
-                  <span className="text-sm">{enrichmentStats?.inQueue} leads pending</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-4 h-4 text-green-500" />
-                  <span className="text-sm">All leads processed</span>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Validation Queue</CardTitle>
