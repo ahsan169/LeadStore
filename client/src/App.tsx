@@ -16,7 +16,8 @@ import TaskManagerPage from "@/pages/task-manager";
 import ContactManagerPage from "@/pages/contact-manager";
 import ActivityTimelinePage from "@/pages/activity-timeline";
 import CrmDashboardPage from "@/pages/crm-dashboard";
-import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard, Building2 } from "lucide-react";
+import MyLeadsPage from "@/pages/my-leads";
+import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard, Building2, Briefcase } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User, Company } from "@/../../shared/schema";
@@ -92,7 +93,10 @@ function AppSidebar() {
     }
 
     if (isBuyer) {
-      return [{ title: "Dashboard", url: "/", icon: Home }];
+      return [
+        { title: "Dashboard", url: "/", icon: Home },
+        { title: "My Leads", url: "/my-leads", icon: Briefcase },
+      ];
     }
 
     return [{ title: "Dashboard", url: "/", icon: Home }];
@@ -251,6 +255,9 @@ function Router() {
                   <Route path="/validation" component={ValidationCenter} />
                 </>
               )}
+
+              {/* Buyer routes */}
+              <Route path="/my-leads" component={MyLeadsPage} />
 
               <Route component={NotFound} />
             </Switch>
