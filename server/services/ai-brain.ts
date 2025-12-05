@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { leads, callLogs, companies, type Lead, type Company } from "@shared/schema";
-import { eq, and, desc, or, isNull, lte, ne, asc, gt } from "drizzle-orm";
+import { leads, callLogs, companies, brainConfig, leadAssignments, leadActivities, sourceStats, type Lead, type Company } from "@shared/schema";
+import { eq, and, desc, or, isNull, lte, ne, asc, gt, count, sql } from "drizzle-orm";
 
 // Default AI Brain settings
 const DEFAULT_SETTINGS = {
@@ -328,6 +328,293 @@ export class AiBrainService {
       )
       .orderBy(desc(leads.hotScore))
       .limit(50);
+  }
+
+  /**
+   * Get brain configuration for admin portal
+   */
+  async getBrainConfig(): Promise<any> {
+    const [config] = await db.select().from(brainConfig).limit(1);
+    
+    if (!config) {
+      // Create default config
+      const [newConfig] = await db.insert(brainConfig).values({
+        recencyWeight: DEFAULT_SETTINGS.recencyWeight,
+        sourceWeight: DEFAULT_SETTINGS.sourceWeight,
+        attemptWeight: DEFAULT_SETTINGS.attemptWeight,
+        outcomeWeight: DEFAULT_SETTINGS.outcomeWeight,
+        feedbackWeight: 0.2,
+        maxAttempts: DEFAULT_SETTINGS.maxAttempts,
+        recalcIntervalHours: 24,
+        isActive: true,
+      }).returning();
+      return newConfig;
+    }
+    
+    return config;
+  }
+
+  /**
+   * Update brain configuration from admin portal
+   */
+  async updateBrainConfig(updates: Partial<{
+    recencyWeight: number;
+    sourceWeight: number;
+    attemptWeight: number;
+    outcomeWeight: number;
+    feedbackWeight: number;
+    maxAttempts: number;
+    recalcIntervalHours: number;
+    isActive: boolean;
+  }>): Promise<any> {
+    let config = await this.getBrainConfig();
+    
+    const [updated] = await db.update(brainConfig)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(brainConfig.id, config.id))
+      .returning();
+    
+    // Update local settings
+    if (updated) {
+      this.settings = {
+        recencyWeight: updated.recencyWeight,
+        sourceWeight: updated.sourceWeight,
+        attemptWeight: updated.attemptWeight,
+        outcomeWeight: updated.outcomeWeight,
+        maxAttempts: updated.maxAttempts,
+        followUpDelayHours: DEFAULT_SETTINGS.followUpDelayHours,
+      };
+    }
+    
+    return updated;
+  }
+
+  /**
+   * Calculate feedback-adjusted score for a lead based on buyer outcomes
+   */
+  async calculateFeedbackScore(leadId: string): Promise<number> {
+    // Get all activities for this lead
+    const activities = await db.select().from(leadActivities)
+      .where(eq(leadActivities.leadId, leadId));
+    
+    if (activities.length === 0) return 0.5; // Neutral if no feedback
+    
+    // Weight recent activities more
+    let weightedScore = 0;
+    let totalWeight = 0;
+    
+    for (const activity of activities) {
+      const daysSince = (Date.now() - new Date(activity.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+      const weight = Math.max(0.1, 1 - daysSince / 30); // Decay over 30 days
+      
+      let score = 0.5;
+      switch (activity.type) {
+        case 'funded':
+          score = 1.0;
+          break;
+        case 'contacted':
+          score = 0.7;
+          break;
+        case 'no_response':
+          score = 0.3;
+          break;
+        case 'bad_lead':
+          score = 0.1;
+          break;
+      }
+      
+      weightedScore += score * weight;
+      totalWeight += weight;
+    }
+    
+    return totalWeight > 0 ? weightedScore / totalWeight : 0.5;
+  }
+
+  /**
+   * Update source statistics based on buyer feedback
+   */
+  async updateSourceStats(sourceType: string, conversionLabel: string): Promise<void> {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    
+    // Check if we have stats for this source today
+    const [existing] = await db.select().from(sourceStats)
+      .where(and(
+        eq(sourceStats.sourceType, sourceType),
+        eq(sourceStats.periodStart, now)
+      ))
+      .limit(1);
+    
+    if (existing) {
+      // Update existing stats
+      const updates: any = { totalLeads: existing.totalLeads + 1 };
+      
+      switch (conversionLabel) {
+        case 'funded':
+          updates.fundedCount = existing.fundedCount + 1;
+          break;
+        case 'contacted':
+          updates.contactedCount = existing.contactedCount + 1;
+          break;
+        case 'bad':
+          updates.badLeadCount = existing.badLeadCount + 1;
+          break;
+        case 'no_response':
+          updates.noResponseCount = existing.noResponseCount + 1;
+          break;
+      }
+      
+      // Recalculate rate
+      const total = updates.totalLeads;
+      updates.conversionRate = total > 0 ? (updates.fundedCount || existing.fundedCount) / total : 0;
+      
+      await db.update(sourceStats)
+        .set(updates)
+        .where(eq(sourceStats.id, existing.id));
+    } else {
+      // Create new stats record
+      const isFunded = conversionLabel === 'funded' ? 1 : 0;
+      const isContacted = conversionLabel === 'contacted' ? 1 : 0;
+      const isBad = conversionLabel === 'bad' ? 1 : 0;
+      const isNoResponse = conversionLabel === 'no_response' ? 1 : 0;
+      
+      await db.insert(sourceStats).values({
+        sourceType,
+        periodStart: now,
+        periodEnd: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        totalLeads: 1,
+        fundedCount: isFunded,
+        contactedCount: isContacted,
+        badLeadCount: isBad,
+        noResponseCount: isNoResponse,
+        conversionRate: isFunded,
+      });
+    }
+  }
+
+  /**
+   * Get source performance stats for admin dashboard
+   */
+  async getSourcePerformance(): Promise<any[]> {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const stats = await db.select({
+      sourceType: sourceStats.sourceType,
+      totalLeads: sql<number>`sum(${sourceStats.totalLeads})::int`,
+      fundedCount: sql<number>`sum(${sourceStats.fundedCount})::int`,
+      contactedCount: sql<number>`sum(${sourceStats.contactedCount})::int`,
+      badLeadCount: sql<number>`sum(${sourceStats.badLeadCount})::int`,
+      noResponseCount: sql<number>`sum(${sourceStats.noResponseCount})::int`,
+    })
+    .from(sourceStats)
+    .where(gt(sourceStats.periodStart, thirtyDaysAgo))
+    .groupBy(sourceStats.sourceType);
+    
+    return stats.map(s => ({
+      ...s,
+      conversionRate: s.totalLeads > 0 ? (s.fundedCount / s.totalLeads) * 100 : 0,
+    }));
+  }
+
+  /**
+   * Recalculate all scores globally (scheduled job)
+   */
+  async recalculateAllScores(): Promise<{ updated: number; duration: number }> {
+    const start = Date.now();
+    console.log('[AIBrain] Starting global score recalculation...');
+    
+    // Get all active leads
+    const allLeads = await db.select().from(leads)
+      .where(
+        and(
+          ne(leads.leadStatus, 'won'),
+          ne(leads.leadStatus, 'lost')
+        )
+      );
+    
+    let updated = 0;
+    
+    for (const lead of allLeads) {
+      try {
+        const hotScore = this.calculateHotScore(lead);
+        
+        // Also calculate AI score with feedback if there's a conversion label
+        let aiScore = hotScore;
+        if (lead.conversionLabel && lead.conversionLabel !== 'unknown') {
+          const feedbackScore = await this.calculateFeedbackScore(lead.id);
+          aiScore = Math.round((hotScore * 0.7) + (feedbackScore * 100 * 0.3));
+        }
+        
+        await db.update(leads)
+          .set({ 
+            hotScore, 
+            aiScore,
+            updatedAt: new Date() 
+          })
+          .where(eq(leads.id, lead.id));
+        
+        updated++;
+      } catch (error) {
+        console.error(`[AIBrain] Failed to update lead ${lead.id}:`, error);
+      }
+    }
+    
+    const duration = Date.now() - start;
+    console.log(`[AIBrain] Completed score recalculation: ${updated} leads updated in ${duration}ms`);
+    
+    return { updated, duration };
+  }
+
+  /**
+   * Start scheduled recalculation job
+   */
+  startScheduledRecalculation(intervalHours: number = 24): NodeJS.Timeout {
+    const intervalMs = intervalHours * 60 * 60 * 1000;
+    
+    console.log(`[AIBrain] Starting scheduled recalculation every ${intervalHours} hours`);
+    
+    // Run immediately
+    this.recalculateAllScores().catch(err => {
+      console.error('[AIBrain] Initial recalculation failed:', err);
+    });
+    
+    // Then run on interval
+    return setInterval(() => {
+      this.recalculateAllScores().catch(err => {
+        console.error('[AIBrain] Scheduled recalculation failed:', err);
+      });
+    }, intervalMs);
+  }
+
+  /**
+   * Get buyer performance stats for admin dashboard
+   */
+  async getBuyerPerformance(): Promise<any[]> {
+    const stats = await db.select({
+      buyerId: leadAssignments.buyerId,
+      total: count(),
+      funded: sql<number>`sum(case when ${leadAssignments.currentConversionLabel} = 'funded' then 1 else 0 end)::int`,
+      contacted: sql<number>`sum(case when ${leadAssignments.currentConversionLabel} = 'contacted' then 1 else 0 end)::int`,
+      bad: sql<number>`sum(case when ${leadAssignments.currentConversionLabel} = 'bad' then 1 else 0 end)::int`,
+      noResponse: sql<number>`sum(case when ${leadAssignments.currentConversionLabel} = 'no_response' then 1 else 0 end)::int`,
+    })
+    .from(leadAssignments)
+    .groupBy(leadAssignments.buyerId);
+    
+    return stats.map(s => ({
+      buyerId: s.buyerId,
+      totalLeads: Number(s.total),
+      funded: s.funded || 0,
+      contacted: s.contacted || 0,
+      bad: s.bad || 0,
+      noResponse: s.noResponse || 0,
+      fundRate: Number(s.total) > 0 ? ((s.funded || 0) / Number(s.total)) * 100 : 0,
+      feedbackRate: Number(s.total) > 0 ? (((s.funded || 0) + (s.contacted || 0) + (s.bad || 0) + (s.noResponse || 0)) / Number(s.total)) * 100 : 0,
+    }));
   }
 }
 
