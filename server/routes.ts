@@ -73,6 +73,7 @@ import { unifiedEnrichmentService } from "./services/unified-enrichment-service"
 import { unifiedValidationService } from "./services/unified-validation-service";
 import { registerCrmRoutes } from "./routes/crm-routes";
 import multiTenantRoutes from "./routes/multi-tenant";
+import buyerFeedbackRoutes from "./routes/buyer-feedback";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1167,6 +1168,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Multi-tenant and AI Brain routes
   app.use(multiTenantRoutes);
+  
+  // Buyer feedback routes (My Leads, activity tracking)
+  app.use(buyerFeedbackRoutes);
   
   // Register CRM routes
   registerCrmRoutes(app);
