@@ -23,7 +23,7 @@ import {
   sendAlertNotification 
 } from "./email";
 import { db } from "./db";
-import { leadPerformance, purchases, leadScoringModels, leads, users } from "@shared/schema";
+import { leadPerformance, purchases, leadScoringModels, leads, users, leadAssignments } from "@shared/schema";
 import { gte, lte, and, or, sql, eq, desc, like, isNotNull, isNull, inArray } from "drizzle-orm";
 import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
@@ -6413,8 +6413,23 @@ Format your response as JSON with the following structure:
         }));
         await storage.createAllocations(allocationsToCreate);
         
-        // Get user info
+        // Create lead assignments for buyer feedback tracking
         const user = await storage.getUser(userId);
+        const pricePerLeadCents = Math.floor((parseFloat(session.amount_total?.toString() || "0") / parseInt(leadCount)) || 0);
+        
+        for (const lead of selectedLeads) {
+          await db.insert(leadAssignments).values({
+            leadId: lead.id,
+            buyerId: userId,
+            companyId: user?.companyId || null,
+            purchaseId: purchase.id,
+            pricePaidCents: pricePerLeadCents,
+            status: "new",
+            assignedAt: new Date(),
+            currentConversionLabel: "unknown",
+          }).onConflictDoNothing();
+        }
+        console.log(`[Webhook] Created ${selectedLeads.length} lead assignments for purchase ${purchase.id} (companyId: ${user?.companyId || "none"})`);
         
         // Generate CSV and upload to storage
         const csvContent = generateLeadsCsv(selectedLeads, user);
@@ -6494,8 +6509,23 @@ Format your response as JSON with the following structure:
           }));
           await storage.createAllocations(allocationsToCreate);
 
-          // Get user info for CSV watermark
+          // Create lead assignments for buyer feedback tracking
           const user = await storage.getUser(userId);
+          const pricePerLeadCents = Math.floor(((paymentIntent.amount || 0) / parseInt(leadCount)) || 0);
+          
+          for (const lead of selectedLeads) {
+            await db.insert(leadAssignments).values({
+              leadId: lead.id,
+              buyerId: userId,
+              companyId: user?.companyId || null,
+              purchaseId: purchase.id,
+              pricePaidCents: pricePerLeadCents,
+              status: "new",
+              assignedAt: new Date(),
+              currentConversionLabel: "unknown",
+            }).onConflictDoNothing();
+          }
+          console.log(`[Webhook] Created ${selectedLeads.length} lead assignments for purchase ${purchase.id} (companyId: ${user?.companyId || "none"})`);
           
           // Generate CSV with watermark and upload to object storage (if configured)
           const csvContent = generateLeadsCsv(selectedLeads, user);

@@ -247,11 +247,13 @@ router.post("/api/leads/:id/activity", requireBuyer, async (req: Request, res: R
     }
     
     // Create activity record
+    const user = req.user as any;
     const [activity] = await db
       .insert(leadActivities)
       .values({
         leadId,
         buyerId,
+        companyId: user.companyId || null,
         assignmentId: assignment.id,
         type: body.type,
         oldStatus,
@@ -343,13 +345,15 @@ export async function createAssignmentsForPurchase(
   buyerId: string,
   leadIds: string[],
   pricePerLead: number,
-  batchId?: string
+  batchId?: string,
+  companyId?: string | null
 ): Promise<void> {
   if (!leadIds || leadIds.length === 0) return;
   
   const assignments = leadIds.map(leadId => ({
     leadId,
     buyerId,
+    companyId: companyId || null,
     purchaseId,
     batchId: batchId || null,
     pricePaidCents: pricePerLead,
@@ -359,7 +363,7 @@ export async function createAssignmentsForPurchase(
   
   await db.insert(leadAssignments).values(assignments);
   
-  console.log(`[BuyerFeedback] Created ${assignments.length} assignments for purchase ${purchaseId}`);
+  console.log(`[BuyerFeedback] Created ${assignments.length} assignments for purchase ${purchaseId} (company: ${companyId || "none"})`);
 }
 
 // POST /api/purchases/:id/assign - Manually assign leads from a purchase (admin use)
@@ -442,9 +446,11 @@ router.post("/api/leads/:id/request-replacement", requireBuyer, async (req: Requ
         .where(eq(leadAssignments.id, assignment.id));
       
       // Log activity
+      const user = req.user as any;
       await db.insert(leadActivities).values({
         leadId,
         buyerId,
+        companyId: user.companyId || null,
         assignmentId: assignment.id,
         type: "bad_lead",
         oldStatus: assignment.status,

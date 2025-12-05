@@ -703,6 +703,7 @@ export const leadAssignments = pgTable("lead_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   leadId: varchar("lead_id").references(() => leads.id).notNull(),
   buyerId: varchar("buyer_id").references(() => users.id).notNull(),
+  companyId: varchar("company_id").references(() => companies.id), // For multi-tenant isolation
   batchId: varchar("batch_id").references(() => leadBatches.id),
   purchaseId: varchar("purchase_id").references(() => purchases.id),
   
@@ -722,6 +723,7 @@ export const leadActivities = pgTable("lead_activities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   leadId: varchar("lead_id").references(() => leads.id).notNull(),
   buyerId: varchar("buyer_id").references(() => users.id).notNull(),
+  companyId: varchar("company_id").references(() => companies.id), // For multi-tenant isolation
   assignmentId: varchar("assignment_id").references(() => leadAssignments.id),
   
   // Activity type and details
