@@ -536,7 +536,7 @@ export default function ContactManagerPage() {
             <div className="space-y-2">
               <Label htmlFor="leadId">Company / Lead</Label>
               <Select
-                value={newContact.leadId}
+                value={newContact.leadId || undefined}
                 onValueChange={(value) => setNewContact({ ...newContact, leadId: value })}
               >
                 <SelectTrigger data-testid="select-contact-lead">
@@ -544,7 +544,7 @@ export default function ContactManagerPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {leads.map((lead) => (
-                    <SelectItem key={lead.id} value={lead.id.toString()}>
+                    <SelectItem key={lead.id} value={lead.id}>
                       {lead.businessName || `Lead #${lead.id}`}
                     </SelectItem>
                   ))}
@@ -554,7 +554,7 @@ export default function ContactManagerPage() {
             <div className="space-y-2">
               <Label htmlFor="role">Contact Role</Label>
               <Select
-                value={newContact.role}
+                value={newContact.role || undefined}
                 onValueChange={(value) => setNewContact({ ...newContact, role: value })}
               >
                 <SelectTrigger data-testid="select-contact-role">
@@ -728,7 +728,7 @@ export default function ContactManagerPage() {
               <div className="space-y-2">
                 <Label htmlFor="edit-role">Contact Role</Label>
                 <Select
-                  value={editingContact.role || ""}
+                  value={editingContact.role || undefined}
                   onValueChange={(value) =>
                     setEditingContact({ ...editingContact, role: value })
                   }

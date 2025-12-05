@@ -472,16 +472,16 @@ export default function TaskManagerPage() {
             <div className="space-y-2">
               <Label htmlFor="lead">Link to Lead (Optional)</Label>
               <Select
-                value={newTask.leadId}
-                onValueChange={(value) => setNewTask({ ...newTask, leadId: value })}
+                value={newTask.leadId || "none"}
+                onValueChange={(value) => setNewTask({ ...newTask, leadId: value === "none" ? "" : value })}
               >
                 <SelectTrigger data-testid="select-task-lead">
                   <SelectValue placeholder="Select a lead..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No lead</SelectItem>
+                  <SelectItem value="none">No lead</SelectItem>
                   {leads.map((lead) => (
-                    <SelectItem key={lead.id} value={lead.id.toString()}>
+                    <SelectItem key={lead.id} value={lead.id}>
                       {lead.businessName || `Lead #${lead.id}`}
                     </SelectItem>
                   ))}
