@@ -74,6 +74,7 @@ import { unifiedValidationService } from "./services/unified-validation-service"
 import { registerCrmRoutes } from "./routes/crm-routes";
 import multiTenantRoutes from "./routes/multi-tenant";
 import buyerFeedbackRoutes from "./routes/buyer-feedback";
+import godModeRoutes from "./routes/god-mode";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1171,6 +1172,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Buyer feedback routes (My Leads, activity tracking)
   app.use(buyerFeedbackRoutes);
+  
+  // God Mode admin portal routes
+  app.use(godModeRoutes);
   
   // Register CRM routes
   registerCrmRoutes(app);

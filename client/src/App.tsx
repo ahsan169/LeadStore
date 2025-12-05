@@ -17,7 +17,8 @@ import ContactManagerPage from "@/pages/contact-manager";
 import ActivityTimelinePage from "@/pages/activity-timeline";
 import CrmDashboardPage from "@/pages/crm-dashboard";
 import MyLeadsPage from "@/pages/my-leads";
-import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard, Building2, Briefcase } from "lucide-react";
+import GodModePage from "@/pages/god-mode";
+import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard, Building2, Briefcase, Brain } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User, Company } from "@/../../shared/schema";
@@ -80,8 +81,12 @@ function AppSidebar() {
       { title: "Company Management", url: "/companies", icon: Building2 },
     ];
 
+    const godModePages = [
+      { title: "God Mode", url: "/god-mode", icon: Brain },
+    ];
+
     if (isSuperAdmin) {
-      return [...crmPages, ...adminPages, ...companyManagement];
+      return [...crmPages, ...adminPages, ...companyManagement, ...godModePages];
     }
 
     if (isCompanyAdmin || isLegacyAdmin) {
@@ -258,6 +263,9 @@ function Router() {
 
               {/* Buyer routes */}
               <Route path="/my-leads" component={MyLeadsPage} />
+
+              {/* Super admin routes */}
+              <Route path="/god-mode" component={GodModePage} />
 
               <Route component={NotFound} />
             </Switch>
