@@ -262,6 +262,11 @@ export const leads = pgTable("leads", {
   rawPhone: text("raw_phone"), // Original phone format
   sourceType: text("source_type").default("manual"), // 'manual', 'import', 'web', 'referral', 'paid'
   
+  // AI Brain feedback-driven scoring
+  aiScore: integer("ai_score").notNull().default(50), // 0-100 AI-calculated score based on buyer feedback
+  conversionLabel: text("conversion_label").default("unknown"), // 'unknown', 'funded', 'contacted', 'no_response', 'bad'
+  lastOutcomeAt: timestamp("last_outcome_at"), // When buyer last reported an outcome
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -687,6 +692,115 @@ export const downloadHistory = pgTable("download_history", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   downloadedAt: timestamp("downloaded_at").notNull().defaultNow(),
   ipAddress: text("ip_address"),
+});
+
+// ========================================
+// LEAD ASSIGNMENT & BUYER FEEDBACK SYSTEM
+// ========================================
+
+// Lead assignments - tracks which leads are assigned to which buyers after purchase
+export const leadAssignments = pgTable("lead_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  buyerId: varchar("buyer_id").references(() => users.id).notNull(),
+  batchId: varchar("batch_id").references(() => leadBatches.id),
+  purchaseId: varchar("purchase_id").references(() => purchases.id),
+  
+  // Pricing info
+  pricePaidCents: integer("price_paid_cents").notNull().default(0),
+  
+  // Status tracking
+  status: text("status").notNull().default("new"), // 'new', 'working', 'contacted', 'funded', 'bad_lead', 'no_response'
+  currentConversionLabel: text("current_conversion_label").default("unknown"), // mirrors lead conversion
+  
+  assignedAt: timestamp("assigned_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Lead activities - lightweight CRM history for buyer feedback
+export const leadActivities = pgTable("lead_activities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  leadId: varchar("lead_id").references(() => leads.id).notNull(),
+  buyerId: varchar("buyer_id").references(() => users.id).notNull(),
+  assignmentId: varchar("assignment_id").references(() => leadAssignments.id),
+  
+  // Activity type and details
+  type: text("type").notNull(), // 'status_change', 'note', 'funded', 'bad_lead', 'contacted', 'no_response'
+  oldStatus: text("old_status"),
+  newStatus: text("new_status"),
+  note: text("note"),
+  
+  // For funded leads
+  dealAmount: decimal("deal_amount", { precision: 12, scale: 2 }),
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Brain configuration - global settings for AI scoring system
+export const brainConfig = pgTable("brain_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Tier thresholds (minimum ai_score to qualify for each tier)
+  goldMinScore: integer("gold_min_score").notNull().default(0),
+  platinumMinScore: integer("platinum_min_score").notNull().default(30),
+  diamondMinScore: integer("diamond_min_score").notNull().default(60),
+  eliteMinScore: integer("elite_min_score").notNull().default(80),
+  
+  // Max sales per lead
+  maxSalesPerLead: integer("max_sales_per_lead").notNull().default(3),
+  
+  // Scoring weights
+  recencyWeight: decimal("recency_weight", { precision: 3, scale: 2 }).notNull().default("0.20"),
+  sourceTypeWeight: decimal("source_type_weight", { precision: 3, scale: 2 }).notNull().default("0.15"),
+  lenderCountWeight: decimal("lender_count_weight", { precision: 3, scale: 2 }).notNull().default("0.15"),
+  feedbackWeight: decimal("feedback_weight", { precision: 3, scale: 2 }).notNull().default("0.50"),
+  
+  // Auto-scoring settings
+  autoRecomputeEnabled: boolean("auto_recompute_enabled").notNull().default(true),
+  recomputeIntervalHours: integer("recompute_interval_hours").notNull().default(24),
+  lastRecomputeAt: timestamp("last_recompute_at"),
+  
+  // Active configuration marker
+  isActive: boolean("is_active").notNull().default(true),
+  
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Source stats - aggregated stats per source/state for brain insights
+export const sourceStats = pgTable("source_stats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Grouping dimensions
+  sourceType: text("source_type").notNull(), // 'manual', 'import', 'web', 'referral', 'paid'
+  stateCode: text("state_code"), // Optional state grouping
+  
+  // Aggregated metrics
+  totalLeads: integer("total_leads").notNull().default(0),
+  totalAssigned: integer("total_assigned").notNull().default(0),
+  totalWithFeedback: integer("total_with_feedback").notNull().default(0),
+  totalFunded: integer("total_funded").notNull().default(0),
+  totalBadLeads: integer("total_bad_leads").notNull().default(0),
+  totalContacted: integer("total_contacted").notNull().default(0),
+  totalNoResponse: integer("total_no_response").notNull().default(0),
+  
+  // Calculated rates
+  fundRate: decimal("fund_rate", { precision: 5, scale: 4 }), // 0.0000-1.0000
+  badLeadRate: decimal("bad_lead_rate", { precision: 5, scale: 4 }),
+  contactRate: decimal("contact_rate", { precision: 5, scale: 4 }),
+  
+  // Revenue attribution
+  totalRevenueGenerated: decimal("total_revenue_generated", { precision: 15, scale: 2 }).notNull().default("0"),
+  
+  // Brain suggestions
+  suggestedAction: text("suggested_action"), // 'kill', 'upgrade', 'downgrade', 'none'
+  actionReason: text("action_reason"),
+  
+  // Status
+  isActive: boolean("is_active").notNull().default(true),
+  
+  lastUpdatedAt: timestamp("last_updated_at").notNull().defaultNow(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // AI-generated insights for lead batches
@@ -1622,6 +1736,47 @@ export const insertLeadPerformanceSchema = createInsertSchema(leadPerformance).o
 export const insertDownloadHistorySchema = createInsertSchema(downloadHistory).omit({
   id: true,
   downloadedAt: true,
+});
+
+// Lead Assignment & Buyer Feedback Insert Schemas
+export const insertLeadAssignmentSchema = createInsertSchema(leadAssignments).omit({
+  id: true,
+  createdAt: true,
+  assignedAt: true,
+}).extend({
+  status: z.enum(["new", "working", "contacted", "funded", "bad_lead", "no_response"]).default("new"),
+  currentConversionLabel: z.enum(["unknown", "funded", "contacted", "no_response", "bad"]).default("unknown"),
+  pricePaidCents: z.number().int().min(0).default(0),
+});
+
+export const insertLeadActivitySchema = createInsertSchema(leadActivities).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  type: z.enum(["status_change", "note", "funded", "bad_lead", "contacted", "no_response"]),
+  dealAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+});
+
+export const insertBrainConfigSchema = createInsertSchema(brainConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  lastRecomputeAt: true,
+}).extend({
+  goldMinScore: z.number().int().min(0).max(100).default(0),
+  platinumMinScore: z.number().int().min(0).max(100).default(30),
+  diamondMinScore: z.number().int().min(0).max(100).default(60),
+  eliteMinScore: z.number().int().min(0).max(100).default(80),
+  maxSalesPerLead: z.number().int().min(1).max(100).default(3),
+});
+
+export const insertSourceStatsSchema = createInsertSchema(sourceStats).omit({
+  id: true,
+  createdAt: true,
+  lastUpdatedAt: true,
+}).extend({
+  sourceType: z.enum(["manual", "import", "web", "referral", "paid"]),
+  suggestedAction: z.enum(["kill", "upgrade", "downgrade", "none"]).optional(),
 });
 
 export const insertAiInsightSchema = createInsertSchema(aiInsights).omit({
@@ -2886,6 +3041,19 @@ export type LeadPerformance = typeof leadPerformance.$inferSelect;
 
 export type InsertDownloadHistory = z.infer<typeof insertDownloadHistorySchema>;
 export type DownloadHistory = typeof downloadHistory.$inferSelect;
+
+// Lead Assignment & Buyer Feedback Type Exports
+export type InsertLeadAssignment = z.infer<typeof insertLeadAssignmentSchema>;
+export type LeadAssignment = typeof leadAssignments.$inferSelect;
+
+export type InsertLeadActivity = z.infer<typeof insertLeadActivitySchema>;
+export type LeadActivity = typeof leadActivities.$inferSelect;
+
+export type InsertBrainConfig = z.infer<typeof insertBrainConfigSchema>;
+export type BrainConfig = typeof brainConfig.$inferSelect;
+
+export type InsertSourceStats = z.infer<typeof insertSourceStatsSchema>;
+export type SourceStats = typeof sourceStats.$inferSelect;
 
 export type InsertAiInsight = z.infer<typeof insertAiInsightSchema>;
 export type AiInsight = typeof aiInsights.$inferSelect;

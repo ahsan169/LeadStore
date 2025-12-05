@@ -1,0 +1,183 @@
+You are modifying an existing full-stack TypeScript app called Lakefront Leadworks. Stack: React + TS + Tailwind + Shadcn UI on the frontend, Node/Express + Drizzle + PostgreSQL on the backend, Stripe for payments, Google Cloud Storage for lead files. The app is currently a multi-tier AI-scored lead marketplace where admins upload lead batches, set pricing tiers, and buyers purchase/download CSVs.
+
+Goal: Turn it from a simple lead shop into a self-improving, AI-driven lead platform with:
+
+per-lead feedback from buyers,
+
+an AI “brain” that updates scores based on outcomes, and
+
+a true God Mode admin portal to control the brain and the business.
+
+1. Data model changes (Postgres + Drizzle)
+
+Add tables and fields (extend existing schema instead of replacing):
+
+lead_assignments
+
+id (pk)
+
+lead_id (fk → leads)
+
+buyer_id (fk → users/customers)
+
+batch_id (fk → existing lead batch / product entity)
+
+assigned_at (timestamp)
+
+price_paid_cents (int)
+
+lead_activities (lightweight CRM history)
+
+id (pk)
+
+lead_id (fk → leads)
+
+buyer_id (fk → users)
+
+type (enum: "status_change" | "note" | "funded" | "bad_lead" | "contacted" | "no_response")
+
+old_status (nullable text)
+
+new_status (nullable text)
+
+note (text, optional)
+
+created_at (timestamp)
+
+Extend leads table with:
+
+ai_score (numeric, default 0–100)
+
+conversion_label (text enum: "unknown" | "funded" | "contacted" | "no_response" | "bad")
+
+last_outcome_at (timestamp, nullable)
+
+Make sure constraints/indices support fast queries by buyer_id, lead_id, and created_at.
+
+2. Backend: assignment + feedback APIs
+
+Add Express routes (with proper auth using the existing session/Stripe customer logic):
+
+When a buyer completes a purchase, create lead_assignments rows for each lead included in that batch.
+
+GET /api/my-leads
+
+Returns paginated, filterable leads assigned to the current buyer.
+
+Filters: status, ai_score range, date range, source, batch.
+
+POST /api/leads/:id/activity
+
+Body: { type, newStatus?, note? }
+
+Creates a lead_activities row, updates the lead’s current status + conversion_label + last_outcome_at.
+
+Certain activity types map to conversion_label:
+
+type "funded" → conversion_label = "funded"
+
+type "bad_lead" → "bad"
+
+type "contacted" → "contacted"
+
+type "no_response" → "no_response"
+
+Optional: replacement credits endpoint that grants credits when buyers mark legitimate “bad leads”.
+
+3. Frontend: “My Leads” buyer workspace
+
+Add a My Leads section in the buyer UI (React + Shadcn):
+
+Table of all assigned leads (from /api/my-leads) with: business name, source, state, ai_score, current status, last_outcome_at.
+
+Row actions:
+
+Quick status buttons: Funded, Working, No answer, Bad lead.
+
+“Add note” modal that posts to /api/leads/:id/activity.
+
+When a buyer clicks an action, call the activity endpoint and optimistically update the row.
+
+This is NOT a full CRM; keep it shallow but fast so buyers actually give outcome data.
+
+4. AI “Brain” service
+
+Implement a backend module/service that periodically recalculates ai_score using lead features + buyer feedback:
+
+Add a scheduled job (e.g., cron or simple interval for now) that:
+
+Fetches recent leads with joined lead_activities and assignments.
+
+Builds a minimal feature set per lead: source_type, state, industry, recency, lender_count (if available), previous tiers, etc.
+
+Uses an AI model (or heuristic + LLM) to:
+
+Predict conversion probability (funded vs not)
+
+Return an updated ai_score (0–100)
+
+Writes ai_score back to the leads table.
+
+The job should also update simple aggregate stats per source/state (fund rate, bad-lead rate) for use in the admin UI.
+
+Expose a backend route for admins, e.g. GET /api/admin/brain/preview, returning:
+
+Suggested threshold changes
+
+“Sources to kill” (very low fund rate)
+
+“Segments to upgrade to higher tier” (very high fund rate)
+
+5. Admin “God Mode” portal
+
+Extend the existing admin UI into a real control center:
+
+Dashboard:
+
+Revenue by tier over time
+
+Fund-rate by source/state (using aggregated lead_activities)
+
+Bad-lead rate and refund/replacement usage
+
+Buyer performance:
+
+For each buyer: leads purchased, % with any activity, fund rate, refund rate.
+
+Brain settings UI:
+
+Sliders/inputs (stored in a config table or JSON):
+
+Minimum ai_score per tier (Gold/Plat/Diamond/Elite)
+
+Max sales per lead (e.g., 1x, 3x)
+
+Recency weight, source_type weight, lender_count weight, etc.
+
+Button to “Run brain recompute now” (calls the AI job once).
+
+Source management:
+
+List source_types with metrics (fund rate, volume, complaints).
+
+Toggle a source on/off for future lead batches.
+
+All admin APIs must be protected and only accessible to users with an is_admin / role === "admin" flag that already exists in this project.
+
+6. Wiring it together
+
+On purchase: assign leads → lead_assignments.
+
+In buyer UI: direct them to My Leads after purchase, encourage feedback (e.g., “Mark 20+ outcomes to get bonus credits”).
+
+Scheduled job + AI service uses lead_activities to update ai_score and aggregated stats.
+
+Admin can see what the brain is learning and tweak thresholds from the God Mode panel.
+
+Keep code consistent with the existing style (TypeScript everywhere, Drizzle migrations, React + Shadcn components). Prioritize:
+
+Correct multi-tenant and auth handling,
+
+Fast buyer workflow for marking outcomes,
+
+A working AI scoring loop that actually updates ai_score and feeds the admin brain panel.
