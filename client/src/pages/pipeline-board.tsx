@@ -715,11 +715,12 @@ export default function PipelineBoardPage() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Move to:</span>
                 <Select
-                  value={selectedLead?.pipelineStageId || ""}
+                  value={selectedLead?.pipelineStageId || "unassigned"}
                   onValueChange={(value) => {
                     if (selectedLead) {
-                      moveLeadMutation.mutate({ leadId: selectedLead.id, stageId: value });
-                      setSelectedLead({ ...selectedLead, pipelineStageId: value });
+                      const stageId = value === "unassigned" ? null : value;
+                      moveLeadMutation.mutate({ leadId: selectedLead.id, stageId: stageId as string });
+                      setSelectedLead({ ...selectedLead, pipelineStageId: stageId });
                     }
                   }}
                 >
@@ -727,7 +728,7 @@ export default function PipelineBoardPage() {
                     <SelectValue placeholder="Select stage" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {stages.map((stage) => (
                       <SelectItem key={stage.id} value={stage.id}>
                         <div className="flex items-center gap-2">
