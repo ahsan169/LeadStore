@@ -4054,7 +4054,7 @@ export class DbStorage implements IStorage {
 
   async getContactsByUserId(userId: string): Promise<Contact[]> {
     return db.select().from(contacts)
-      .where(eq(contacts.userId, userId))
+      .where(eq(contacts.createdBy, userId))
       .orderBy(asc(contacts.firstName));
   }
 
@@ -4062,7 +4062,7 @@ export class DbStorage implements IStorage {
     const searchPattern = `%${query}%`;
     return db.select().from(contacts)
       .where(and(
-        eq(contacts.userId, userId),
+        eq(contacts.createdBy, userId),
         or(
           like(contacts.firstName, searchPattern),
           like(contacts.lastName, searchPattern),

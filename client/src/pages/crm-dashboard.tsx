@@ -13,9 +13,10 @@ import {
 import type { Lead, PipelineStage, Task, Contact, Activity as ActivityType } from "@shared/schema";
 
 export default function CrmDashboardPage() {
-  const { data: leads = [] } = useQuery<Lead[]>({
+  const { data: leadsResponse } = useQuery<{ leads: Lead[] }>({
     queryKey: ["/api/leads"],
   });
+  const leads = leadsResponse?.leads || [];
 
   const { data: stages = [] } = useQuery<PipelineStage[]>({
     queryKey: ["/api/crm/pipeline-stages"],
