@@ -72,6 +72,7 @@ import intelligenceRouter from "./routes/intelligence";
 import { unifiedEnrichmentService } from "./services/unified-enrichment-service";
 import { unifiedValidationService } from "./services/unified-validation-service";
 import { registerCrmRoutes } from "./routes/crm-routes";
+import multiTenantRoutes from "./routes/multi-tenant";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1164,6 +1165,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Register intelligence routes
   app.use('/api/intelligence', intelligenceRouter);
   
+  // Multi-tenant and AI Brain routes
+  app.use(multiTenantRoutes);
+  
   // Register CRM routes
   registerCrmRoutes(app);
   
@@ -1223,13 +1227,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  app.get("/api/auth/me", (req, res) => {
+  app.get("/api/auth/me", async (req, res) => {
     if (req.user) {
-      // req.user already has password field excluded from the session
-      // but TypeScript doesn't know that, so we cast it
       const user = req.user as any;
       const { password, ...userWithoutPassword } = user;
-      res.json(userWithoutPassword);
+      
+      // Include company info if user has one
+      let company = null;
+      if (user.companyId) {
+        company = await storage.getCompany(user.companyId);
+      }
+      
+      // Determine permissions based on role
+      const permissions = {
+        canManageCompany: user.role === "super_admin" || user.role === "company_admin" || user.role === "admin",
+        canManageUsers: user.role === "super_admin" || user.role === "company_admin" || user.role === "admin",
+        canViewAllCompanies: user.role === "super_admin",
+      };
+      
+      res.json({ 
+        user: userWithoutPassword,
+        company,
+        permissions
+      });
     } else {
       res.status(401).json({ error: "Not authenticated" });
     }

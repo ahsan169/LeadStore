@@ -16,21 +16,34 @@ import TaskManagerPage from "@/pages/task-manager";
 import ContactManagerPage from "@/pages/contact-manager";
 import ActivityTimelinePage from "@/pages/activity-timeline";
 import CrmDashboardPage from "@/pages/crm-dashboard";
-import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard } from "lucide-react";
+import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard, Building2 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import type { User } from "@/../../shared/schema";
+import type { User, Company } from "@/../../shared/schema";
 import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 
 import { StripeTestModeIndicator } from "@/components/StripeTestModeIndicator";
 import { Badge } from "@/components/ui/badge";
 
+interface AuthResponse {
+  user: User;
+  company: Company | null;
+  permissions: {
+    canManageCompany: boolean;
+    canManageUsers: boolean;
+    canViewAllCompanies: boolean;
+  };
+}
+
 function AppSidebar() {
   const [location, setLocation] = useLocation();
-  const { data: user } = useQuery<User>({
+  const { data: authData } = useQuery<AuthResponse>({
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
+
+  const user = authData?.user;
+  const company = authData?.company;
 
   const logoutMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/auth/logout"),
@@ -40,21 +53,61 @@ function AppSidebar() {
     },
   });
 
-  const isAdmin = user?.role === "admin";
+  const role = user?.role;
+  const isSuperAdmin = role === "super_admin";
+  const isCompanyAdmin = role === "company_admin";
+  const isAgent = role === "agent";
+  const isLegacyAdmin = role === "admin";
+  const isBuyer = role === "buyer";
 
-  // CRM-focused navigation
-  const menuItems = isAdmin ? [
-    { title: "CRM Dashboard", url: "/", icon: LayoutDashboard },
-    { title: "Pipeline Board", url: "/pipeline", icon: Kanban },
-    { title: "Task Manager", url: "/tasks", icon: CheckSquare },
-    { title: "Contacts", url: "/contacts", icon: Users },
-    { title: "Activity Timeline", url: "/activity", icon: Activity },
-    { title: "Lead Management", url: "/lead-management", icon: Database },
-    { title: "Upload Leads", url: "/admin", icon: Upload },
-    { title: "Validation", url: "/validation", icon: Shield },
-  ] : [
-    { title: "Dashboard", url: "/", icon: Home },
-  ];
+  const getMenuItems = () => {
+    const crmPages = [
+      { title: "CRM Dashboard", url: "/", icon: LayoutDashboard },
+      { title: "Pipeline Board", url: "/pipeline", icon: Kanban },
+      { title: "Task Manager", url: "/tasks", icon: CheckSquare },
+      { title: "Contacts", url: "/contacts", icon: Users },
+      { title: "Activity Timeline", url: "/activity", icon: Activity },
+    ];
+
+    const adminPages = [
+      { title: "Lead Management", url: "/lead-management", icon: Database },
+      { title: "Upload Leads", url: "/admin", icon: Upload },
+      { title: "Validation", url: "/validation", icon: Shield },
+    ];
+
+    const companyManagement = [
+      { title: "Company Management", url: "/companies", icon: Building2 },
+    ];
+
+    if (isSuperAdmin) {
+      return [...crmPages, ...adminPages, ...companyManagement];
+    }
+
+    if (isCompanyAdmin || isLegacyAdmin) {
+      return [...crmPages, ...adminPages];
+    }
+
+    if (isAgent) {
+      return crmPages;
+    }
+
+    if (isBuyer) {
+      return [{ title: "Dashboard", url: "/", icon: Home }];
+    }
+
+    return [{ title: "Dashboard", url: "/", icon: Home }];
+  };
+
+  const menuItems = getMenuItems();
+
+  const getRoleLabel = () => {
+    if (isSuperAdmin) return "Super Admin";
+    if (isCompanyAdmin) return "Company Admin";
+    if (isAgent) return "Agent Portal";
+    if (isLegacyAdmin) return "Admin Portal";
+    if (isBuyer) return "Premium MCA Leads";
+    return "Portal";
+  };
 
   return (
     <Sidebar>
@@ -66,11 +119,16 @@ function AppSidebar() {
             className="w-12 h-12 rounded-lg shadow-md"
           />
           <div className="flex-1">
-            <h2 className="font-bold text-lg bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <h2 className="font-bold text-lg bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent" data-testid="text-app-title">
               Lakefront Leadworks
             </h2>
-            <p className="text-xs text-muted-foreground">
-              {isAdmin ? "Admin Portal" : "Premium MCA Leads"}
+            {company?.name && (
+              <p className="text-sm font-medium text-foreground" data-testid="text-company-name">
+                {company.name}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground" data-testid="text-role-label">
+              {getRoleLabel()}
             </p>
           </div>
         </div>
@@ -127,10 +185,12 @@ function AppSidebar() {
 }
 
 function Router() {
-  const { data: user, isLoading } = useQuery<User>({
+  const { data: authData, isLoading } = useQuery<AuthResponse>({
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn({ on401: "returnNull" }),
   });
+
+  const user = authData?.user;
 
   if (isLoading) {
     return (
@@ -140,7 +200,6 @@ function Router() {
     );
   }
 
-  // Not authenticated
   if (!user) {
     return (
       <Switch>
@@ -151,7 +210,14 @@ function Router() {
     );
   }
 
-  // Authenticated with sidebar
+  const role = user.role;
+  const isSuperAdmin = role === "super_admin";
+  const isCompanyAdmin = role === "company_admin";
+  const isAgent = role === "agent";
+  const isLegacyAdmin = role === "admin";
+  const canAccessCRM = isSuperAdmin || isCompanyAdmin || isAgent || isLegacyAdmin;
+  const canAccessAdmin = isSuperAdmin || isCompanyAdmin || isLegacyAdmin;
+
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -167,23 +233,25 @@ function Router() {
           </header>
           <main className="flex-1 overflow-auto">
             <Switch>
-              {/* Main routes */}
               <Route path="/" component={CrmDashboardPage} />
               
-              {/* Admin-only routes */}
-              {user.role === "admin" && (
+              {canAccessCRM && (
                 <>
-                  <Route path="/admin" component={SimplifiedAdminPage} />
                   <Route path="/pipeline" component={PipelineBoardPage} />
                   <Route path="/tasks" component={TaskManagerPage} />
                   <Route path="/contacts" component={ContactManagerPage} />
                   <Route path="/activity" component={ActivityTimelinePage} />
+                </>
+              )}
+              
+              {canAccessAdmin && (
+                <>
+                  <Route path="/admin" component={SimplifiedAdminPage} />
                   <Route path="/lead-management" component={LeadManagementPage} />
                   <Route path="/validation" component={ValidationCenter} />
                 </>
               )}
 
-              {/* 404 */}
               <Route component={NotFound} />
             </Switch>
           </main>

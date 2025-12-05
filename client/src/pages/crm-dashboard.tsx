@@ -11,6 +11,7 @@ import {
   Kanban, ListTodo, Activity, DollarSign, Star, Briefcase
 } from "lucide-react";
 import type { Lead, PipelineStage, Task, Contact, Activity as ActivityType } from "@shared/schema";
+import { NextBestLead } from "@/components/NextBestLead";
 
 export default function CrmDashboardPage() {
   const { data: leadsResponse } = useQuery<{ leads: Lead[] }>({
@@ -142,6 +143,10 @@ export default function CrmDashboardPage() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
+        <div className="col-span-1">
+          <NextBestLead />
+        </div>
+        
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">

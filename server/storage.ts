@@ -1,6 +1,8 @@
 import { eq, desc, and, or, sql, inArray, notInArray, gte, lte, like, asc, ne, isNotNull, isNull, not, gt } from "drizzle-orm";
 import { db } from "./db";
 import {
+  type Company,
+  type InsertCompany,
   type User,
   type InsertUser,
   type Subscription,
@@ -59,6 +61,7 @@ import {
   type InsertCampaignTemplate,
   type Campaign,
   type InsertCampaign,
+  companies,
   users,
   subscriptions,
   leadBatches,
@@ -161,7 +164,21 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined>;
   getAllBuyers(): Promise<User[]>;
+  getUsersByCompany(companyId: string): Promise<User[]>;
+  
+  // Company operations
+  getCompany(id: string): Promise<Company | undefined>;
+  getCompanyBySlug(slug: string): Promise<Company | undefined>;
+  getAllCompanies(): Promise<Company[]>;
+  createCompany(company: InsertCompany): Promise<Company>;
+  updateCompany(id: string, data: Partial<InsertCompany>): Promise<Company | undefined>;
+  
+  // Company-scoped lead operations
+  getLeadsByCompany(companyId: string, limit?: number): Promise<Lead[]>;
+  getNextBestLead(companyId: string): Promise<Lead | undefined>;
+  updateLeadHotScore(leadId: string, hotScore: number, nextActionAt?: Date, nextActionType?: string): Promise<Lead | undefined>;
   
   // Subscription operations
   getSubscription(id: string): Promise<Subscription | undefined>;
@@ -801,6 +818,94 @@ export class DbStorage implements IStorage {
 
   async getAllBuyers(): Promise<User[]> {
     return db.select().from(users).where(eq(users.role, "buyer"));
+  }
+
+  async updateUser(id: string, data: Partial<InsertUser>): Promise<User | undefined> {
+    const result = await db.update(users)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getUsersByCompany(companyId: string): Promise<User[]> {
+    return db.select().from(users).where(eq(users.companyId, companyId));
+  }
+
+  // Company operations
+  async getCompany(id: string): Promise<Company | undefined> {
+    const result = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getCompanyBySlug(slug: string): Promise<Company | undefined> {
+    const result = await db.select().from(companies).where(eq(companies.slug, slug)).limit(1);
+    return result[0];
+  }
+
+  async getAllCompanies(): Promise<Company[]> {
+    return db.select().from(companies).where(eq(companies.isActive, true)).orderBy(asc(companies.name));
+  }
+
+  async createCompany(company: InsertCompany): Promise<Company> {
+    const result = await db.insert(companies).values(company).returning();
+    return result[0];
+  }
+
+  async updateCompany(id: string, data: Partial<InsertCompany>): Promise<Company | undefined> {
+    const result = await db.update(companies)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(companies.id, id))
+      .returning();
+    return result[0];
+  }
+
+  // Company-scoped lead operations
+  async getLeadsByCompany(companyId: string, limit: number = 100): Promise<Lead[]> {
+    return db.select().from(leads)
+      .where(eq(leads.companyId, companyId))
+      .orderBy(desc(leads.hotScore), desc(leads.createdAt))
+      .limit(limit);
+  }
+
+  async getNextBestLead(companyId: string): Promise<Lead | undefined> {
+    // Get the lead with highest hot score that hasn't been worked recently
+    // and is due for next action or has never been contacted
+    const result = await db.select().from(leads)
+      .where(
+        and(
+          eq(leads.companyId, companyId),
+          or(
+            isNull(leads.nextActionAt),
+            lte(leads.nextActionAt, new Date())
+          ),
+          ne(leads.leadStatus, "won"),
+          ne(leads.leadStatus, "lost")
+        )
+      )
+      .orderBy(desc(leads.hotScore), asc(leads.attemptCount))
+      .limit(1);
+    return result[0];
+  }
+
+  async updateLeadHotScore(
+    leadId: string, 
+    hotScore: number, 
+    nextActionAt?: Date, 
+    nextActionType?: string
+  ): Promise<Lead | undefined> {
+    const updateData: any = { 
+      hotScore, 
+      updatedAt: new Date() 
+    };
+    if (nextActionAt !== undefined) updateData.nextActionAt = nextActionAt;
+    if (nextActionType !== undefined) updateData.nextActionType = nextActionType;
+    
+    const result = await db.update(leads)
+      .set(updateData)
+      .where(eq(leads.id, leadId))
+      .returning();
+    return result[0];
   }
 
   // Subscription operations

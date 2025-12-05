@@ -101,3 +101,8 @@ Lead fields for AI Brain:
 - Added AI Brain fields to leads: hotScore, attemptCount, lastCallAt, lastOutcome, nextActionAt, nextActionType, e164Phone
 - Added companyId to leads, tasks, callLogs, pipelineStages for multi-tenant isolation
 - Updated callLogs table with enhanced fields (phoneDialed, durationSec, notes)
+- Implemented AI Brain service (server/services/ai-brain.ts) with hot score calculation
+- Created multi-tenant routes (server/routes/multi-tenant.ts) for company management and call logging
+- Updated /api/auth/me to return { user, company, permissions } for role-based UI
+- Added Next Best Lead feature with skip functionality and call logging modal
+- Frontend App.tsx updated with role-based sidebar navigation (super_admin, company_admin, agent)

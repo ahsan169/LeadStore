@@ -49,16 +49,22 @@ app.use(
   })
 );
 
-// Passport configuration
+// Passport configuration with multi-tenant support
 declare global {
   namespace Express {
     interface User {
       id: string;
+      companyId: string | null;
       username: string;
       email: string;
+      name: string | null;
       role: string;
       password: string;
+      isActive: boolean;
+      preferences: Record<string, any> | null;
+      lastLoginAt: Date | null;
       createdAt: Date;
+      updatedAt: Date;
     }
   }
 }
@@ -100,12 +106,28 @@ passport.deserializeUser(async (id: string, done) => {
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Login route (before other routes)
-app.post("/api/auth/login", passport.authenticate("local"), (req, res) => {
+// Login route (before other routes) - with multi-tenant support
+app.post("/api/auth/login", passport.authenticate("local"), async (req, res) => {
   if (req.user) {
     const user = req.user as User;
+    
+    // Check if user is active
+    if (!user.isActive) {
+      req.logout(() => {});
+      return res.status(403).json({ error: "Account is deactivated" });
+    }
+    
+    // Set session with company context
     req.session.userId = user.id;
     req.session.userRole = user.role;
+    req.session.companyId = user.companyId || undefined;
+    
+    // Update last login timestamp
+    try {
+      await storage.updateUser(user.id, { lastLoginAt: new Date() });
+    } catch (e) {
+      // Non-critical, don't fail login
+    }
     
     const { password, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
