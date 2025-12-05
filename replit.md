@@ -1,8 +1,8 @@
-# Lakefront Leadworks - Streamlined MCA Lead Marketplace
+# Lakefront Leadworks - Multi-Tenant MCA Lead CRM
 
 ## Overview
 
-Lakefront Leadworks is a CRM-focused MCA lead marketplace designed for managing pre-enriched leads. The system assumes all uploaded leads are already enriched and focuses on providing complete CRM functionality including pipeline management, task tracking, activity logging, contact management, and comprehensive lead workflow tools. The platform emphasizes practicality and user experience in the Merchant Cash Advance (MCA) lead industry. Key capabilities include comprehensive CRM, lead validation, and a sophisticated UCC Intelligence System for detailed lead assessment.
+Lakefront Leadworks is a multi-tenant CRM platform designed for the Merchant Cash Advance (MCA) industry. The system supports multiple companies with role-based access (super_admin, company_admin, agent), features an AI Brain for calculating hot scores (0-100) and suggesting next best leads, includes call logging with outcome tracking, automated workflow for follow-ups, and company-scoped data isolation.
 
 **Note**: Lead enrichment features have been removed from the UI (backend routes remain intact for future use).
 
@@ -11,6 +11,14 @@ Lakefront Leadworks is a CRM-focused MCA lead marketplace designed for managing 
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
+
+### Multi-Tenant Structure
+- **Companies**: Each company has isolated data with their own leads, users, tasks, and pipeline stages
+- **User Roles**:
+  - `super_admin`: Platform-wide access, can manage all companies
+  - `company_admin`: Full access within their company, can manage users
+  - `agent`: Can work leads, log calls, manage tasks within their company
+- **Data Isolation**: All queries filter by companyId except for super_admin views
 
 ### Frontend Architecture
 - **Framework**: React 18 with TypeScript, Wouter for routing.
@@ -22,15 +30,37 @@ Preferred communication style: Simple, everyday language.
 ### Backend Architecture
 - **Server Framework**: Express.js with TypeScript on Node.js.
 - **Authentication**: Passport.js with Local Strategy (bcrypt) and session-based authentication.
-- **Authorization**: Role-based access control (RBAC) for `buyer` and `admin`.
-- **API Design**: RESTful JSON API.
-- **Pricing Logic**: Hardcoded pricing tiers (Gold, Platinum, Diamond, Elite) with lead allocations.
+- **Authorization**: Role-based access control (RBAC) for `super_admin`, `company_admin`, and `agent`.
+- **API Design**: RESTful JSON API with company-scoped endpoints.
+- **AI Brain**: Event-driven service that recalculates hot_score after call/task mutations.
 
 ### Data Storage
 - **Database**: PostgreSQL via Neon serverless driver.
-- **ORM**: Drizzle ORM for type-safe queries and schema management (users, subscriptions, leadBatches, leads, purchases, downloadHistory, aiInsights).
+- **ORM**: Drizzle ORM for type-safe queries and schema management.
+- **Key Tables**:
+  - `companies`: Multi-tenant company management with AI Brain settings
+  - `users`: User accounts with companyId and role
+  - `leads`: Lead records with hotScore, attemptCount, lastOutcome, nextActionAt
+  - `callLogs`: Call tracking with outcome and company scope
+  - `tasks`: Task management with company scope
+  - `pipelineStages`: Company-specific pipeline configurations
 - **File Storage**: AWS S3-compatible object storage (Replit Object Storage) for CSVs, using pre-signed URLs.
-- **Deduplication**: `sold` flag to prevent lead reselling.
+
+### AI Brain System
+The AI Brain calculates hot scores (0-100) for leads based on:
+- **Recency Weight (0.3)**: How recently the lead was created/contacted
+- **Source Weight (0.2)**: Quality of lead source (manual, import, web, referral, paid)
+- **Attempt Weight (0.2)**: Number of contact attempts (decreases score after max attempts)
+- **Outcome Weight (0.3)**: Last call outcome (connected, voicemail, no_answer, etc.)
+
+Lead fields for AI Brain:
+- `hotScore`: 0-100 AI-calculated priority score
+- `attemptCount`: Number of contact attempts
+- `lastCallAt`: Last call timestamp
+- `lastOutcome`: Last call outcome type
+- `nextActionAt`: When next action is due
+- `nextActionType`: Type of next action ('call', 'email', 'follow_up', 'meeting')
+- `e164Phone`: Normalized E.164 phone format
 
 ### UI/UX Decisions
 - Streamlined 6-page interface for core functionality.
@@ -38,9 +68,11 @@ Preferred communication style: Simple, everyday language.
 - Enhanced Admin Panel with 8 tabs for comprehensive management (Upload, Analytics, User, Lead, Customers, Activity, Settings, UCC).
 - Visual indicators for lead quality, UCC risk, and verification status.
 - Kanban-style Pipeline Board for CRM.
+- "Next Best Lead" feature powered by AI Brain.
 
 ### Feature Specifications
 - **Comprehensive CRM**: Pipeline Board, Task Manager, Contact Manager, Activity Timeline, CRM Dashboard.
+- **Call Logging**: Track calls with outcomes (connected, voicemail, no_answer, busy, wrong_number, callback_requested, follow_up, funded, not_interested).
 - **Lead Validation Center**: Verify and validate lead data quality before use.
 - **Simplified UCC Intelligence System**: Integrates UCC data, calculates risk (Low/Medium/High) based on debt-to-revenue, visual indicators, admin UCC upload/processing, statistics dashboard. AI-powered parsing and advanced data extraction.
 - **Advanced Lead Intelligence Features**: Auto-Verification, Unified Lead Scoring (0-100 with color coding), Practical Insights Engine, Smart Lead Matching, CRM Export Support.
@@ -48,6 +80,8 @@ Preferred communication style: Simple, everyday language.
 
 ### System Design Choices
 - Event-driven communication, service isolation for UCC intelligence.
+- AI Brain recalculates hot_score after call/task mutations.
+- Company isolation: All queries filter by companyId except for super_admin.
 - Optimized caching strategies.
 - Robust security: Bcrypt hashing, HTTP-only cookies, RBAC, pre-signed URLs, webhook verification, TCPA compliance, encrypted CRM credentials.
 - Development tooling: Vite for frontend, esbuild for backend, Drizzle Kit for migrations.
@@ -59,3 +93,11 @@ Preferred communication style: Simple, everyday language.
 - **Object Storage**: AWS S3-compatible object storage (Replit Object Storage)
 - **Email Verification**: Hunter.io API
 - **Phone Verification**: Numverify API
+
+## Recent Changes
+
+- Added `companies` table for multi-tenant architecture
+- Updated `users` table with companyId and expanded role types (super_admin, company_admin, agent)
+- Added AI Brain fields to leads: hotScore, attemptCount, lastCallAt, lastOutcome, nextActionAt, nextActionType, e164Phone
+- Added companyId to leads, tasks, callLogs, pipelineStages for multi-tenant isolation
+- Updated callLogs table with enhanced fields (phoneDialed, durationSec, notes)

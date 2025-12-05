@@ -3,14 +3,56 @@ import { pgTable, text, varchar, integer, timestamp, boolean, jsonb, decimal } f
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Users table with role-based access
+// ========================================
+// MULTI-TENANT COMPANY SYSTEM
+// ========================================
+
+// Companies table for multi-tenant architecture
+export const companies = pgTable("companies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(), // URL-friendly identifier
+  timezone: text("timezone").notNull().default("America/New_York"),
+  plan: text("plan").notNull().default("starter"), // 'starter', 'professional', 'enterprise'
+  leadCreditBalance: integer("lead_credit_balance").notNull().default(0),
+  
+  // Company settings
+  settings: jsonb("settings").default(sql`'{}'::jsonb`), // Flexible settings object
+  
+  // AI Brain settings
+  aiBrainEnabled: boolean("ai_brain_enabled").notNull().default(true),
+  aiBrainSettings: jsonb("ai_brain_settings").default(sql`'{
+    "recencyWeight": 0.3,
+    "sourceWeight": 0.2,
+    "attemptWeight": 0.2,
+    "outcomeWeight": 0.3,
+    "maxAttempts": 10,
+    "followUpDelayHours": 24
+  }'::jsonb`),
+  
+  // Status and metadata
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// Users table with role-based access and company relationship
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id), // null for super_admin
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   email: text("email").notNull().unique(),
-  role: text("role").notNull().default("buyer"), // 'admin' or 'buyer'
+  name: text("name"), // Full display name
+  role: text("role").notNull().default("agent"), // 'super_admin', 'company_admin', 'agent'
+  isActive: boolean("is_active").notNull().default(true),
+  
+  // User preferences
+  preferences: jsonb("preferences").default(sql`'{}'::jsonb`),
+  lastLoginAt: timestamp("last_login_at"),
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Subscription tiers (Gold, Platinum, Diamond, Elite)
@@ -41,11 +83,13 @@ export const leadBatches = pgTable("lead_batches", {
 // Individual leads from CSV files
 export const leads = pgTable("leads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  batchId: varchar("batch_id").references(() => leadBatches.id).notNull(),
+  companyId: varchar("company_id").references(() => companies.id), // Multi-tenant company scope
+  batchId: varchar("batch_id").references(() => leadBatches.id),
   
   // Lead data fields
   businessName: text("business_name").notNull(),
   ownerName: text("owner_name").notNull(),
+  contactName: text("contact_name"), // Primary contact name
   firstName: text("first_name"),
   lastName: text("last_name"),
   email: text("email").notNull(),
@@ -207,6 +251,17 @@ export const leads = pgTable("leads", {
   wonDate: timestamp("won_date"),
   lostDate: timestamp("lost_date"),
   
+  // AI Brain & Call Tracking Fields
+  hotScore: integer("hot_score").notNull().default(50), // 0-100 AI-calculated priority score
+  attemptCount: integer("attempt_count").notNull().default(0), // Number of contact attempts
+  lastCallAt: timestamp("last_call_at"), // Last call timestamp
+  lastOutcome: text("last_outcome"), // Last call outcome
+  nextActionAt: timestamp("next_action_at"), // When next action is due
+  nextActionType: text("next_action_type"), // 'call', 'email', 'follow_up', 'meeting'
+  e164Phone: text("e164_phone"), // Normalized E.164 phone format
+  rawPhone: text("raw_phone"), // Original phone format
+  sourceType: text("source_type").default("manual"), // 'manual', 'import', 'web', 'referral', 'paid'
+  
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -218,6 +273,7 @@ export const leads = pgTable("leads", {
 // Pipeline stages for Kanban board
 export const pipelineStages = pgTable("pipeline_stages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id), // Multi-tenant scope
   name: text("name").notNull(),
   description: text("description"),
   color: text("color").notNull().default("#3B82F6"), // Hex color for stage
@@ -234,6 +290,7 @@ export const pipelineStages = pgTable("pipeline_stages", {
 // Tasks for lead follow-up and activities
 export const tasks = pgTable("tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id), // Multi-tenant scope
   leadId: varchar("lead_id").references(() => leads.id),
   assignedTo: varchar("assigned_to").references(() => users.id),
   createdBy: varchar("created_by").references(() => users.id).notNull(),
@@ -244,6 +301,7 @@ export const tasks = pgTable("tasks", {
   priority: text("priority").notNull().default("medium"), // 'low', 'medium', 'high', 'urgent'
   status: text("status").notNull().default("pending"), // 'pending', 'in_progress', 'completed', 'cancelled'
   
+  dueAt: timestamp("due_at"), // Renamed for consistency with spec
   dueDate: timestamp("due_date"),
   dueTime: text("due_time"), // Time of day for the task
   completedAt: timestamp("completed_at"),
@@ -377,18 +435,22 @@ export const emailTracking = pgTable("email_tracking", {
 // Call logs for phone calls
 export const callLogs = pgTable("call_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  companyId: varchar("company_id").references(() => companies.id), // Multi-tenant scope
   leadId: varchar("lead_id").references(() => leads.id),
   contactId: varchar("contact_id").references(() => contacts.id),
   userId: varchar("user_id").references(() => users.id).notNull(),
   
+  phoneDialed: text("phone_dialed").notNull(), // Phone number called
   phoneNumber: text("phone_number").notNull(),
-  direction: text("direction").notNull(), // 'inbound', 'outbound'
-  outcome: text("outcome").notNull(), // 'connected', 'voicemail', 'no_answer', 'busy', 'wrong_number', 'callback_requested'
+  direction: text("direction").notNull().default("outbound"), // 'inbound', 'outbound'
+  outcome: text("outcome").notNull(), // 'connected', 'voicemail', 'no_answer', 'busy', 'wrong_number', 'callback_requested', 'follow_up', 'funded', 'not_interested'
   
-  duration: integer("duration"), // Duration in seconds
+  durationSec: integer("duration_sec"), // Duration in seconds (spec naming)
+  duration: integer("duration"), // Duration in seconds (legacy)
   recordingUrl: text("recording_url"),
   
-  summary: text("summary"), // Call summary/notes
+  notes: text("notes"), // Call notes (spec naming)
+  summary: text("summary"), // Call summary/notes (legacy)
   nextSteps: text("next_steps"),
   
   scheduledAt: timestamp("scheduled_at"), // If it was a scheduled call
@@ -1342,12 +1404,28 @@ export const legacyRuleExecutions = pgTable("legacy_rule_executions", {
 });
 
 // Insert schemas with validation
+
+// Company insert schema
+export const insertCompanySchema = createInsertSchema(companies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  name: z.string().min(1).max(100),
+  slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
+  timezone: z.string().default("America/New_York"),
+  plan: z.enum(["starter", "professional", "enterprise"]).default("starter"),
+  leadCreditBalance: z.number().int().min(0).default(0),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
+  updatedAt: true,
 }).extend({
   email: z.string().email(),
-  role: z.enum(["admin", "buyer"]).default("buyer"),
+  role: z.enum(["super_admin", "company_admin", "agent", "admin", "buyer"]).default("agent"),
+  companyId: z.string().optional(),
 });
 
 export const insertSubscriptionSchema = createInsertSchema(subscriptions).omit({
@@ -2774,6 +2852,11 @@ export const insertUccRelationshipSchema = createInsertSchema(uccRelationships).
 });
 
 // Type exports
+
+// Company types
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Company = typeof companies.$inferSelect;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
