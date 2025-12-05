@@ -45,9 +45,10 @@ export default function PipelineBoardPage() {
     queryKey: ["/api/crm/pipeline-stages"],
   });
 
-  const { data: leads = [], isLoading: loadingLeads } = useQuery<Lead[]>({
+  const { data: leadsResponse, isLoading: loadingLeads } = useQuery<{ leads: Lead[] }>({
     queryKey: ["/api/leads"],
   });
+  const leads = leadsResponse?.leads || [];
 
   const { data: leadTasks = [] } = useQuery<Task[]>({
     queryKey: ["/api/crm/tasks", "lead", selectedLead?.id],

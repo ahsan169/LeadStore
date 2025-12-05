@@ -41,9 +41,10 @@ export default function TaskManagerPage() {
     queryKey: ["/api/crm/tasks"],
   });
 
-  const { data: leads = [] } = useQuery<Lead[]>({
+  const { data: leadsResponse } = useQuery<{ leads: Lead[] }>({
     queryKey: ["/api/leads"],
   });
+  const leads = leadsResponse?.leads || [];
 
   const { data: reminders = [] } = useQuery<Reminder[]>({
     queryKey: ["/api/crm/reminders"],

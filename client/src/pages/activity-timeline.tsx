@@ -58,9 +58,10 @@ export default function ActivityTimelinePage() {
     notes: "",
   });
 
-  const { data: leads = [], isLoading: loadingLeads } = useQuery<Lead[]>({
+  const { data: leadsResponse, isLoading: loadingLeads } = useQuery<{ leads: Lead[] }>({
     queryKey: ["/api/leads"],
   });
+  const leads = leadsResponse?.leads || [];
 
   const { data: notes = [] } = useQuery<Note[]>({
     queryKey: ["/api/crm/notes", "lead", selectedLead?.id],

@@ -64,9 +64,10 @@ export default function ContactManagerPage() {
     queryKey: ["/api/crm/contacts"],
   });
 
-  const { data: leads = [] } = useQuery<Lead[]>({
+  const { data: leadsResponse } = useQuery<{ leads: Lead[] }>({
     queryKey: ["/api/leads"],
   });
+  const leads = leadsResponse?.leads || [];
 
   const createContactMutation = useMutation({
     mutationFn: (data: typeof newContact) =>
