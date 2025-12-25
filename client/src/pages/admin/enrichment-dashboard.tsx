@@ -217,11 +217,11 @@ export default function EnrichmentDashboard() {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-6 space-y-6 bg-hero-kingdom min-h-screen">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-4 animate-fade-in">
         <div>
-          <h1 className="text-3xl font-bold">Enrichment Intelligence Dashboard</h1>
+          <h1 className="text-3xl font-serif font-bold text-gradient-royal">Enrichment Intelligence Dashboard</h1>
           <p className="text-muted-foreground mt-1">
             Real-time monitoring and control of lead enrichment pipeline
           </p>
@@ -256,13 +256,15 @@ export default function EnrichmentDashboard() {
           </Button>
         </div>
       </div>
+      
+      <div className="divider-elegant" />
 
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Queue Size</CardTitle>
-            <Layers className="h-4 w-4 text-muted-foreground" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 animate-slide-up">
+        <Card className="card-kingdom">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-sm font-serif font-medium">Queue Size</CardTitle>
+            <Layers className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.queue.size || 0}</div>
@@ -272,10 +274,10 @@ export default function EnrichmentDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
-            <Award className="h-4 w-4 text-muted-foreground" />
+        <Card className="card-kingdom">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-sm font-serif font-medium">Success Rate</CardTitle>
+            <Award className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{metrics?.successRate || 0}%</div>
@@ -285,10 +287,10 @@ export default function EnrichmentDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Processing</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+        <Card className="card-kingdom">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-sm font-serif font-medium">Processing</CardTitle>
+            <Activity className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.queue.processing || 0}</div>
@@ -298,10 +300,10 @@ export default function EnrichmentDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Credits Used</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+        <Card className="card-kingdom">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-sm font-serif font-medium">Credits Used</CardTitle>
+            <DollarSign className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${metrics ? metrics.totalCreditsUsed.toFixed(2) : 0}</div>
@@ -311,10 +313,10 @@ export default function EnrichmentDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Failed</CardTitle>
-            <XCircle className="h-4 w-4 text-muted-foreground" />
+        <Card className="card-kingdom">
+          <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+            <CardTitle className="text-sm font-serif font-medium">Failed</CardTitle>
+            <XCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">

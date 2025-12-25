@@ -365,11 +365,11 @@ export default function VerifyLeadsPage() {
   const failedPercentage = (session.failedCount / session.totalLeads) * 100;
   
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 bg-hero-kingdom min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4 animate-fade-in">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="heading-verify">
+          <h1 className="text-3xl font-serif font-bold text-gradient-royal" data-testid="heading-verify">
             Verify Leads
           </h1>
           <p className="text-muted-foreground">
@@ -405,25 +405,27 @@ export default function VerifyLeadsPage() {
         </div>
       </div>
       
+      <div className="divider-elegant" />
+      
       {/* Summary Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up">
+        <Card className="card-kingdom">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm text-muted-foreground">Total Leads</p>
                 <p className="text-2xl font-bold" data-testid="text-total">
                   {session.totalLeads}
                 </p>
               </div>
-              <Info className="w-8 h-8 text-muted-foreground" />
+              <Info className="w-8 h-8 text-primary" />
             </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="card-kingdom">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm text-muted-foreground">Verified</p>
                 <p className="text-2xl font-bold text-green-600" data-testid="text-verified">
@@ -438,9 +440,9 @@ export default function VerifyLeadsPage() {
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="card-kingdom">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm text-muted-foreground">Warnings</p>
                 <p className="text-2xl font-bold text-yellow-600" data-testid="text-warnings">
@@ -455,9 +457,9 @@ export default function VerifyLeadsPage() {
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="card-kingdom">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm text-muted-foreground">Failed</p>
                 <p className="text-2xl font-bold text-red-600" data-testid="text-failed">
@@ -474,11 +476,11 @@ export default function VerifyLeadsPage() {
       </div>
       
       {/* Progress Bar */}
-      <Card>
+      <Card className="card-kingdom">
         <CardContent className="pt-6">
           <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Verification Progress</span>
+            <div className="flex flex-wrap justify-between gap-2 text-sm">
+              <span className="font-serif font-medium">Verification Progress</span>
               <span>{selectedRows.size} of {session.totalLeads} selected</span>
             </div>
             <Progress value={session.verifiedCount / session.totalLeads * 100} className="h-4" />
@@ -493,12 +495,12 @@ export default function VerifyLeadsPage() {
       </Card>
       
       {/* Controls and Table */}
-      <Card>
+      <Card className="card-kingdom animate-fade-in">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h2 className="text-xl font-semibold">Lead Verification Results</h2>
-              <Badge variant="outline">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <h2 className="text-xl font-serif font-semibold">Lead Verification Results</h2>
+              <Badge className="badge-gold">
                 Strictness: {session.strictnessLevel}
               </Badge>
             </div>

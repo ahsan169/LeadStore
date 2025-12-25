@@ -111,23 +111,25 @@ export default function BulkManagementPage() {
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2" data-testid="heading-bulk-management">
+    <div className="container mx-auto p-6 bg-hero-kingdom min-h-screen">
+      <div className="mb-8 animate-fade-in">
+        <h1 className="text-3xl font-serif font-bold mb-2 text-gradient-royal" data-testid="heading-bulk-management">
           Bulk Operations Management
         </h1>
         <p className="text-muted-foreground">
           Manage bulk orders, discount tiers, and custom quotes
         </p>
       </div>
+      
+      <div className="divider-elegant mb-6" />
 
       {/* Stats Overview */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-slide-up">
+          <Card className="card-kingdom">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-serif font-medium">Total Orders</CardTitle>
+              <Package className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalOrders}</div>
@@ -136,10 +138,10 @@ export default function BulkManagementPage() {
               </p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <Card className="card-kingdom">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-serif font-medium">Total Revenue</CardTitle>
+              <DollarSign className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -150,10 +152,10 @@ export default function BulkManagementPage() {
               </p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Order Size</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+          <Card className="card-kingdom">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-serif font-medium">Avg Order Size</CardTitle>
+              <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
@@ -164,10 +166,10 @@ export default function BulkManagementPage() {
               </p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Top Tier</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <Card className="card-kingdom">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+              <CardTitle className="text-sm font-serif font-medium">Top Tier</CardTitle>
+              <TrendingUp className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.topDiscountTier}</div>

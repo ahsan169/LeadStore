@@ -127,10 +127,10 @@ export default function ContactSubmissionsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6 p-6 bg-hero-kingdom min-h-screen">
+      <div className="flex flex-wrap justify-between items-center gap-4 animate-fade-in">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="heading-contact-submissions">
+          <h1 className="text-3xl font-serif font-bold text-gradient-royal" data-testid="heading-contact-submissions">
             Contact Submissions
           </h1>
           <p className="text-muted-foreground">Review and manage contact form submissions</p>
@@ -144,11 +144,13 @@ export default function ContactSubmissionsPage() {
           Export to CSV
         </Button>
       </div>
+      
+      <div className="divider-elegant" />
 
-      <Card>
+      <Card className="card-kingdom animate-slide-up">
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">All Submissions</h2>
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            <h2 className="text-xl font-serif font-semibold">All Submissions</h2>
             <div className="flex gap-2">
               <Badge variant="secondary">
                 Total: {submissions?.length || 0}
@@ -169,7 +171,7 @@ export default function ContactSubmissionsPage() {
         <CardContent>
           {!submissions || submissions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50 text-primary" />
               <p>No contact submissions yet</p>
             </div>
           ) : (

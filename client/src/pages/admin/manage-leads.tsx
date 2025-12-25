@@ -112,24 +112,26 @@ export default function ManageLeadsPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="heading-manage">
+    <div className="space-y-6 p-6 bg-hero-kingdom min-h-screen">
+      <div className="animate-fade-in">
+        <h1 className="text-3xl font-serif font-bold text-gradient-royal" data-testid="heading-manage">
           Manage Lead Batches
         </h1>
         <p className="text-muted-foreground">View and manage uploaded lead batches</p>
       </div>
+      
+      <div className="divider-elegant" />
 
       {!batches || batches.length === 0 ? (
-        <Card>
+        <Card className="card-kingdom animate-slide-up">
           <CardContent className="py-12 text-center">
-            <Package className="w-16 h-16 mx-auto mb-4 opacity-50 text-muted-foreground" />
+            <Package className="w-16 h-16 mx-auto mb-4 opacity-50 text-primary" />
             <h3 className="text-lg font-semibold mb-2">No lead batches yet</h3>
             <p className="text-muted-foreground">Upload your first CSV file to get started</p>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-4 animate-slide-up">
           {batches.map((batch: any) => (
             <BatchCard
               key={batch.id}

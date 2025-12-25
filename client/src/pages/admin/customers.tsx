@@ -17,22 +17,24 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="heading-customers">
+    <div className="space-y-6 p-6 bg-hero-kingdom min-h-screen">
+      <div className="animate-fade-in">
+        <h1 className="text-3xl font-serif font-bold text-gradient-royal" data-testid="heading-customers">
           Customers
         </h1>
         <p className="text-muted-foreground">Manage customer accounts</p>
       </div>
+      
+      <div className="divider-elegant" />
 
-      <Card>
+      <Card className="card-kingdom animate-slide-up">
         <CardHeader>
-          <h2 className="text-xl font-semibold">All Customers</h2>
+          <h2 className="text-xl font-serif font-semibold">All Customers</h2>
         </CardHeader>
         <CardContent>
           {!customers || customers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <Users className="w-16 h-16 mx-auto mb-4 opacity-50 text-primary" />
               <p>No customers yet</p>
             </div>
           ) : (
@@ -58,7 +60,7 @@ export default function CustomersPage() {
                       </td>
                       <td className="p-2 text-sm">{customer.email}</td>
                       <td className="p-2">
-                        <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">
+                        <span className="badge-emerald text-xs px-2 py-1 rounded-full">
                           {customer.role}
                         </span>
                       </td>

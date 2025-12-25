@@ -464,16 +464,18 @@ export default function UploadLeadsPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-6 bg-hero-kingdom min-h-screen">
+      <div className="flex flex-wrap items-center justify-between gap-4 animate-fade-in">
         <div>
-          <h1 className="text-3xl font-bold" data-testid="heading-upload">
+          <h1 className="text-3xl font-serif font-bold text-gradient-royal" data-testid="heading-upload">
             Upload Lead Batch
           </h1>
           <p className="text-muted-foreground">Upload and process new MCA leads</p>
         </div>
         {/* Test data generation removed - working with real data only */}
       </div>
+      
+      <div className="divider-elegant" />
 
       {/* Progress Indicator */}
       <div className="max-w-2xl">
@@ -527,9 +529,9 @@ export default function UploadLeadsPage() {
 
       {/* Step 1: Upload */}
       {currentStep === 'upload' && (
-        <Card className="max-w-2xl">
+        <Card className="max-w-2xl card-kingdom animate-slide-up">
           <CardHeader>
-            <h2 className="text-xl font-semibold">Step 1: Import UCC Data</h2>
+            <h2 className="text-xl font-serif font-semibold">Step 1: Import UCC Data</h2>
           </CardHeader>
           <CardContent className="space-y-6">
             <Tabs defaultValue="local" className="w-full">

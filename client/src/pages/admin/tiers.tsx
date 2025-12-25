@@ -174,11 +174,11 @@ export default function TiersPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-8 bg-hero-kingdom min-h-screen">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-4 animate-fade-in">
           <div>
-            <h1 className="text-3xl font-bold" data-testid="heading-tiers">Pricing Tiers</h1>
+            <h1 className="text-3xl font-serif font-bold text-gradient-royal" data-testid="heading-tiers">Pricing Tiers</h1>
             <p className="text-muted-foreground mt-1">
               Manage product tiers and pricing
             </p>
@@ -188,10 +188,12 @@ export default function TiersPage() {
             Create Tier
           </Button>
         </div>
+        
+        <div className="divider-elegant" />
 
-        <Card>
+        <Card className="card-kingdom animate-slide-up">
           <CardHeader>
-            <CardTitle>All Tiers</CardTitle>
+            <CardTitle className="font-serif">All Tiers</CardTitle>
             <CardDescription>
               {tiers.length} tier{tiers.length !== 1 ? 's' : ''} configured
             </CardDescription>
@@ -222,7 +224,7 @@ export default function TiersPage() {
                         <div className="flex items-center gap-2">
                           {tier.name}
                           {tier.recommended && (
-                            <Badge variant="default" data-testid={`badge-recommended-${tier.tier}`}>
+                            <Badge className="badge-gold" data-testid={`badge-recommended-${tier.tier}`}>
                               Most Popular
                             </Badge>
                           )}
@@ -244,7 +246,7 @@ export default function TiersPage() {
                         {tier.minQuality}-{tier.maxQuality}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={tier.active ? "default" : "secondary"} data-testid={`status-${tier.tier}`}>
+                        <Badge className={tier.active ? "badge-emerald" : ""} variant={tier.active ? "default" : "secondary"} data-testid={`status-${tier.tier}`}>
                           {tier.active ? "Active" : "Inactive"}
                         </Badge>
                       </TableCell>

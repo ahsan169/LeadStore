@@ -124,15 +124,17 @@ export default function APIConfiguration() {
   };
 
   return (
-    <div className="container mx-auto py-8 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-2" data-testid="text-page-title">API Configuration</h1>
+    <div className="container mx-auto py-8 max-w-6xl bg-hero-kingdom min-h-screen">
+      <div className="mb-8 animate-fade-in">
+        <h1 className="text-3xl font-serif font-bold mb-2 text-gradient-royal" data-testid="text-page-title">API Configuration</h1>
         <p className="text-muted-foreground">
           Configure your data enrichment services for maximum accuracy and cost efficiency
         </p>
       </div>
+      
+      <div className="divider-elegant mb-6" />
 
-      <Alert className="mb-6">
+      <Alert className="mb-6 animate-slide-up">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
           <strong>Smart Cost Optimization:</strong> The system uses a waterfall approach, trying cheaper services first 
@@ -148,9 +150,9 @@ export default function APIConfiguration() {
         </TabsList>
 
         <TabsContent value="services" className="space-y-4">
-          <Card>
+          <Card className="card-kingdom">
             <CardHeader>
-              <CardTitle>Enrichment Services</CardTitle>
+              <CardTitle className="font-serif">Enrichment Services</CardTitle>
               <CardDescription>
                 Enable or disable services based on your needs and budget
               </CardDescription>

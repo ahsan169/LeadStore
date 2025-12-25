@@ -41,16 +41,18 @@ export default function AdminDashboardPage() {
   ) || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/5 to-background">
+    <div className="min-h-screen bg-hero-kingdom">
       <div className="p-6 lg:p-8 space-y-8">
         {/* Header Section */}
         <div className="space-y-2 animate-fade-in">
-          <h1 className="text-4xl font-bold flex items-center gap-3" data-testid="heading-admin-dashboard">
-            <span className="text-gradient">Admin Dashboard</span>
-            <BarChart3 className="w-8 h-8 text-primary/50" />
+          <h1 className="text-4xl font-serif font-bold flex items-center gap-3" data-testid="heading-admin-dashboard">
+            <span className="text-gradient-royal">Admin Dashboard</span>
+            <BarChart3 className="w-8 h-8 text-primary" />
           </h1>
           <p className="text-lg text-muted-foreground">Manage your MCA lead marketplace</p>
         </div>
+        
+        <div className="divider-elegant" />
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
@@ -81,14 +83,14 @@ export default function AdminDashboardPage() {
       {/* Freshness Widgets */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-slide-up">
         {/* Fresh Leads Counter */}
-        <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+        <Card className="card-kingdom bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-lg font-serif font-semibold flex items-center gap-2">
                 <Flame className="w-5 h-5 text-green-500" />
                 Fresh Leads Available
               </h3>
-              <Badge variant="default" className="bg-green-500 hover:bg-green-600">
+              <Badge className="badge-emerald">
                 HOT
               </Badge>
             </div>
@@ -114,9 +116,9 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Freshness Distribution */}
-        <Card>
+        <Card className="card-kingdom">
           <CardHeader className="pb-3">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
+            <h3 className="text-lg font-serif font-semibold flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" />
               Lead Freshness Distribution
             </h3>
@@ -146,14 +148,14 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Urgency Timer */}
-        <Card className="bg-gradient-to-br from-orange-500/10 to-red-500/5 border-orange-500/20">
+        <Card className="card-kingdom bg-gradient-to-br from-orange-500/10 to-red-500/5 border-orange-500/20">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-lg font-serif font-semibold flex items-center gap-2">
                 <Timer className="w-5 h-5 text-orange-500" />
                 Expiring Soon
               </h3>
-              <Badge variant="destructive" className="animate-pulse">
+              <Badge className="badge-gold animate-pulse">
                 LIMITED TIME
               </Badge>
             </div>
@@ -176,12 +178,14 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
+      <div className="divider-elegant" />
+      
       {/* Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-up">
         {/* Recent Batches */}
-        <Card>
+        <Card className="card-kingdom">
           <CardHeader>
-            <h2 className="text-xl font-semibold">Recent Lead Batches</h2>
+            <h2 className="text-xl font-serif font-semibold">Recent Lead Batches</h2>
           </CardHeader>
           <CardContent>
             {!batches || batches.length === 0 ? (
@@ -214,9 +218,9 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Recent Orders */}
-        <Card>
+        <Card className="card-kingdom">
           <CardHeader>
-            <h2 className="text-xl font-semibold">Recent Orders</h2>
+            <h2 className="text-xl font-serif font-semibold">Recent Orders</h2>
           </CardHeader>
           <CardContent>
             {!purchases || purchases.length === 0 ? (
@@ -254,10 +258,11 @@ export default function AdminDashboardPage() {
 
       {/* AI Insights for Most Recent Batch */}
       {recentInsights && batches?.[0] && (
-        <div>
+        <div className="animate-fade-in">
+          <div className="divider-elegant mb-6" />
           <div className="flex items-center gap-2 mb-4">
             <Sparkles className="w-5 h-5 text-primary" />
-            <h2 className="text-xl font-semibold">Latest Batch Insights</h2>
+            <h2 className="text-xl font-serif font-semibold">Latest Batch Insights</h2>
             <span className="text-sm text-muted-foreground">
               for {batches[0].filename}
             </span>
