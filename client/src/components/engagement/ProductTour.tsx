@@ -17,7 +17,7 @@ interface TourStep {
 const tourSteps: TourStep[] = [
   {
     target: '[data-testid="heading-hero"]',
-    title: "Welcome to Lakefront Leadworks",
+    title: "Welcome to Land of Leads",
     content: "Your premier source for high-quality, human-sourced MCA leads enhanced with AI intelligence",
     position: 'bottom',
   },

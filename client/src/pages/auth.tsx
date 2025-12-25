@@ -10,7 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Lock, CheckCircle, Award, TrendingUp, Users, Building2, Waves } from "lucide-react";
-import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
+import { Crown } from "lucide-react";
 
 export default function AuthPage() {
   const [, setLocation] = useLocation();
@@ -51,7 +51,7 @@ export default function AuthPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
-        title: "Welcome to Lakefront Leadworks!",
+        title: "Welcome to Land of Leads!",
         description: "Your account has been created successfully.",
       });
       setLocation("/dashboard");
@@ -114,19 +114,18 @@ export default function AuthPage() {
             {/* Logo and Company Name */}
             <div className="mb-12">
               <div className="flex items-center gap-4 mb-6">
-                <img 
-                  src={logoUrl} 
-                  alt="Lakefront Leadworks" 
-                  className="w-24 h-24 rounded-2xl shadow-2xl ring-4 ring-white/20"
-                />
-                <Waves className="w-12 h-12 text-blue-300 animate-pulse" />
+                <div className="w-24 h-24 rounded-2xl shadow-2xl ring-4 ring-white/20 bg-gradient-to-br from-emerald-600 via-emerald-700 to-amber-600 flex items-center justify-center">
+                  <Crown className="w-12 h-12 text-amber-300" />
+                </div>
+                <Crown className="w-12 h-12 text-amber-300 animate-pulse" />
               </div>
-              <h1 className="text-5xl lg:text-6xl font-bold mb-4 tracking-tight">
-                Lakefront
-                <span className="block text-blue-200">Leadworks</span>
+              <h1 className="text-5xl lg:text-6xl font-bold mb-4 tracking-tight font-serif">
+                <span className="text-emerald-300">Land</span>
+                <span className="text-white/60 mx-2">of</span>
+                <span className="block text-amber-300">Leads</span>
               </h1>
-              <p className="text-xl text-blue-100 mb-8">
-                Premium B2B Lead Generation Platform
+              <p className="text-xl text-emerald-100 mb-8">
+                Your Kingdom of Premium MCA Leads
               </p>
             </div>
 
@@ -183,16 +182,16 @@ export default function AuthPage() {
           <div className="w-full max-w-md">
             {/* Mobile Logo */}
             <div className="lg:hidden text-center mb-8">
-              <img 
-                src={logoUrl} 
-                alt="Lakefront Leadworks" 
-                className="w-20 h-20 mx-auto mb-4 rounded-xl shadow-lg"
-              />
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                Lakefront Leadworks
+              <div className="w-20 h-20 mx-auto mb-4 rounded-xl shadow-lg bg-gradient-to-br from-emerald-600 via-emerald-700 to-amber-600 flex items-center justify-center">
+                <Crown className="w-10 h-10 text-amber-300" />
+              </div>
+              <h2 className="text-3xl font-bold font-serif">
+                <span className="bg-gradient-to-r from-emerald-600 to-emerald-500 bg-clip-text text-transparent">Land</span>
+                <span className="text-muted-foreground mx-1">of</span>
+                <span className="bg-gradient-to-r from-amber-500 to-amber-600 bg-clip-text text-transparent">Leads</span>
               </h2>
               <p className="text-muted-foreground mt-2">
-                Premium B2B Lead Generation Platform
+                Your Kingdom of Premium MCA Leads
               </p>
             </div>
 

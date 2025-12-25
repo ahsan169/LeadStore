@@ -213,7 +213,7 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Email</p>
-                      <p className="font-semibold">sales@lakefrontleadworks.com</p>
+                      <p className="font-semibold">sales@landofleads.com</p>
                     </div>
                   </div>
                 </div>

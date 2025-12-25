@@ -165,7 +165,7 @@ export class PublicDataAggregator {
 
       const response = await fetch(searchUrl, {
         headers: {
-          'User-Agent': 'Lakefront Leadworks/1.0 (contact@mcaleads.com)',
+          'User-Agent': 'Land of Leads/1.0 (contact@landofleads.com)',
           'Accept': 'application/json'
         },
         signal: controller.signal

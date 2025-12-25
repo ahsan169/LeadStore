@@ -110,7 +110,7 @@ export function ScheduleDemoModal({ isOpen, onClose }: ScheduleDemoModalProps) {
             Schedule Your Demo
           </DialogTitle>
           <DialogDescription>
-            See how Lakefront Leadworks can transform your MCA business with a personalized demo
+            See how Land of Leads can transform your MCA business with a personalized demo
           </DialogDescription>
         </DialogHeader>
         

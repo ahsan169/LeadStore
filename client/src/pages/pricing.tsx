@@ -5,7 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Shield, Clock, Award, FileCheck, Check, X, Droplets, ShieldCheck, Package, Calculator, ArrowRight, Zap, Users, Rocket, HeadphonesIcon, SearchIcon, Database, Globe, ChartBarIcon, RefreshCw } from "lucide-react";
 import type { ProductTier } from "@shared/schema";
-import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
+import { Crown } from "lucide-react";
 import { InteractiveTooltip, DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
 import { VisitorCounter, StockIndicator } from "@/components/engagement/TrustIndicators";
 import { ContactModal } from "@/components/modals/ContactModal";
@@ -136,11 +136,9 @@ export default function PricingPage() {
         <div className="relative max-w-7xl mx-auto px-4 py-20 sm:px-6 lg:px-8">
           <div className="text-center space-y-6 animate-fade-in">
             <div className="flex justify-center mb-6">
-              <img 
-                src={logoUrl} 
-                alt="Lakefront Leadworks"
-                className="w-16 h-16 rounded-xl shadow-xl"
-              />
+              <div className="w-16 h-16 rounded-xl shadow-xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-amber-600 flex items-center justify-center">
+                <Crown className="w-8 h-8 text-amber-300" />
+              </div>
             </div>
             <h1 className="text-5xl md:text-6xl font-bold" data-testid="heading-pricing">
               Simple, Transparent <span className="text-gradient">Pricing</span>
@@ -327,7 +325,7 @@ export default function PricingPage() {
         <div className="mt-20">
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold mb-4">
-              Why Choose <span className="text-gradient">Lakefront Leadworks</span>
+              Why Choose <span className="text-gradient">Land of Leads</span>
             </h2>
           </div>
           

@@ -1,6 +1,6 @@
-# Lakefront Leadworks
+# Land of Leads
 
-A professional AI-powered Merchant Cash Advance (MCA) lead marketplace platform with multi-tier pricing, automated quality scoring, Stripe payment integration, and AI-generated insights.
+A professional AI-powered Merchant Cash Advance (MCA) lead marketplace platform with multi-tier pricing, automated quality scoring, Stripe payment integration, and AI-generated insights. Your Kingdom of Premium MCA Leads.
 
 ## Features
 

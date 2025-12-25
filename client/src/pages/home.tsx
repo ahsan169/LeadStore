@@ -33,16 +33,15 @@ import {
   Target,
   Users,
   BarChart3,
-  Waves,
-  Droplets,
-  Fish,
-  Anchor,
+  Crown,
+  MapPin,
+  Compass,
+  Mountain,
   Calculator,
   PieChart,
   Flame,
   Timer,
 } from "lucide-react";
-import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { InteractiveTooltip, DiscoveryTooltip } from "@/components/engagement/InteractiveTooltip";
@@ -303,7 +302,7 @@ export default function Home() {
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({
         title: "Account created!",
-        description: "Welcome to Lakefront Leadworks.",
+        description: "Welcome to Land of Leads.",
       });
       setLocation("/dashboard");
     },
@@ -356,21 +355,24 @@ export default function Home() {
           <div className="text-center space-y-8 mb-12">
             {/* Logo and brand */}
             <div className="flex justify-center mb-8 animate-fade-in">
-              <img 
-                src={logoUrl} 
-                alt="Lakefront Leadworks"
-                className="w-36 h-36 md:w-48 md:h-48 hover-lift"
-              />
+              <div className="w-32 h-32 md:w-40 md:h-40 rounded-2xl shadow-xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-amber-600 flex items-center justify-center hover-lift">
+                <div className="text-center">
+                  <Crown className="w-12 h-12 md:w-16 md:h-16 text-amber-300 mx-auto mb-1" />
+                  <span className="text-3xl md:text-4xl font-bold text-white font-serif">LoL</span>
+                </div>
+              </div>
             </div>
             
             <div className="space-y-4">
-              <h1 className="text-5xl md:text-7xl font-bold tracking-tight animate-fade-in" data-testid="heading-hero">
-                <span className="text-gradient">Lakefront Leadworks</span>
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight animate-fade-in font-serif" data-testid="heading-hero">
+                <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-600 bg-clip-text text-transparent">Land</span>
+                <span className="text-muted-foreground mx-2">of</span>
+                <span className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 bg-clip-text text-transparent">Leads</span>
               </h1>
               <div className="flex items-center justify-center gap-3 text-primary/80">
-                <Waves className="w-6 h-6" />
-                <span className="text-lg font-medium">Premium MCA Lead Marketplace</span>
-                <Waves className="w-6 h-6" />
+                <Compass className="w-6 h-6" />
+                <span className="text-lg font-medium">Your Kingdom of Premium MCA Leads</span>
+                <Crown className="w-6 h-6" />
               </div>
             </div>
             
@@ -423,7 +425,7 @@ export default function Home() {
           {!user && (
             <Card className="max-w-md mx-auto animate-scale-in animate-delay-500">
               <CardHeader>
-                <CardTitle>Get Started with Lakefront Leadworks</CardTitle>
+                <CardTitle>Get Started with Land of Leads</CardTitle>
                 <CardDescription>
                   Sign up or log in to start accessing premium MCA leads
                 </CardDescription>
@@ -1134,10 +1136,10 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-contact">
-              Get in Touch with Lakefront Leadworks
+              Get in Touch with Land of Leads
             </h2>
             <p className="text-xl text-muted-foreground">
-              Have questions? We're here to help you navigate the waters
+              Have questions? We're here to help you explore your kingdom
             </p>
           </div>
 
@@ -1296,7 +1298,7 @@ export default function Home() {
           <div className="border-t pt-8">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="text-sm text-muted-foreground">
-                © 2025 Lakefront Leadworks. All rights reserved.
+                © 2025 Land of Leads. All rights reserved.
               </div>
               <div className="flex flex-wrap items-center gap-6 text-sm">
                 <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">

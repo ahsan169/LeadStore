@@ -128,7 +128,7 @@ class WebhookDispatcher {
 class ApiKeyManager {
   generateApiKey(): string {
     // Generate a secure random API key
-    const prefix = "lf_live_"; // Lakefront live key prefix
+    const prefix = "lol_live_"; // Land of Leads live key prefix
     const randomBytes = crypto.randomBytes(32).toString("hex");
     return `${prefix}${randomBytes}`;
   }

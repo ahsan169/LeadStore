@@ -271,9 +271,9 @@ const WEBHOOK_EVENTS = [
 const LANGUAGE_EXAMPLES = {
   curl: {
     name: "cURL",
-    auth: `curl -X GET "https://api.lakefront.com/api/v1/leads" \\
+    auth: `curl -X GET "https://api.landofleads.com/api/v1/leads" \\
   -H "Authorization: Bearer YOUR_API_KEY"`,
-    request: `curl -X POST "https://api.lakefront.com/api/v1/purchases" \\
+    request: `curl -X POST "https://api.landofleads.com/api/v1/purchases" \\
   -H "Authorization: Bearer YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -288,7 +288,7 @@ const LANGUAGE_EXAMPLES = {
   'Authorization': 'Bearer YOUR_API_KEY',
   'Content-Type': 'application/json'
 };`,
-    request: `const response = await fetch('https://api.lakefront.com/api/v1/purchases', {
+    request: `const response = await fetch('https://api.landofleads.com/api/v1/purchases', {
   method: 'POST',
   headers: {
     'Authorization': 'Bearer YOUR_API_KEY',
@@ -315,7 +315,7 @@ headers = {
     request: `import requests
 import json
 
-url = 'https://api.lakefront.com/api/v1/purchases'
+url = 'https://api.landofleads.com/api/v1/purchases'
 headers = {
     'Authorization': 'Bearer YOUR_API_KEY',
     'Content-Type': 'application/json'
@@ -334,7 +334,7 @@ print(response.json())`
     auth: `const axios = require('axios');
 
 const apiClient = axios.create({
-  baseURL: 'https://api.lakefront.com/api/v1',
+  baseURL: 'https://api.landofleads.com/api/v1',
   headers: {
     'Authorization': 'Bearer YOUR_API_KEY'
   }
@@ -344,7 +344,7 @@ const apiClient = axios.create({
 const createPurchase = async () => {
   try {
     const response = await axios.post(
-      'https://api.lakefront.com/api/v1/purchases',
+      'https://api.landofleads.com/api/v1/purchases',
       {
         tier: 'platinum',
         leadCount: 100,
@@ -372,7 +372,7 @@ createPurchase();`
     'Content-Type: application/json'
 ];`,
     request: `<?php
-$url = 'https://api.lakefront.com/api/v1/purchases';
+$url = 'https://api.landofleads.com/api/v1/purchases';
 $data = [
     'tier' => 'platinum',
     'leadCount' => 100,
@@ -422,7 +422,7 @@ export default function ApiDocsPage() {
       <div className="space-y-1 mb-8">
         <h1 className="text-3xl font-bold" data-testid="heading-api-docs">API Documentation</h1>
         <p className="text-muted-foreground">
-          Complete reference for the Lakefront Leadworks Enterprise API
+          Complete reference for the Land of Leads Enterprise API
         </p>
       </div>
 
@@ -526,7 +526,7 @@ export default function ApiDocsPage() {
             <CardHeader>
               <CardTitle>Authentication</CardTitle>
               <CardDescription>
-                How to authenticate with the Lakefront Leadworks API
+                How to authenticate with the Land of Leads API
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -708,7 +708,7 @@ export default function ApiDocsPage() {
                 <div>
                   <h3 className="text-lg font-semibold mb-2">Webhook Security</h3>
                   <p className="text-sm text-muted-foreground mb-2">
-                    Verify webhook signatures to ensure requests are from Lakefront:
+                    Verify webhook signatures to ensure requests are from Land of Leads:
                   </p>
                   
                   <div className="bg-muted p-4 rounded-lg">
@@ -802,7 +802,7 @@ function verifyWebhookSignature(payload, signature, secret) {
                   </p>
                   <div className="space-y-2">
                     <div className="bg-muted p-2 rounded text-xs font-mono">
-                      npm install @lakefront/api-client
+                      npm install @landofleads/api-client
                     </div>
                     <Button variant="outline" size="sm" className="w-full" data-testid="button-download-js-sdk">
                       <Download className="w-4 h-4 mr-2" />
@@ -821,7 +821,7 @@ function verifyWebhookSignature(payload, signature, secret) {
                   </p>
                   <div className="space-y-2">
                     <div className="bg-muted p-2 rounded text-xs font-mono">
-                      pip install lakefront-api
+                      pip install landofleads-api
                     </div>
                     <Button variant="outline" size="sm" className="w-full" data-testid="button-download-python-sdk">
                       <Download className="w-4 h-4 mr-2" />
@@ -840,7 +840,7 @@ function verifyWebhookSignature(payload, signature, secret) {
                   </p>
                   <div className="space-y-2">
                     <div className="bg-muted p-2 rounded text-xs font-mono">
-                      composer require lakefront/php-sdk
+                      composer require landofleads/php-sdk
                     </div>
                     <Button variant="outline" size="sm" className="w-full" data-testid="button-download-php-sdk">
                       <Download className="w-4 h-4 mr-2" />
@@ -859,7 +859,7 @@ function verifyWebhookSignature(payload, signature, secret) {
                   </p>
                   <div className="space-y-2">
                     <div className="bg-muted p-2 rounded text-xs font-mono">
-                      gem install lakefront-api
+                      gem install landofleads-api
                     </div>
                     <Button variant="outline" size="sm" className="w-full" disabled data-testid="button-download-ruby-sdk">
                       <Download className="w-4 h-4 mr-2" />

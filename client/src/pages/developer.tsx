@@ -712,7 +712,7 @@ export default function DeveloperPage() {
             <CardHeader>
               <CardTitle>Quick Start Guide</CardTitle>
               <CardDescription>
-                Get started with the Lakefront Leadworks API
+                Get started with the Land of Leads API
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -781,7 +781,7 @@ export default function DeveloperPage() {
                 <div>
                   <h3 className="text-lg font-semibold mb-2">6. Webhook Signature Verification</h3>
                   <p className="text-sm text-muted-foreground mb-2">
-                    Verify webhook signatures to ensure requests are from Lakefront:
+                    Verify webhook signatures to ensure requests are from Land of Leads:
                   </p>
                   <div className="bg-muted p-4 rounded-md overflow-x-auto">
                     <pre className="text-sm">

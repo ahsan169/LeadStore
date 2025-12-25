@@ -6871,16 +6871,16 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
         const { Resend } = await import('resend');
         const resend = new Resend(process.env.RESEND_API_KEY || 'test_key');
         await resend.emails.send({
-          from: 'Lakefront Leadworks <noreply@lakefrontleadworks.com>',
+          from: 'Land of Leads <noreply@landofleads.com>',
           to: email,
-          subject: 'Thank you for contacting Lakefront Leadworks',
+          subject: 'Thank you for contacting Land of Leads',
           html: `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #1976d2;">Thank You for Contacting Us!</h2>
+              <h2 style="color: #2d6a4f;">Thank You for Contacting Us!</h2>
               <p>Hi ${name},</p>
-              <p>Thank you for your interest in Lakefront Leadworks. We've received your message and our team will get back to you within 24-48 business hours.</p>
+              <p>Thank you for your interest in Land of Leads. We've received your message and our team will get back to you within 24-48 business hours.</p>
               <p>In the meantime, feel free to explore our lead packages and see how we can help grow your business.</p>
-              <p>Best regards,<br>The Lakefront Leadworks Team</p>
+              <p>Best regards,<br>The Land of Leads Team</p>
             </div>
           `
         });
@@ -6925,7 +6925,7 @@ Format as JSON with keys: executiveSummary, segments (array), riskFlags (array),
   // Test email route (admin only)
   app.get('/api/test-email', requireAuth, requireAdmin, async (req, res) => {
     try {
-      await sendAdminAlert('Test Email', 'This is a test email from Lakefront Leadworks');
+      await sendAdminAlert('Test Email', 'This is a test email from Land of Leads');
       res.json({ success: true, message: 'Test email sent successfully' });
     } catch (error) {
       console.error('Test email failed:', error);

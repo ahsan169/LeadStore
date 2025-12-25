@@ -44,7 +44,7 @@ export function ExitIntentPopup() {
       const code = response.discountCode || 'SAVE20NOW';
       setDiscountCode(code);
       toast({
-        title: "Welcome to Lakefront Leadworks!",
+        title: "Welcome to Land of Leads!",
         description: `Your discount code ${code} has been sent to your email. Plus you'll receive 50 free lead samples!`,
       });
       setTimeout(() => {

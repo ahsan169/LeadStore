@@ -152,7 +152,7 @@ export function ChatWidget() {
                       <div className="pt-3 border-t">
                         <Button 
                           className="w-full"
-                          onClick={() => window.location.href = 'mailto:sales@lakefrontleadworks.com'}
+                          onClick={() => window.location.href = 'mailto:sales@landofleads.com'}
                           data-testid="button-chat-contact"
                         >
                           <Send className="w-4 h-4 mr-2" />
@@ -187,7 +187,7 @@ export function ChatWidget() {
                         </Button>
                         <Button
                           className="w-full"
-                          onClick={() => window.location.href = 'mailto:sales@lakefrontleadworks.com'}
+                          onClick={() => window.location.href = 'mailto:sales@landofleads.com'}
                           data-testid="button-chat-email"
                         >
                           <Send className="w-4 h-4 mr-2" />

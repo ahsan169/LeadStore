@@ -128,7 +128,7 @@ async function seedTestData() {
       const adminUser = await db.insert(users).values({
         username: 'admin',
         password: hashedPassword,
-        email: 'admin@lakefrontleadworks.com',
+        email: 'admin@landofleads.com',
         role: 'admin'
       }).returning();
       
@@ -206,7 +206,7 @@ async function seedTestData() {
     console.log('\n🔐 Admin credentials:');
     console.log('   Username: admin');
     console.log('   Password: admin123');
-    console.log('   Email: admin@lakefrontleadworks.com');
+    console.log('   Email: admin@landofleads.com');
     
     process.exit(0);
   } catch (error) {

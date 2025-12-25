@@ -2,13 +2,13 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY || 'test_key');
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@lakefrontleadworks.com';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@lakefrontleadworks.com';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@landofleads.com';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@landofleads.com';
 
 export async function sendOrderConfirmation(to: string, orderData: any) {
   try {
     const { data, error } = await resend.emails.send({
-      from: `Lakefront Leadworks <${FROM_EMAIL}>`,
+      from: `Land of Leads <${FROM_EMAIL}>`,
       to: [to],
       subject: `Order Confirmation - ${orderData.tier} Tier Package`,
       html: `
@@ -36,7 +36,7 @@ export async function sendOrderConfirmation(to: string, orderData: any) {
           <body>
             <div class="container">
               <div class="header">
-                <h1>🌊 Lakefront Leadworks</h1>
+                <h1>Land of Leads</h1>
                 <p>Your Order Has Been Confirmed!</p>
               </div>
               <div class="content">
@@ -56,8 +56,8 @@ export async function sendOrderConfirmation(to: string, orderData: any) {
                 </a>
               </div>
               <div class="footer">
-                <p>© 2025 Lakefront Leadworks. All rights reserved.</p>
-                <p>Questions? Contact us at support@lakefrontleadworks.com</p>
+                <p>© 2025 Land of Leads. All rights reserved.</p>
+                <p>Questions? Contact us at support@landofleads.com</p>
               </div>
             </div>
           </body>
@@ -80,7 +80,7 @@ export async function sendOrderConfirmation(to: string, orderData: any) {
 export async function sendDownloadReady(to: string, downloadUrl: string, orderData: any) {
   try {
     const { data, error } = await resend.emails.send({
-      from: `Lakefront Leadworks <${FROM_EMAIL}>`,
+      from: `Land of Leads <${FROM_EMAIL}>`,
       to: [to],
       subject: `Your Leads Are Ready for Download`,
       html: `
@@ -109,7 +109,7 @@ export async function sendDownloadReady(to: string, downloadUrl: string, orderDa
           <body>
             <div class="container">
               <div class="header">
-                <h1>🌊 Lakefront Leadworks</h1>
+                <h1>Land of Leads</h1>
                 <p>Your Leads Are Ready!</p>
               </div>
               <div class="content">
@@ -135,8 +135,8 @@ export async function sendDownloadReady(to: string, downloadUrl: string, orderDa
                 <p><strong>Need help?</strong> Visit our dashboard or contact support.</p>
               </div>
               <div class="footer">
-                <p>© 2025 Lakefront Leadworks. All rights reserved.</p>
-                <p>Questions? Contact us at support@lakefrontleadworks.com</p>
+                <p>© 2025 Land of Leads. All rights reserved.</p>
+                <p>Questions? Contact us at support@landofleads.com</p>
               </div>
             </div>
           </body>
@@ -159,7 +159,7 @@ export async function sendDownloadReady(to: string, downloadUrl: string, orderDa
 export async function sendAdminAlert(subject: string, message: string, details?: any) {
   try {
     const { data, error } = await resend.emails.send({
-      from: `Lakefront Leadworks System <${FROM_EMAIL}>`,
+      from: `Land of Leads System <${FROM_EMAIL}>`,
       to: [ADMIN_EMAIL],
       subject: `[Admin Alert] ${subject}`,
       html: `
@@ -196,7 +196,7 @@ export async function sendAdminAlert(subject: string, message: string, details?:
                 <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
               </div>
               <div class="footer">
-                <p>This is an automated admin notification from Lakefront Leadworks.</p>
+                <p>This is an automated admin notification from Land of Leads.</p>
               </div>
             </div>
           </body>
@@ -219,7 +219,7 @@ export async function sendAdminAlert(subject: string, message: string, details?:
 export async function sendAlertNotification(to: string, alertData: any) {
   try {
     const { data, error } = await resend.emails.send({
-      from: `Lakefront Leadworks Alerts <${FROM_EMAIL}>`,
+      from: `Land of Leads Alerts <${FROM_EMAIL}>`,
       to: [to],
       subject: `🔔 New Leads Match Your Alert: ${alertData.alertName}`,
       html: `
@@ -310,7 +310,7 @@ export async function sendAlertNotification(to: string, alertData: any) {
               <div class="footer">
                 <p>This alert was automatically generated based on your saved criteria.</p>
                 <p>To manage your alerts, visit your <a href="${process.env.VITE_SITE_URL || 'http://localhost:5000'}/alerts" style="color: #667eea;">Alert Dashboard</a></p>
-                <p style="margin-top: 15px; font-size: 12px;">© 2025 Lakefront Leadworks. All rights reserved.</p>
+                <p style="margin-top: 15px; font-size: 12px;">© 2025 Land of Leads. All rights reserved.</p>
               </div>
             </div>
           </body>
@@ -334,7 +334,7 @@ export async function sendContactFormNotification(contactData: any) {
   try {
     // Send notification to admin
     const adminResult = await resend.emails.send({
-      from: `Lakefront Leadworks Contact <${FROM_EMAIL}>`,
+      from: `Land of Leads Contact <${FROM_EMAIL}>`,
       to: [ADMIN_EMAIL],
       replyTo: contactData.email,
       subject: `New Contact Form Submission from ${contactData.name}`,
@@ -384,9 +384,9 @@ export async function sendContactFormNotification(contactData: any) {
 
     // Send auto-reply to submitter
     const autoReplyResult = await resend.emails.send({
-      from: `Lakefront Leadworks <${FROM_EMAIL}>`,
+      from: `Land of Leads <${FROM_EMAIL}>`,
       to: [contactData.email],
-      subject: `We've Received Your Message - Lakefront Leadworks`,
+      subject: `We've Received Your Message - Land of Leads`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -403,13 +403,13 @@ export async function sendContactFormNotification(contactData: any) {
           <body>
             <div class="container">
               <div class="header">
-                <h1>🌊 Lakefront Leadworks</h1>
+                <h1>Land of Leads</h1>
                 <p>Thank You for Contacting Us!</p>
               </div>
               <div class="content">
                 <p>Hi ${contactData.name},</p>
                 
-                <p>Thank you for reaching out to Lakefront Leadworks. We've received your message and one of our team members will get back to you within 24 hours.</p>
+                <p>Thank you for reaching out to Land of Leads. We've received your message and one of our team members will get back to you within 24 hours.</p>
                 
                 <h3>Your Message:</h3>
                 <div style="background: white; padding: 15px; border-radius: 5px; margin: 15px 0;">
@@ -418,10 +418,10 @@ export async function sendContactFormNotification(contactData: any) {
                 
                 <p>In the meantime, feel free to explore our website to learn more about our MCA lead packages and pricing tiers.</p>
                 
-                <p>Best regards,<br>The Lakefront Leadworks Team</p>
+                <p>Best regards,<br>The Land of Leads Team</p>
               </div>
               <div class="footer">
-                <p>© 2025 Lakefront Leadworks. All rights reserved.</p>
+                <p>© 2025 Land of Leads. All rights reserved.</p>
                 <p>This is an automated response. A team member will follow up shortly.</p>
               </div>
             </div>
