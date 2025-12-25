@@ -67,7 +67,7 @@ interface AnimatedStatsProps {
 
 export function AnimatedStats({ stats, className }: AnimatedStatsProps) {
   return (
-    <div className={cn("grid gap-4", className)}>
+    <div className="text-[#cc9027]">
       {stats.map((stat, index) => (
         <motion.div
           key={index}
