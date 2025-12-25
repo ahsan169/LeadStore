@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Plus, Calendar, Clock, CheckCircle2, Circle, AlertCircle, 
   User, Building2, Trash, Edit, Filter, Search, XCircle,
-  CalendarClock, ListTodo, CalendarDays
+  CalendarClock, ListTodo, CalendarDays, Crown, Sparkles
 } from "lucide-react";
 import type { Task, Lead, Reminder } from "@shared/schema";
 
@@ -129,21 +129,21 @@ export default function TaskManagerPage() {
     return diffDays > 0 && diffDays <= 3;
   };
 
-  const getPriorityColor = (priority?: string | null) => {
+  const getPriorityBadgeClass = (priority?: string | null) => {
     switch (priority) {
-      case "high": return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-      case "medium": return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-      case "low": return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-      default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+      case "high": return "badge-royal";
+      case "medium": return "badge-gold";
+      case "low": return "badge-emerald";
+      default: return "badge-gold";
     }
   };
 
   const getStatusIcon = (status?: string | null) => {
     switch (status) {
-      case "completed": return <CheckCircle2 className="w-5 h-5 text-green-500" />;
-      case "in_progress": return <Clock className="w-5 h-5 text-blue-500" />;
-      case "cancelled": return <XCircle className="w-5 h-5 text-gray-400" />;
-      default: return <Circle className="w-5 h-5 text-gray-400" />;
+      case "completed": return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
+      case "in_progress": return <Clock className="w-5 h-5 text-primary" />;
+      case "cancelled": return <XCircle className="w-5 h-5 text-muted-foreground" />;
+      default: return <Circle className="w-5 h-5 text-muted-foreground" />;
     }
   };
 
@@ -184,86 +184,102 @@ export default function TaskManagerPage() {
   if (loadingTasks) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Loading tasks...</div>
+        <div className="flex flex-col items-center gap-4 animate-fade-in">
+          <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+          <p className="text-muted-foreground font-serif">Loading your royal tasks...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b bg-background">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Task Manager</h1>
-          <p className="text-muted-foreground">Manage your tasks and follow-ups</p>
+    <div className="flex flex-col h-full animate-fade-in">
+      <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-background via-card to-background">
+        <div className="animate-slide-up">
+          <div className="flex items-center gap-3 mb-1">
+            <Crown className="w-7 h-7 text-secondary" />
+            <h1 className="text-3xl font-serif font-bold text-gradient-royal" data-testid="text-page-title">
+              Task Manager
+            </h1>
+          </div>
+          <p className="text-muted-foreground ml-10">Manage your royal tasks and follow-ups</p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-task">
+        <Button 
+          onClick={() => setShowCreateDialog(true)} 
+          className="btn-kingdom animate-slide-up animate-delay-100"
+          data-testid="button-create-task"
+        >
           <Plus className="w-4 h-4 mr-2" />
           New Task
         </Button>
       </div>
 
-      <div className="grid grid-cols-5 gap-4 p-4 border-b bg-muted/30">
-        <Card>
+      <div className="divider-elegant" />
+
+      <div className="grid grid-cols-5 gap-4 p-6 bg-muted/20">
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-100" data-testid="stat-total-tasks">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
+            <div className="p-3 bg-primary/10 rounded-xl">
               <ListTodo className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{taskStats.total}</p>
+              <p className="text-2xl font-serif font-bold">{taskStats.total}</p>
               <p className="text-sm text-muted-foreground">Total Tasks</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-200" data-testid="stat-pending-tasks">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-yellow-500/10 rounded-lg">
-              <Clock className="w-5 h-5 text-yellow-500" />
+            <div className="p-3 bg-secondary/20 rounded-xl">
+              <Clock className="w-5 h-5 text-secondary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{taskStats.pending}</p>
+              <p className="text-2xl font-serif font-bold">{taskStats.pending}</p>
               <p className="text-sm text-muted-foreground">Pending</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-300" data-testid="stat-overdue-tasks">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-red-500/10 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-red-500" />
+            <div className="p-3 bg-destructive/10 rounded-xl">
+              <AlertCircle className="w-5 h-5 text-destructive" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{taskStats.overdue}</p>
+              <p className="text-2xl font-serif font-bold">{taskStats.overdue}</p>
               <p className="text-sm text-muted-foreground">Overdue</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-400" data-testid="stat-today-tasks">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-blue-500/10 rounded-lg">
-              <CalendarDays className="w-5 h-5 text-blue-500" />
+            <div className="p-3 bg-primary/10 rounded-xl">
+              <CalendarDays className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{taskStats.dueToday}</p>
+              <p className="text-2xl font-serif font-bold">{taskStats.dueToday}</p>
               <p className="text-sm text-muted-foreground">Due Today</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-500" data-testid="stat-completed-tasks">
           <CardContent className="p-4 flex items-center gap-3">
-            <div className="p-2 bg-green-500/10 rounded-lg">
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
+            <div className="p-3 bg-emerald-500/10 rounded-xl">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{taskStats.completed}</p>
+              <p className="text-2xl font-serif font-bold">{taskStats.completed}</p>
               <p className="text-sm text-muted-foreground">Completed</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex-1 overflow-hidden p-4">
+      <div className="divider-elegant" />
+
+      <div className="flex-1 overflow-hidden p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <div className="flex items-center justify-between mb-4">
-            <TabsList>
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+            <TabsList className="bg-card/50 border">
               <TabsTrigger value="all" data-testid="tab-all-tasks">All Tasks</TabsTrigger>
               <TabsTrigger value="today" data-testid="tab-today-tasks">Due Today</TabsTrigger>
               <TabsTrigger value="overdue" data-testid="tab-overdue-tasks">Overdue</TabsTrigger>
@@ -271,7 +287,7 @@ export default function TaskManagerPage() {
               <TabsTrigger value="completed" data-testid="tab-completed-tasks">Completed</TabsTrigger>
             </TabsList>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -283,7 +299,7 @@ export default function TaskManagerPage() {
                 />
               </div>
               <Select value={filterPriority} onValueChange={setFilterPriority}>
-                <SelectTrigger className="w-32" data-testid="select-filter-priority">
+                <SelectTrigger className="w-36" data-testid="select-filter-priority">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
                 <SelectContent>
@@ -294,7 +310,7 @@ export default function TaskManagerPage() {
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-32" data-testid="select-filter-status">
+                <SelectTrigger className="w-36" data-testid="select-filter-status">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -308,19 +324,25 @@ export default function TaskManagerPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-2">
+          <div className="flex-1 overflow-y-auto space-y-3">
             {filteredTasks.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <ListTodo className="w-12 h-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No tasks found</h3>
-                  <p className="text-muted-foreground mb-4">
+              <Card className="card-kingdom border-dashed animate-fade-in">
+                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="p-4 bg-muted/50 rounded-full mb-4">
+                    <ListTodo className="w-12 h-12 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-serif font-medium mb-2">No tasks found</h3>
+                  <p className="text-muted-foreground mb-6 max-w-md">
                     {activeTab === "all" 
-                      ? "Create your first task to get started"
+                      ? "Begin your royal duties by creating your first task"
                       : "No tasks match the current filters"}
                   </p>
                   {activeTab === "all" && (
-                    <Button onClick={() => setShowCreateDialog(true)}>
+                    <Button 
+                      onClick={() => setShowCreateDialog(true)} 
+                      className="btn-kingdom"
+                      data-testid="button-create-first-task"
+                    >
                       <Plus className="w-4 h-4 mr-2" />
                       Create Task
                     </Button>
@@ -328,19 +350,20 @@ export default function TaskManagerPage() {
                 </CardContent>
               </Card>
             ) : (
-              filteredTasks.map((task) => (
+              filteredTasks.map((task, index) => (
                 <Card
                   key={task.id}
-                  className={`hover-elevate transition-all ${
+                  className={`card-kingdom hover-lift transition-all animate-slide-up ${
                     task.status === "completed" ? "opacity-60" : ""
                   }`}
+                  style={{ animationDelay: `${index * 50}ms` }}
                   data-testid={`card-task-${task.id}`}
                 >
-                  <CardContent className="p-4">
+                  <CardContent className="p-5">
                     <div className="flex items-start gap-4">
                       <button
                         onClick={() => toggleTaskStatus(task)}
-                        className="mt-1"
+                        className="mt-1 transition-transform hover:scale-110"
                         data-testid={`button-toggle-task-${task.id}`}
                       >
                         {getStatusIcon(task.status)}
@@ -349,7 +372,7 @@ export default function TaskManagerPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-4">
                           <div>
-                            <h3 className={`font-medium ${task.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
+                            <h3 className={`font-medium text-lg ${task.status === "completed" ? "line-through text-muted-foreground" : ""}`}>
                               {task.title}
                             </h3>
                             {task.description && (
@@ -359,7 +382,7 @@ export default function TaskManagerPage() {
                             )}
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            <Badge className={getPriorityColor(task.priority)} variant="outline">
+                            <Badge className={getPriorityBadgeClass(task.priority)}>
                               {task.priority || "medium"}
                             </Badge>
                             <Button
@@ -381,12 +404,12 @@ export default function TaskManagerPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4 mt-3 text-sm">
-                          <div className={`flex items-center gap-1 ${
+                        <div className="flex items-center gap-4 mt-4 text-sm">
+                          <div className={`flex items-center gap-1.5 ${
                             isOverdue(task.dueDate) && task.status !== "completed" 
-                              ? "text-red-500" 
+                              ? "text-destructive" 
                               : isDueToday(task.dueDate) 
-                                ? "text-blue-500"
+                                ? "text-primary"
                                 : "text-muted-foreground"
                           }`}>
                             <Calendar className="w-4 h-4" />
@@ -395,11 +418,11 @@ export default function TaskManagerPage() {
                               <Badge variant="destructive" className="ml-1 text-xs">Overdue</Badge>
                             )}
                             {isDueToday(task.dueDate) && task.status !== "completed" && (
-                              <Badge variant="default" className="ml-1 text-xs">Today</Badge>
+                              <Badge className="badge-royal ml-1 text-xs">Today</Badge>
                             )}
                           </div>
                           {task.leadId && (
-                            <div className="flex items-center gap-1 text-muted-foreground">
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
                               <Building2 className="w-4 h-4" />
                               {getLeadName(task.leadId)}
                             </div>
@@ -416,13 +439,17 @@ export default function TaskManagerPage() {
       </div>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
+        <DialogContent className="card-kingdom border-2">
           <DialogHeader>
-            <DialogTitle>Create New Task</DialogTitle>
+            <DialogTitle className="text-xl font-serif text-gradient-royal flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-secondary" />
+              Create New Task
+            </DialogTitle>
           </DialogHeader>
+          <div className="divider-elegant my-2" />
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="title">Task Title</Label>
+              <Label htmlFor="title" className="font-medium">Task Title</Label>
               <Input
                 id="title"
                 value={newTask.title}
@@ -432,7 +459,7 @@ export default function TaskManagerPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description" className="font-medium">Description</Label>
               <Textarea
                 id="description"
                 value={newTask.description}
@@ -443,7 +470,7 @@ export default function TaskManagerPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date</Label>
+                <Label htmlFor="dueDate" className="font-medium">Due Date</Label>
                 <Input
                   id="dueDate"
                   type="date"
@@ -453,7 +480,7 @@ export default function TaskManagerPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="priority">Priority</Label>
+                <Label htmlFor="priority" className="font-medium">Priority</Label>
                 <Select
                   value={newTask.priority}
                   onValueChange={(value) => setNewTask({ ...newTask, priority: value })}
@@ -470,7 +497,7 @@ export default function TaskManagerPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="lead">Link to Lead (Optional)</Label>
+              <Label htmlFor="lead" className="font-medium">Link to Lead (Optional)</Label>
               <Select
                 value={newTask.leadId || "none"}
                 onValueChange={(value) => setNewTask({ ...newTask, leadId: value === "none" ? "" : value })}
@@ -489,13 +516,14 @@ export default function TaskManagerPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)} data-testid="button-cancel-task">
               Cancel
             </Button>
             <Button
               onClick={() => createTaskMutation.mutate(newTask)}
               disabled={!newTask.title || createTaskMutation.isPending}
+              className="btn-kingdom"
               data-testid="button-submit-task"
             >
               {createTaskMutation.isPending ? "Creating..." : "Create Task"}
@@ -505,14 +533,18 @@ export default function TaskManagerPage() {
       </Dialog>
 
       <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
-        <DialogContent>
+        <DialogContent className="card-kingdom border-2">
           <DialogHeader>
-            <DialogTitle>Edit Task</DialogTitle>
+            <DialogTitle className="text-xl font-serif text-gradient-royal flex items-center gap-2">
+              <Edit className="w-5 h-5 text-secondary" />
+              Edit Task
+            </DialogTitle>
           </DialogHeader>
+          <div className="divider-elegant my-2" />
           {editingTask && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-title">Task Title</Label>
+                <Label htmlFor="edit-title" className="font-medium">Task Title</Label>
                 <Input
                   id="edit-title"
                   value={editingTask.title}
@@ -521,7 +553,7 @@ export default function TaskManagerPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
+                <Label htmlFor="edit-description" className="font-medium">Description</Label>
                 <Textarea
                   id="edit-description"
                   value={editingTask.description || ""}
@@ -531,7 +563,7 @@ export default function TaskManagerPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-status">Status</Label>
+                  <Label htmlFor="edit-status" className="font-medium">Status</Label>
                   <Select
                     value={editingTask.status || "pending"}
                     onValueChange={(value) => setEditingTask({ ...editingTask, status: value })}
@@ -548,7 +580,7 @@ export default function TaskManagerPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-priority">Priority</Label>
+                  <Label htmlFor="edit-priority" className="font-medium">Priority</Label>
                   <Select
                     value={editingTask.priority || "medium"}
                     onValueChange={(value) => setEditingTask({ ...editingTask, priority: value })}
@@ -566,8 +598,8 @@ export default function TaskManagerPage() {
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingTask(null)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setEditingTask(null)} data-testid="button-cancel-edit">
               Cancel
             </Button>
             <Button
@@ -575,14 +607,15 @@ export default function TaskManagerPage() {
                 if (editingTask) {
                   updateTaskMutation.mutate({
                     id: editingTask.id,
+                    status: editingTask.status,
+                    priority: editingTask.priority,
                     title: editingTask.title,
-                    status: editingTask.status || "pending",
-                    priority: editingTask.priority || "medium",
                   });
                 }
               }}
               disabled={updateTaskMutation.isPending}
-              data-testid="button-update-task"
+              className="btn-kingdom"
+              data-testid="button-save-edit"
             >
               {updateTaskMutation.isPending ? "Saving..." : "Save Changes"}
             </Button>

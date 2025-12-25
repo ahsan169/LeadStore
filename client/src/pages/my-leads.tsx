@@ -173,42 +173,42 @@ export default function MyLeadsPage() {
     switch (status) {
       case "new":
         return (
-          <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+          <Badge className="badge-royal">
             <Sparkles className="h-3 w-3 mr-1" />
             New
           </Badge>
         );
       case "working":
         return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+          <Badge className="badge-royal">
             <Zap className="h-3 w-3 mr-1" />
             Working
           </Badge>
         );
       case "contacted":
         return (
-          <Badge className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+          <Badge className="badge-royal">
             <Phone className="h-3 w-3 mr-1" />
             Contacted
           </Badge>
         );
       case "funded":
         return (
-          <Badge className="metric-badge metric-badge-success">
+          <Badge className="badge-emerald">
             <DollarSign className="h-3 w-3 mr-1" />
             Funded
           </Badge>
         );
       case "bad_lead":
         return (
-          <Badge className="metric-badge metric-badge-danger">
+          <Badge className="bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800">
             <XCircle className="h-3 w-3 mr-1" />
             Bad Lead
           </Badge>
         );
       case "no_response":
         return (
-          <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+          <Badge className="badge-gold">
             <Clock className="h-3 w-3 mr-1" />
             No Response
           </Badge>
@@ -230,7 +230,7 @@ export default function MyLeadsPage() {
   return (
     <div className="min-h-screen bg-mesh">
       <div className="relative z-10 p-6 space-y-6">
-        {/* Premium Page Header */}
+        {/* Kingdom Page Header */}
         <div className="page-header-gradient animate-fade-in">
           <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -238,7 +238,7 @@ export default function MyLeadsPage() {
                 <Briefcase className="h-7 w-7 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold flex items-center gap-2" data-testid="text-page-title">
+                <h1 className="text-3xl font-serif font-bold text-gradient-royal flex items-center gap-2" data-testid="text-page-title">
                   My Leads
                   <Award className="h-6 w-6 text-yellow-300" />
                 </h1>
@@ -248,9 +248,9 @@ export default function MyLeadsPage() {
           </div>
         </div>
 
-        {/* Premium Stat Cards */}
+        {/* Kingdom Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up">
-          <Card className="card-premium stat-card-blue overflow-visible" data-testid="card-stat-total">
+          <Card className="card-kingdom hover-lift overflow-visible" data-testid="card-stat-total">
             <CardContent className="pt-6">
               <div className="flex items-start justify-between">
                 <div>
@@ -268,7 +268,7 @@ export default function MyLeadsPage() {
             </CardContent>
           </Card>
 
-          <Card className="card-premium stat-card-green overflow-visible glow-success" data-testid="card-stat-funded">
+          <Card className="card-kingdom hover-lift overflow-visible glow-success" data-testid="card-stat-funded">
             <CardContent className="pt-6">
               <div className="flex items-start justify-between">
                 <div>
@@ -288,7 +288,7 @@ export default function MyLeadsPage() {
             </CardContent>
           </Card>
 
-          <Card className="card-premium stat-card-purple overflow-visible" data-testid="card-stat-working">
+          <Card className="card-kingdom hover-lift overflow-visible" data-testid="card-stat-working">
             <CardContent className="pt-6">
               <div className="flex items-start justify-between">
                 <div>
@@ -308,7 +308,7 @@ export default function MyLeadsPage() {
             </CardContent>
           </Card>
 
-          <Card className="card-premium stat-card-gold overflow-visible" data-testid="card-stat-feedback">
+          <Card className="card-kingdom hover-lift overflow-visible" data-testid="card-stat-feedback">
             <CardContent className="pt-6">
               <div className="flex items-start justify-between">
                 <div>
@@ -334,8 +334,11 @@ export default function MyLeadsPage() {
           </Card>
         </div>
 
+        {/* Elegant Divider */}
+        <div className="divider-elegant my-8" />
+
         {/* Leads Table Card */}
-        <Card className="card-premium animate-slide-up animate-delay-100">
+        <Card className="card-kingdom animate-slide-up animate-delay-100">
           <CardHeader>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -343,7 +346,7 @@ export default function MyLeadsPage() {
                   <Briefcase className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle data-testid="text-leads-table-title">Your Leads</CardTitle>
+                  <CardTitle className="font-serif text-gradient-royal" data-testid="text-leads-table-title">Your Leads</CardTitle>
                   <CardDescription>
                     Provide feedback to improve lead quality
                   </CardDescription>
@@ -386,9 +389,9 @@ export default function MyLeadsPage() {
                 ))}
               </div>
             ) : filteredLeads.length === 0 ? (
-              <div className="text-center py-16">
+              <div className="text-center py-16 animate-fade-in">
                 <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
-                <h3 className="text-lg font-semibold mb-2">No leads found</h3>
+                <h3 className="text-lg font-serif font-semibold mb-2 text-gradient-royal">No leads found</h3>
                 <p className="text-muted-foreground">Purchase leads to get started</p>
               </div>
             ) : (
@@ -398,7 +401,7 @@ export default function MyLeadsPage() {
                     {filteredLeads.map((lead) => (
                       <div 
                         key={lead.assignmentId} 
-                        className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-muted/30 transition-all hover:shadow-md group"
+                        className="flex items-center gap-4 p-4 rounded-lg border bg-card hover-lift transition-all group animate-fade-in"
                         data-testid={`row-lead-${lead.leadId}`}
                       >
                         {/* Score */}
@@ -409,7 +412,7 @@ export default function MyLeadsPage() {
                         {/* Business Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-semibold truncate">{lead.businessName || "Unknown Business"}</h4>
+                            <h4 className="font-serif font-semibold truncate">{lead.businessName || "Unknown Business"}</h4>
                             {getStatusBadge(lead.status)}
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -501,7 +504,7 @@ export default function MyLeadsPage() {
                 </ScrollArea>
 
                 {pagination && pagination.totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-6 pt-4 border-t">
+                  <div className="flex items-center justify-between mt-6 pt-4 divider-elegant">
                     <div className="text-sm text-muted-foreground">
                       Showing <span className="font-medium">{filteredLeads.length}</span> of <span className="font-medium">{pagination.total}</span> leads
                     </div>
@@ -534,7 +537,7 @@ export default function MyLeadsPage() {
                               key={pageNum}
                               variant={page === pageNum ? "default" : "ghost"}
                               size="sm"
-                              className="w-8 h-8 p-0"
+                              className={`w-8 h-8 p-0 ${page === pageNum ? "btn-kingdom" : ""}`}
                               onClick={() => setPage(pageNum)}
                               data-testid={`button-page-${pageNum}`}
                             >
@@ -564,9 +567,9 @@ export default function MyLeadsPage() {
 
         {/* Activity Modal */}
         <Dialog open={activityModalOpen} onOpenChange={setActivityModalOpen}>
-          <DialogContent className="sm:max-w-md" data-testid="dialog-activity">
+          <DialogContent className="sm:max-w-md animate-scale-in" data-testid="dialog-activity">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
+              <DialogTitle className="font-serif text-gradient-royal flex items-center gap-2">
                 <div className="icon-container icon-container-green w-8 h-8">
                   <DollarSign className="h-4 w-4 text-white" />
                 </div>
@@ -612,7 +615,7 @@ export default function MyLeadsPage() {
               <Button 
                 onClick={handleSubmitActivity} 
                 disabled={activityMutation.isPending}
-                className="gap-2"
+                className="btn-kingdom gap-2"
                 data-testid="button-submit-activity"
               >
                 {activityMutation.isPending ? (

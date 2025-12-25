@@ -16,7 +16,7 @@ import {
   Plus, Search, Phone, Mail, Building2, Clock, MessageSquare,
   FileText, CalendarClock, Activity, Filter, MoreHorizontal,
   Edit, Trash, PhoneCall, Video, Send, UserPlus, CheckCircle,
-  AlertCircle, ArrowRight, Calendar
+  AlertCircle, ArrowRight, Calendar, Crown, Sparkles
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -260,16 +260,22 @@ export default function ActivityTimelinePage() {
   if (loadingLeads) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground animate-fade-in">
+          <Sparkles className="w-8 h-8 mx-auto mb-2 animate-pulse text-primary" />
+          Loading...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full animate-fade-in">
       <div className="w-80 border-r flex flex-col bg-muted/20">
         <div className="p-4 border-b">
-          <h2 className="font-semibold mb-3">Select Lead</h2>
+          <h2 className="font-serif font-semibold mb-3 flex items-center gap-2">
+            <Crown className="w-4 h-4 text-primary" />
+            Select Lead
+          </h2>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
@@ -283,15 +289,16 @@ export default function ActivityTimelinePage() {
         </div>
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
-            {filteredLeads.map((lead) => (
+            {filteredLeads.map((lead, index) => (
               <button
                 key={lead.id}
                 onClick={() => setSelectedLead(lead)}
-                className={`w-full p-3 rounded-lg text-left transition-colors ${
+                className={`w-full p-3 rounded-lg text-left transition-all duration-300 animate-slide-up ${
                   selectedLead?.id === lead.id
-                    ? "bg-primary text-primary-foreground"
-                    : "hover-elevate"
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "hover-lift hover-elevate"
                 }`}
+                style={{ animationDelay: `${index * 50}ms` }}
                 data-testid={`button-select-lead-${lead.id}`}
               >
                 <div className="font-medium truncate">
@@ -317,27 +324,29 @@ export default function ActivityTimelinePage() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {!selectedLead ? (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center animate-fade-in">
             <div className="text-center text-muted-foreground">
-              <Activity className="w-12 h-12 mx-auto mb-4" />
-              <p className="text-lg font-medium">Select a lead to view activity</p>
-              <p className="text-sm">Choose a lead from the list to see their timeline</p>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                <Activity className="w-8 h-8 text-primary" />
+              </div>
+              <p className="text-lg font-serif font-medium text-gradient-royal">Select a lead to view activity</p>
+              <p className="text-sm mt-1">Choose a lead from the list to see their timeline</p>
             </div>
           </div>
         ) : (
           <>
-            <div className="p-4 border-b bg-background">
-              <div className="flex items-center justify-between mb-4">
+            <div className="p-4 border-b bg-background animate-slide-up">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
                 <div>
-                  <h1 className="text-xl font-bold flex items-center gap-2">
-                    <Building2 className="w-5 h-5" />
+                  <h1 className="text-xl font-serif font-bold flex items-center gap-2 text-gradient-royal">
+                    <Building2 className="w-5 h-5 text-primary" />
                     {selectedLead.businessName || "Unnamed Business"}
                   </h1>
                   <p className="text-muted-foreground">
                     {selectedLead.ownerName} {selectedLead.phone && `• ${selectedLead.phone}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
@@ -358,6 +367,7 @@ export default function ActivityTimelinePage() {
                   </Button>
                   <Button
                     size="sm"
+                    className="btn-kingdom"
                     onClick={() => setShowActivityDialog(true)}
                     data-testid="button-log-activity"
                   >
@@ -367,47 +377,65 @@ export default function ActivityTimelinePage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="p-1.5 bg-primary/10 rounded">
-                    <Activity className="w-4 h-4 text-primary" />
-                  </div>
-                  <div>
-                    <span className="font-medium">{activityStats.total}</span>
-                    <span className="text-muted-foreground ml-1">total</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="p-1.5 bg-yellow-500/10 rounded">
-                    <FileText className="w-4 h-4 text-yellow-500" />
-                  </div>
-                  <div>
-                    <span className="font-medium">{activityStats.notes}</span>
-                    <span className="text-muted-foreground ml-1">notes</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="p-1.5 bg-blue-500/10 rounded">
-                    <PhoneCall className="w-4 h-4 text-blue-500" />
-                  </div>
-                  <div>
-                    <span className="font-medium">{activityStats.calls}</span>
-                    <span className="text-muted-foreground ml-1">calls</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <div className="p-1.5 bg-green-500/10 rounded">
-                    <MessageSquare className="w-4 h-4 text-green-500" />
-                  </div>
-                  <div>
-                    <span className="font-medium">{activityStats.activities}</span>
-                    <span className="text-muted-foreground ml-1">activities</span>
-                  </div>
-                </div>
+              <div className="divider-elegant my-4" />
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="card-kingdom hover-lift animate-slide-up animate-delay-100">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="p-1.5 bg-primary/10 rounded">
+                        <Activity className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <span className="font-semibold">{activityStats.total}</span>
+                        <span className="text-muted-foreground ml-1">total</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="card-kingdom hover-lift animate-slide-up animate-delay-200">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="p-1.5 bg-yellow-500/10 rounded">
+                        <FileText className="w-4 h-4 text-yellow-500" />
+                      </div>
+                      <div>
+                        <span className="font-semibold">{activityStats.notes}</span>
+                        <span className="text-muted-foreground ml-1">notes</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="card-kingdom hover-lift animate-slide-up animate-delay-300">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="p-1.5 bg-blue-500/10 rounded">
+                        <PhoneCall className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div>
+                        <span className="font-semibold">{activityStats.calls}</span>
+                        <span className="text-muted-foreground ml-1">calls</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="card-kingdom hover-lift animate-slide-up animate-delay-400">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="p-1.5 bg-green-500/10 rounded">
+                        <MessageSquare className="w-4 h-4 text-green-500" />
+                      </div>
+                      <div>
+                        <span className="font-semibold">{activityStats.activities}</span>
+                        <span className="text-muted-foreground ml-1">activities</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30 flex-wrap gap-2">
               <div className="flex items-center gap-2">
                 <Filter className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Filter:</span>
@@ -424,17 +452,19 @@ export default function ActivityTimelinePage() {
                   </SelectContent>
                 </Select>
               </div>
-              <span className="text-sm text-muted-foreground">
+              <Badge className="badge-royal">
                 {filteredTimeline.length} events
-              </span>
+              </Badge>
             </div>
 
             <ScrollArea className="flex-1">
               <div className="p-4">
                 {filteredTimeline.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Activity className="w-12 h-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No activity yet</h3>
+                  <div className="flex flex-col items-center justify-center py-12 text-center animate-fade-in">
+                    <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                      <Activity className="w-8 h-8 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-lg font-serif font-medium mb-2 text-gradient-royal">No activity yet</h3>
                     <p className="text-muted-foreground mb-4">
                       Start tracking interactions with this lead
                     </p>
@@ -443,7 +473,7 @@ export default function ActivityTimelinePage() {
                         <FileText className="w-4 h-4 mr-2" />
                         Add Note
                       </Button>
-                      <Button onClick={() => setShowActivityDialog(true)}>
+                      <Button className="btn-kingdom" onClick={() => setShowActivityDialog(true)}>
                         <Plus className="w-4 h-4 mr-2" />
                         Log Activity
                       </Button>
@@ -451,32 +481,33 @@ export default function ActivityTimelinePage() {
                   </div>
                 ) : (
                   <div className="relative">
-                    <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-border"></div>
+                    <div className="absolute left-5 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary/50 via-primary/20 to-transparent"></div>
                     <div className="space-y-6">
                       {filteredTimeline.map((event, index) => {
                         const Icon = event.icon;
                         return (
                           <div
                             key={event.id}
-                            className="relative flex gap-4"
+                            className="relative flex gap-4 animate-slide-up"
+                            style={{ animationDelay: `${index * 100}ms` }}
                             data-testid={`timeline-event-${event.id}`}
                           >
-                            <div className={`relative z-10 flex items-center justify-center w-10 h-10 rounded-full ${event.color}`}>
+                            <div className={`relative z-10 flex items-center justify-center w-10 h-10 rounded-full ${event.color} ring-2 ring-background shadow-sm`}>
                               <Icon className="w-5 h-5" />
                             </div>
-                            <Card className="flex-1">
+                            <Card className="flex-1 card-kingdom hover-lift">
                               <CardContent className="p-4">
-                                <div className="flex items-start justify-between">
+                                <div className="flex items-start justify-between flex-wrap gap-2">
                                   <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-medium capitalize">{event.title}</span>
+                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                      <span className="font-serif font-medium capitalize">{event.title}</span>
                                       {event.metadata?.outcome && (
-                                        <Badge variant="outline" className="text-xs">
+                                        <Badge className="badge-gold text-xs">
                                           {event.metadata.outcome as string}
                                         </Badge>
                                       )}
                                       {event.metadata?.duration && (
-                                        <Badge variant="secondary" className="text-xs">
+                                        <Badge className="badge-emerald text-xs">
                                           {event.metadata.duration as number}min
                                         </Badge>
                                       )}
@@ -532,7 +563,10 @@ export default function ActivityTimelinePage() {
       <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Note</DialogTitle>
+            <DialogTitle className="font-serif text-gradient-royal flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Add Note
+            </DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <Label htmlFor="note">Note Content</Label>
@@ -550,6 +584,7 @@ export default function ActivityTimelinePage() {
               Cancel
             </Button>
             <Button
+              className="btn-kingdom"
               onClick={() => {
                 if (selectedLead && newNote) {
                   createNoteMutation.mutate({
@@ -570,7 +605,10 @@ export default function ActivityTimelinePage() {
       <Dialog open={showActivityDialog} onOpenChange={setShowActivityDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Log Activity</DialogTitle>
+            <DialogTitle className="font-serif text-gradient-royal flex items-center gap-2">
+              <Activity className="w-5 h-5 text-primary" />
+              Log Activity
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -626,6 +664,7 @@ export default function ActivityTimelinePage() {
               Cancel
             </Button>
             <Button
+              className="btn-kingdom"
               onClick={() => {
                 if (selectedLead) {
                   createActivityMutation.mutate({
@@ -646,7 +685,10 @@ export default function ActivityTimelinePage() {
       <Dialog open={showCallLogDialog} onOpenChange={setShowCallLogDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Log Call</DialogTitle>
+            <DialogTitle className="font-serif text-gradient-royal flex items-center gap-2">
+              <PhoneCall className="w-5 h-5 text-primary" />
+              Log Call
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
@@ -714,6 +756,7 @@ export default function ActivityTimelinePage() {
               Cancel
             </Button>
             <Button
+              className="btn-kingdom"
               onClick={() => {
                 if (selectedLead) {
                   createCallLogMutation.mutate({

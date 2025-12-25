@@ -161,21 +161,6 @@ export default function GodModePage() {
     }
   };
 
-  const getActivityBadgeClass = (type: string) => {
-    switch (type) {
-      case "funded":
-        return "metric-badge metric-badge-success";
-      case "contacted":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800";
-      case "bad_lead":
-        return "metric-badge metric-badge-danger";
-      case "no_response":
-        return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700";
-      default:
-        return "";
-    }
-  };
-
   const getActivityLabel = (type: string) => {
     switch (type) {
       case "funded": return "Funded";
@@ -204,7 +189,7 @@ export default function GodModePage() {
   return (
     <div className="min-h-screen bg-mesh">
       <div className="relative z-10 p-6 space-y-6">
-        {/* Premium Page Header */}
+        {/* Royal Kingdom Page Header */}
         <div className="page-header-gradient animate-fade-in">
           <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -212,18 +197,17 @@ export default function GodModePage() {
                 <Brain className="h-7 w-7 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold flex items-center gap-2" data-testid="text-page-title">
+                <h1 className="text-3xl font-serif font-bold flex items-center gap-2 text-gradient-royal" data-testid="text-page-title">
                   God Mode
                   <Sparkles className="h-6 w-6 text-yellow-300 animate-pulse" />
                 </h1>
-                <p className="text-white/80 mt-1">AI Brain control center & buyer feedback analytics</p>
+                <p className="text-white/80 mt-1 font-serif">AI Brain control center & buyer feedback analytics</p>
               </div>
             </div>
             <Button
               onClick={() => recalculateMutation.mutate()}
               disabled={recalculateMutation.isPending}
-              className="bg-white/20 hover:bg-white/30 border-white/30 text-white backdrop-blur-sm gap-2"
-              variant="outline"
+              className="btn-kingdom gap-2"
               data-testid="button-recalculate"
             >
               <RefreshCcw className={`h-4 w-4 ${recalculateMutation.isPending ? "animate-spin" : ""}`} />
@@ -232,7 +216,9 @@ export default function GodModePage() {
           </div>
         </div>
 
-        {/* Premium Tabs */}
+        <div className="divider-elegant my-4" />
+
+        {/* Royal Kingdom Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-slide-up">
           <TabsList className="tabs-premium grid w-full grid-cols-5" data-testid="tabs-god-mode">
             <TabsTrigger value="dashboard" className="tab-trigger-premium gap-2" data-testid="tab-dashboard">
@@ -257,10 +243,10 @@ export default function GodModePage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard" className="space-y-6 mt-6">
-            {/* Premium Stat Cards */}
+          <TabsContent value="dashboard" className="space-y-6 mt-6 animate-fade-in">
+            {/* Royal Kingdom Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Card className="card-premium stat-card-blue overflow-visible" data-testid="card-stat-leads">
+              <Card className="card-kingdom stat-card-blue overflow-visible hover-lift animate-slide-up" data-testid="card-stat-leads">
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">
                     <div>
@@ -278,7 +264,7 @@ export default function GodModePage() {
                 </CardContent>
               </Card>
 
-              <Card className="card-premium stat-card-green overflow-visible glow-success" data-testid="card-stat-funded">
+              <Card className="card-kingdom stat-card-green overflow-visible glow-success hover-lift animate-slide-up animate-delay-100" data-testid="card-stat-funded">
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">
                     <div>
@@ -298,7 +284,7 @@ export default function GodModePage() {
                 </CardContent>
               </Card>
 
-              <Card className="card-premium stat-card-gold overflow-visible" data-testid="card-stat-revenue">
+              <Card className="card-kingdom stat-card-gold overflow-visible hover-lift animate-slide-up animate-delay-200" data-testid="card-stat-revenue">
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">
                     <div>
@@ -318,7 +304,7 @@ export default function GodModePage() {
                 </CardContent>
               </Card>
 
-              <Card className="card-premium stat-card-purple overflow-visible" data-testid="card-stat-buyers">
+              <Card className="card-kingdom stat-card-purple overflow-visible hover-lift animate-slide-up animate-delay-300" data-testid="card-stat-buyers">
                 <CardContent className="pt-6">
                   <div className="flex items-start justify-between">
                     <div>
@@ -337,16 +323,18 @@ export default function GodModePage() {
               </Card>
             </div>
 
+            <div className="divider-elegant my-8" />
+
             {/* Dashboard Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="card-premium">
+              <Card className="card-kingdom hover-lift animate-slide-up animate-delay-400">
                 <CardHeader className="pb-4">
                   <div className="flex items-center gap-3">
                     <div className="icon-container icon-container-blue w-10 h-10">
                       <BarChart3 className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <CardTitle>Assignment Breakdown</CardTitle>
+                      <CardTitle className="font-serif">Assignment Breakdown</CardTitle>
                       <CardDescription>Lead status distribution from buyer feedback</CardDescription>
                     </div>
                   </div>
@@ -393,14 +381,14 @@ export default function GodModePage() {
                 </CardContent>
               </Card>
 
-              <Card className="card-premium">
+              <Card className="card-kingdom hover-lift animate-slide-up animate-delay-500">
                 <CardHeader className="pb-4">
                   <div className="flex items-center gap-3">
                     <div className="icon-container icon-container-purple w-10 h-10">
                       <Activity className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <CardTitle>Recent Activity</CardTitle>
+                      <CardTitle className="font-serif">Recent Activity</CardTitle>
                       <CardDescription>{dashboardData?.recentActivities || 0} activities in the last 7 days</CardDescription>
                     </div>
                   </div>
@@ -409,7 +397,7 @@ export default function GodModePage() {
                   <ScrollArea className="h-[280px] pr-4">
                     <div className="space-y-1">
                       {activitiesData?.activities.slice(0, 8).map((activity, index) => (
-                        <div key={activity.id} className="activity-item py-3">
+                        <div key={activity.id} className="activity-item py-3" data-testid={`activity-preview-${activity.id}`}>
                           <div className="flex items-start gap-3">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                               activity.type === "funded" ? "bg-green-100 dark:bg-green-800/50 text-green-600 dark:text-green-400" :
@@ -423,7 +411,12 @@ export default function GodModePage() {
                               <p className="text-sm font-medium truncate">{activity.businessName}</p>
                               <p className="text-xs text-muted-foreground">by {activity.buyerName}</p>
                             </div>
-                            <Badge className={getActivityBadgeClass(activity.type)}>
+                            <Badge className={
+                              activity.type === "funded" ? "badge-emerald" :
+                              activity.type === "contacted" ? "badge-royal" :
+                              activity.type === "bad_lead" ? "badge-gold" :
+                              "badge-royal"
+                            }>
                               {getActivityLabel(activity.type)}
                             </Badge>
                           </div>
@@ -432,7 +425,7 @@ export default function GodModePage() {
                       {(!activitiesData?.activities || activitiesData.activities.length === 0) && (
                         <div className="text-center py-8 text-muted-foreground">
                           <Activity className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                          <p>No activities recorded yet</p>
+                          <p className="font-serif">No activities recorded yet</p>
                         </div>
                       )}
                     </div>
@@ -442,15 +435,15 @@ export default function GodModePage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="buyers" className="mt-6">
-            <Card className="card-premium">
+          <TabsContent value="buyers" className="mt-6 animate-fade-in">
+            <Card className="card-kingdom">
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <div className="icon-container icon-container-gold w-10 h-10">
                     <Trophy className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle>Buyer Performance Leaderboard</CardTitle>
+                    <CardTitle className="font-serif text-gradient-royal">Buyer Performance Leaderboard</CardTitle>
                     <CardDescription>Track buyer feedback and conversion rates</CardDescription>
                   </div>
                 </div>
@@ -460,12 +453,13 @@ export default function GodModePage() {
                   {buyersData?.buyers.map((buyer, index) => (
                     <div 
                       key={buyer.buyerId} 
-                      className={`leaderboard-row flex items-center gap-4 p-4 rounded-lg border transition-all hover:shadow-md ${
+                      className={`leaderboard-row flex items-center gap-4 p-4 rounded-lg border transition-all hover-lift animate-slide-up ${
                         index === 0 ? "bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800/30" :
                         index === 1 ? "bg-gray-50/50 dark:bg-gray-800/20 border-gray-200 dark:border-gray-700/30" :
                         index === 2 ? "bg-amber-50/50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800/30" :
                         "bg-card border-border"
                       }`}
+                      style={{ animationDelay: `${index * 100}ms` }}
                       data-testid={`row-buyer-${buyer.buyerId}`}
                     >
                       <div className="flex items-center justify-center w-8">
@@ -490,13 +484,13 @@ export default function GodModePage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className={`metric-badge ${
-                          buyer.fundRate >= 10 ? "metric-badge-success" :
-                          buyer.fundRate >= 5 ? "metric-badge-warning" :
-                          "metric-badge-danger"
-                        }`}>
+                        <Badge className={
+                          buyer.fundRate >= 10 ? "badge-emerald" :
+                          buyer.fundRate >= 5 ? "badge-gold" :
+                          "badge-royal"
+                        } data-testid={`badge-fund-rate-${buyer.buyerId}`}>
                           {buyer.fundRate.toFixed(1)}%
-                        </div>
+                        </Badge>
                         <div className="w-20 hidden sm:block">
                           <div className="text-xs text-muted-foreground mb-1 text-center">Feedback</div>
                           <div className="progress-premium">
@@ -512,7 +506,7 @@ export default function GodModePage() {
                   {(!buyersData?.buyers || buyersData.buyers.length === 0) && (
                     <div className="text-center py-12 text-muted-foreground">
                       <Users className="h-12 w-12 mx-auto mb-3 opacity-40" />
-                      <p className="text-lg font-medium">No buyer data available</p>
+                      <p className="text-lg font-serif font-medium">No buyer data available</p>
                       <p className="text-sm">Buyer performance will appear here once purchases are made</p>
                     </div>
                   )}
@@ -521,37 +515,38 @@ export default function GodModePage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="sources" className="mt-6">
-            <Card className="card-premium">
+          <TabsContent value="sources" className="mt-6 animate-fade-in">
+            <Card className="card-kingdom">
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <div className="icon-container icon-container-blue w-10 h-10">
                     <Target className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle>Lead Source Performance</CardTitle>
+                    <CardTitle className="font-serif text-gradient-royal">Lead Source Performance</CardTitle>
                     <CardDescription>Conversion rates by lead source (last 30 days)</CardDescription>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {sourcesData?.sources.map((source) => (
+                  {sourcesData?.sources.map((source, index) => (
                     <div 
                       key={source.sourceType} 
-                      className="gradient-border p-4 rounded-lg"
+                      className="gradient-border p-4 rounded-lg hover-lift animate-slide-up"
+                      style={{ animationDelay: `${index * 100}ms` }}
                       data-testid={`row-source-${source.sourceType}`}
                     >
                       <div className="relative z-10">
                         <div className="flex items-center justify-between mb-4">
-                          <h4 className="font-semibold capitalize text-lg">{source.sourceType}</h4>
-                          <div className={`metric-badge ${
-                            source.conversionRate >= 15 ? "metric-badge-success" :
-                            source.conversionRate >= 5 ? "metric-badge-warning" :
-                            "metric-badge-danger"
-                          }`}>
+                          <h4 className="font-serif font-semibold capitalize text-lg">{source.sourceType}</h4>
+                          <Badge className={
+                            source.conversionRate >= 15 ? "badge-emerald" :
+                            source.conversionRate >= 5 ? "badge-gold" :
+                            "badge-royal"
+                          }>
                             {source.conversionRate.toFixed(1)}%
-                          </div>
+                          </Badge>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div className="text-center p-2 rounded bg-muted/50">
@@ -577,7 +572,7 @@ export default function GodModePage() {
                   {(!sourcesData?.sources || sourcesData.sources.length === 0) && (
                     <div className="col-span-full text-center py-12 text-muted-foreground">
                       <Target className="h-12 w-12 mx-auto mb-3 opacity-40" />
-                      <p className="text-lg font-medium">No source data available</p>
+                      <p className="text-lg font-serif font-medium">No source data available</p>
                       <p className="text-sm">Source performance will appear once leads are tracked</p>
                     </div>
                   )}
@@ -586,18 +581,18 @@ export default function GodModePage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="brain" className="mt-6">
-            <Card className="card-premium gradient-border-animated">
+          <TabsContent value="brain" className="mt-6 animate-fade-in">
+            <Card className="card-kingdom gradient-border-animated">
               <CardHeader>
                 <div className="relative z-10 flex items-center gap-3">
                   <div className="icon-container icon-container-purple w-10 h-10">
                     <Brain className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <CardTitle className="font-serif text-gradient-royal flex items-center gap-2">
                       AI Brain Configuration
                       {brainData?.config.isActive && (
-                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                        <Badge className="badge-emerald">
                           <Zap className="h-3 w-3 mr-1" />
                           Active
                         </Badge>
@@ -741,13 +736,13 @@ export default function GodModePage() {
               </CardContent>
               <CardFooter className="relative z-10 border-t pt-4">
                 <div className="flex items-center gap-2 w-full">
-                  <div className={`metric-badge ${
-                    totalWeight >= 95 && totalWeight <= 105 ? "metric-badge-success" :
-                    totalWeight >= 80 && totalWeight <= 120 ? "metric-badge-warning" :
-                    "metric-badge-danger"
-                  }`}>
+                  <Badge className={
+                    totalWeight >= 95 && totalWeight <= 105 ? "badge-emerald" :
+                    totalWeight >= 80 && totalWeight <= 120 ? "badge-gold" :
+                    "badge-royal"
+                  } data-testid="badge-weight-sum">
                     Weight Sum: {totalWeight.toFixed(0)}%
-                  </div>
+                  </Badge>
                   <p className="text-xs text-muted-foreground">
                     Weights should sum to approximately 100% for optimal scoring
                   </p>
@@ -756,15 +751,15 @@ export default function GodModePage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="activity" className="mt-6">
-            <Card className="card-premium">
+          <TabsContent value="activity" className="mt-6 animate-fade-in">
+            <Card className="card-kingdom">
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <div className="icon-container icon-container-green w-10 h-10">
                     <Activity className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <CardTitle>Recent Buyer Activities</CardTitle>
+                    <CardTitle className="font-serif text-gradient-royal">Recent Buyer Activities</CardTitle>
                     <CardDescription>Live feed of buyer feedback and status changes</CardDescription>
                   </div>
                 </div>
@@ -772,10 +767,11 @@ export default function GodModePage() {
               <CardContent>
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-3">
-                    {activitiesData?.activities.map((activity) => (
+                    {activitiesData?.activities.map((activity, index) => (
                       <div 
                         key={activity.id} 
-                        className="flex items-center gap-4 p-4 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+                        className="flex items-center gap-4 p-4 rounded-lg border bg-card hover-lift transition-all animate-slide-up"
+                        style={{ animationDelay: `${index * 50}ms` }}
                         data-testid={`row-activity-${activity.id}`}
                       >
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
@@ -787,7 +783,7 @@ export default function GodModePage() {
                           {getActivityIcon(activity.type)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className="font-semibold">{activity.buyerName}</span>
                             <span className="text-muted-foreground">marked</span>
                             <span className="font-medium">{activity.businessName}</span>
@@ -804,11 +800,16 @@ export default function GodModePage() {
                         </div>
                         <div className="flex items-center gap-3">
                           {activity.dealAmount && (
-                            <span className="font-bold text-green-600 dark:text-green-400">
+                            <Badge className="badge-gold" data-testid={`badge-amount-${activity.id}`}>
                               {formatCurrency(parseFloat(activity.dealAmount))}
-                            </span>
+                            </Badge>
                           )}
-                          <Badge className={getActivityBadgeClass(activity.type)}>
+                          <Badge className={
+                            activity.type === "funded" ? "badge-emerald" :
+                            activity.type === "contacted" ? "badge-royal" :
+                            activity.type === "bad_lead" ? "badge-gold" :
+                            "badge-royal"
+                          }>
                             {getActivityLabel(activity.type)}
                           </Badge>
                         </div>
@@ -817,7 +818,7 @@ export default function GodModePage() {
                     {(!activitiesData?.activities || activitiesData.activities.length === 0) && (
                       <div className="text-center py-16 text-muted-foreground">
                         <Activity className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                        <p className="text-lg font-medium">No activities recorded yet</p>
+                        <p className="text-lg font-serif font-medium">No activities recorded yet</p>
                         <p className="text-sm">Buyer feedback and status changes will appear here</p>
                       </div>
                     )}

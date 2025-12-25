@@ -137,17 +137,17 @@ export default function ContactManagerPage() {
   const getRoleColor = (role?: string | null) => {
     switch (role) {
       case "decision_maker":
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200";
+        return "badge-royal";
       case "influencer":
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
+        return "badge-royal";
       case "champion":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+        return "badge-emerald";
       case "blocker":
         return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
       case "end_user":
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+        return "badge-gold";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
+        return "badge-gold";
     }
   };
 
@@ -229,72 +229,76 @@ export default function ContactManagerPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b bg-background">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">
+    <div className="flex flex-col h-full animate-fade-in">
+      <div className="flex items-center justify-between p-6 border-b bg-background">
+        <div className="animate-slide-up">
+          <h1 className="text-2xl font-serif text-gradient-royal" data-testid="text-page-title">
             Contact Manager
           </h1>
           <p className="text-muted-foreground">
             Manage contacts across all your leads
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)} data-testid="button-create-contact">
+        <Button className="btn-kingdom" onClick={() => setShowCreateDialog(true)} data-testid="button-create-contact">
           <Plus className="w-4 h-4 mr-2" />
           Add Contact
         </Button>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 p-4 border-b bg-muted/30">
-        <Card>
+      <div className="divider-elegant" />
+
+      <div className="grid grid-cols-4 gap-4 p-6 border-b bg-muted/30">
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-100">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg">
               <Users className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{contactStats.total}</p>
+              <p className="text-2xl font-serif font-bold">{contactStats.total}</p>
               <p className="text-sm text-muted-foreground">Total Contacts</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-200">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 bg-yellow-500/10 rounded-lg">
               <Star className="w-5 h-5 text-yellow-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{contactStats.primary}</p>
+              <p className="text-2xl font-serif font-bold">{contactStats.primary}</p>
               <p className="text-sm text-muted-foreground">Primary Contacts</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-300">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 bg-purple-500/10 rounded-lg">
               <User className="w-5 h-5 text-purple-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{contactStats.decisionMakers}</p>
+              <p className="text-2xl font-serif font-bold">{contactStats.decisionMakers}</p>
               <p className="text-sm text-muted-foreground">Decision Makers</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="card-kingdom hover-lift animate-slide-up animate-delay-400">
           <CardContent className="p-4 flex items-center gap-3">
             <div className="p-2 bg-green-500/10 rounded-lg">
               <MessageSquare className="w-5 h-5 text-green-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{contactStats.recentlyContacted}</p>
+              <p className="text-2xl font-serif font-bold">{contactStats.recentlyContacted}</p>
               <p className="text-sm text-muted-foreground">Recently Contacted</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex-1 overflow-hidden p-4">
+      <div className="divider-elegant" />
+
+      <div className="flex-1 overflow-hidden p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
             <TabsList>
               <TabsTrigger value="all" data-testid="tab-all-contacts">
                 All Contacts
@@ -347,17 +351,17 @@ export default function ContactManagerPage() {
             </div>
           </div>
 
-          <Card className="flex-1 overflow-hidden">
+          <Card className="card-kingdom flex-1 overflow-hidden animate-slide-up">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[300px]">Contact</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Last Contacted</TableHead>
-                  <TableHead className="w-[80px]">Actions</TableHead>
+                  <TableHead className="w-[300px] font-serif">Contact</TableHead>
+                  <TableHead className="font-serif">Company</TableHead>
+                  <TableHead className="font-serif">Role</TableHead>
+                  <TableHead className="font-serif">Email</TableHead>
+                  <TableHead className="font-serif">Phone</TableHead>
+                  <TableHead className="font-serif">Last Contacted</TableHead>
+                  <TableHead className="w-[80px] font-serif">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -365,15 +369,15 @@ export default function ContactManagerPage() {
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center text-muted-foreground">
-                        <Users className="w-12 h-12 mb-4" />
-                        <p className="text-lg font-medium mb-2">No contacts found</p>
+                        <Users className="w-12 h-12 mb-4 text-primary/40" />
+                        <p className="text-lg font-serif font-medium mb-2">No contacts found</p>
                         <p className="text-sm mb-4">
                           {activeTab === "all"
                             ? "Add your first contact to get started"
                             : "No contacts match the current filters"}
                         </p>
                         {activeTab === "all" && (
-                          <Button onClick={() => setShowCreateDialog(true)}>
+                          <Button className="btn-kingdom" onClick={() => setShowCreateDialog(true)}>
                             <Plus className="w-4 h-4 mr-2" />
                             Add Contact
                           </Button>
@@ -530,7 +534,7 @@ export default function ContactManagerPage() {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Add New Contact</DialogTitle>
+            <DialogTitle className="font-serif text-gradient-royal">Add New Contact</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-4">
             <div className="space-y-2">
@@ -675,6 +679,7 @@ export default function ContactManagerPage() {
               Cancel
             </Button>
             <Button
+              className="btn-kingdom"
               onClick={() => createContactMutation.mutate(newContact)}
               disabled={!newContact.firstName || !newContact.leadId || createContactMutation.isPending}
               data-testid="button-submit-contact"
@@ -688,7 +693,7 @@ export default function ContactManagerPage() {
       <Dialog open={!!editingContact} onOpenChange={(open) => !open && setEditingContact(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit Contact</DialogTitle>
+            <DialogTitle className="font-serif text-gradient-royal">Edit Contact</DialogTitle>
           </DialogHeader>
           {editingContact && (
             <div className="grid grid-cols-2 gap-4 py-4">
@@ -797,6 +802,7 @@ export default function ContactManagerPage() {
               Cancel
             </Button>
             <Button
+              className="btn-kingdom"
               onClick={() => {
                 if (editingContact) {
                   updateContactMutation.mutate({
@@ -827,19 +833,19 @@ export default function ContactManagerPage() {
       >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Contact Details</DialogTitle>
+            <DialogTitle className="font-serif text-gradient-royal">Contact Details</DialogTitle>
           </DialogHeader>
           {selectedContact && (
-            <div className="space-y-6 py-4">
+            <div className="space-y-6 py-4 animate-fade-in">
               <div className="flex items-start gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarFallback className="text-lg">
+                <Avatar className="h-16 w-16 ring-2 ring-primary/20">
+                  <AvatarFallback className="text-lg font-serif bg-primary/10 text-primary">
                     {getInitials(selectedContact.firstName, selectedContact.lastName)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-semibold">
+                    <h2 className="text-xl font-serif font-semibold">
                       {selectedContact.firstName} {selectedContact.lastName}
                     </h2>
                     {selectedContact.isPrimary && (
@@ -860,6 +866,8 @@ export default function ContactManagerPage() {
                   </Badge>
                 )}
               </div>
+
+              <div className="divider-elegant" />
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">

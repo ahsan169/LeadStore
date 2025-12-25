@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { TrendingUp, TrendingDown, Activity, DollarSign, Users, Target, ArrowUp, ArrowDown, RefreshCw, Edit2, CheckCircle, XCircle, Clock, Phone, Filter, Brain, Sparkles, AlertTriangle, BarChart2 } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { TrendingUp, TrendingDown, Activity, DollarSign, Users, Target, ArrowUp, ArrowDown, RefreshCw, Edit2, CheckCircle, XCircle, Clock, Phone, Filter, Brain, Sparkles, AlertTriangle, BarChart2, Crown } from "lucide-react";
 import { 
   AreaChart, 
   Area, 
@@ -45,7 +46,6 @@ const updateLeadStatusSchema = z.object({
 
 type UpdateLeadStatusData = z.infer<typeof updateLeadStatusSchema>;
 
-// Color palette for charts
 const COLORS = {
   primary: "hsl(var(--primary))",
   secondary: "hsl(var(--secondary))",
@@ -103,7 +103,8 @@ function MetricCard({
   icon: Icon, 
   trend, 
   trendValue,
-  description 
+  description,
+  badgeVariant = "gold"
 }: { 
   title: string; 
   value: string | number; 
@@ -111,6 +112,7 @@ function MetricCard({
   trend?: "up" | "down" | "neutral";
   trendValue?: string;
   description?: string;
+  badgeVariant?: "gold" | "emerald" | "royal";
 }) {
   const getTrendIcon = () => {
     if (trend === "up") return <ArrowUp className="w-4 h-4" />;
@@ -119,27 +121,37 @@ function MetricCard({
   };
 
   const getTrendColor = () => {
-    if (trend === "up") return "text-green-600";
-    if (trend === "down") return "text-red-600";
+    if (trend === "up") return "text-emerald-600 dark:text-emerald-400";
+    if (trend === "down") return "text-red-600 dark:text-red-400";
     return "text-muted-foreground";
   };
 
+  const getBadgeClass = () => {
+    switch (badgeVariant) {
+      case "emerald": return "badge-emerald";
+      case "royal": return "badge-royal";
+      default: return "badge-gold";
+    }
+  };
+
   return (
-    <Card className="hover-elevate">
+    <Card className="card-kingdom hover-lift animate-fade-in" data-testid={`card-metric-${title.toLowerCase().replace(/\s+/g, '-')}`}>
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">
+        <CardTitle className="text-sm font-medium font-serif">
           {title}
         </CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        <div className={`p-2 rounded-full ${getBadgeClass()}`}>
+          <Icon className="h-4 w-4" />
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold" data-testid={`metric-${title.toLowerCase().replace(/\s+/g, '-')}`}>
+        <div className="text-2xl font-bold font-serif" data-testid={`metric-${title.toLowerCase().replace(/\s+/g, '-')}`}>
           {value}
         </div>
         {(trend || description) && (
           <div className="flex items-center gap-2 mt-2">
             {trend && trendValue && (
-              <div className={`flex items-center gap-1 text-xs ${getTrendColor()}`}>
+              <div className={`flex items-center gap-1 text-xs font-medium ${getTrendColor()}`}>
                 {getTrendIcon()}
                 <span>{trendValue}</span>
               </div>
@@ -157,22 +169,22 @@ function MetricCard({
 }
 
 function LeadStatusBadge({ status }: { status: string }) {
-  const getStatusColor = () => {
+  const getStatusClass = () => {
     switch (status) {
       case 'new':
-        return 'bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100';
+        return 'badge-royal';
       case 'contacted':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100';
+        return 'badge-royal';
       case 'qualified':
-        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100';
+        return 'badge-emerald';
       case 'proposal':
-        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100';
+        return 'badge-gold';
       case 'closed_won':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100';
+        return 'badge-emerald';
       case 'closed_lost':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100';
+        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100';
+        return 'badge-royal';
     }
   };
 
@@ -181,7 +193,7 @@ function LeadStatusBadge({ status }: { status: string }) {
   };
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor()}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusClass()}`}>
       {getStatusLabel()}
     </span>
   );
@@ -241,13 +253,13 @@ function UpdateLeadStatusDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" data-testid={`button-update-status-${leadId}`}>
+        <Button variant="ghost" size="sm" className="btn-kingdom" data-testid={`button-update-status-${leadId}`}>
           <Edit2 className="w-4 h-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="animate-scale-in">
         <DialogHeader>
-          <DialogTitle>Update Lead Status</DialogTitle>
+          <DialogTitle className="font-serif text-gradient-royal">Update Lead Status</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -256,7 +268,7 @@ function UpdateLeadStatusDialog({
               name="status"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Status</FormLabel>
+                  <FormLabel className="font-medium">Status</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
@@ -286,7 +298,7 @@ function UpdateLeadStatusDialog({
                 name="dealAmount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Deal Amount ($)</FormLabel>
+                    <FormLabel className="font-medium">Deal Amount ($)</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -306,7 +318,7 @@ function UpdateLeadStatusDialog({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Notes</FormLabel>
+                  <FormLabel className="font-medium">Notes</FormLabel>
                   <FormControl>
                     <Textarea
                       {...field}
@@ -331,6 +343,7 @@ function UpdateLeadStatusDialog({
               <Button
                 type="submit"
                 disabled={mutation.isPending}
+                className="btn-kingdom"
                 data-testid="button-save"
               >
                 {mutation.isPending ? "Updating..." : "Update Status"}
@@ -348,23 +361,19 @@ export default function AnalyticsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTier, setSelectedTier] = useState<string>("all");
 
-  // Fetch analytics data
   const { data: analyticsData, isLoading, refetch } = useQuery<AnalyticsData>({
     queryKey: ["/api/analytics/dashboard"],
-    refetchInterval: 60000, // Auto-refresh every 60 seconds
+    refetchInterval: 60000,
   });
 
-  // Fetch purchases for lead performance table
   const { data: purchases } = useQuery({
     queryKey: ["/api/purchases"],
   });
   
-  // Fetch ML model info
   const { data: mlModelData } = useQuery({
     queryKey: ["/api/scoring/model"],
   });
   
-  // Fetch ML insights
   const { data: mlInsights } = useQuery({
     queryKey: ["/api/scoring/insights"],
   });
@@ -377,14 +386,14 @@ export default function AnalyticsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="p-6 lg:p-8 space-y-6">
         <div className="flex justify-between items-center">
           <Skeleton className="h-10 w-48" />
           <Skeleton className="h-10 w-32" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map((i) => (
-            <Card key={i}>
+            <Card key={i} className="card-kingdom">
               <CardHeader>
                 <Skeleton className="h-6 w-24" />
               </CardHeader>
@@ -414,7 +423,6 @@ export default function AnalyticsPage() {
   const leadVelocity = analyticsData?.leadVelocity || 0;
   const bestPerformingTier = analyticsData?.bestPerformingTier || "none";
 
-  // Prepare data for ROI trend chart (mock data for demo)
   const roiTrendData = [
     { month: 'Jan', roi: 120 },
     { month: 'Feb', roi: 135 },
@@ -424,7 +432,6 @@ export default function AnalyticsPage() {
     { month: 'Jun', roi: stats.roi },
   ];
 
-  // Filter ROI by tier data
   const filteredRoiData = selectedTier === "all" 
     ? roiByTier 
     : roiByTier.filter(item => item.tier === selectedTier);
@@ -432,29 +439,34 @@ export default function AnalyticsPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/5 to-background">
       <div className="p-6 lg:p-8 space-y-8">
-        {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fade-in">
           <div>
-            <h1 className="text-3xl font-bold" data-testid="heading-analytics">
-              Lead Performance Analytics
-            </h1>
-            <p className="text-muted-foreground mt-1">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 rounded-full badge-gold">
+                <Crown className="h-6 w-6" />
+              </div>
+              <h1 className="text-3xl font-bold font-serif text-gradient-royal" data-testid="heading-analytics">
+                Lead Performance Analytics
+              </h1>
+            </div>
+            <p className="text-muted-foreground">
               Track ROI, conversion rates, and lead quality metrics
             </p>
           </div>
           <Button
             onClick={handleRefresh}
             disabled={refreshing}
-            variant="outline"
+            className="btn-kingdom"
             data-testid="button-refresh"
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Refresh
+            Refresh Data
           </Button>
         </div>
 
-        {/* Key Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="divider-elegant" />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-slide-up">
           <MetricCard
             title="Total ROI"
             value={`${stats.roi.toFixed(1)}%`}
@@ -462,6 +474,7 @@ export default function AnalyticsPage() {
             trend={stats.roi > 0 ? "up" : "down"}
             trendValue={`${Math.abs(stats.roi)}%`}
             description="Return on investment"
+            badgeVariant="gold"
           />
           <MetricCard
             title="Conversion Rate"
@@ -469,12 +482,14 @@ export default function AnalyticsPage() {
             icon={Target}
             trend={stats.averageConversionRate > 10 ? "up" : "down"}
             trendValue="vs industry avg"
+            badgeVariant="emerald"
           />
           <MetricCard
             title="Best Performing Tier"
             value={bestPerformingTier.charAt(0).toUpperCase() + bestPerformingTier.slice(1)}
             icon={Activity}
             description="Highest ROI tier"
+            badgeVariant="royal"
           />
           <MetricCard
             title="Lead Velocity"
@@ -482,15 +497,19 @@ export default function AnalyticsPage() {
             icon={Users}
             trend={leadVelocity > 0 ? "up" : "down"}
             trendValue="30-day growth"
+            badgeVariant="gold"
           />
         </div>
 
-        {/* Charts Section */}
+        <div className="divider-elegant" />
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* ROI Trend Over Time */}
-          <Card>
+          <Card className="card-kingdom hover-lift animate-fade-in animate-delay-100" data-testid="card-roi-trend">
             <CardHeader>
-              <CardTitle>ROI Trend Over Time</CardTitle>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                ROI Trend Over Time
+              </CardTitle>
               <CardDescription>Monthly return on investment percentage</CardDescription>
             </CardHeader>
             <CardContent>
@@ -502,7 +521,7 @@ export default function AnalyticsPage() {
                       <stop offset="95%" stopColor={COLORS.primary} stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip />
@@ -518,10 +537,12 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          {/* Conversion Funnel */}
-          <Card>
+          <Card className="card-kingdom hover-lift animate-fade-in animate-delay-200" data-testid="card-conversion-funnel">
             <CardHeader>
-              <CardTitle>Conversion Funnel</CardTitle>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <Filter className="w-5 h-5 text-primary" />
+                Conversion Funnel
+              </CardTitle>
               <CardDescription>Lead progression through stages</CardDescription>
             </CardHeader>
             <CardContent>
@@ -530,11 +551,11 @@ export default function AnalyticsPage() {
                   data={conversionFunnel}
                   layout="horizontal"
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                   <XAxis type="number" />
                   <YAxis dataKey="stage" type="category" />
                   <Tooltip />
-                  <Bar dataKey="count" fill={COLORS.info}>
+                  <Bar dataKey="count" fill={COLORS.info} radius={[0, 4, 4, 0]}>
                     <LabelList dataKey="conversionRate" position="right" formatter={(value: any) => `${value.toFixed(0)}%`} />
                   </Bar>
                 </BarChart>
@@ -542,11 +563,13 @@ export default function AnalyticsPage() {
             </CardContent>
           </Card>
 
-          {/* Performance by Tier */}
-          <Card>
+          <Card className="card-kingdom hover-lift animate-fade-in animate-delay-300" data-testid="card-tier-performance">
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
               <div>
-                <CardTitle>Performance by Tier</CardTitle>
+                <CardTitle className="font-serif flex items-center gap-2">
+                  <BarChart2 className="w-5 h-5 text-primary" />
+                  Performance by Tier
+                </CardTitle>
                 <CardDescription>ROI breakdown by pricing tier</CardDescription>
               </div>
               <Select value={selectedTier} onValueChange={setSelectedTier}>
@@ -565,22 +588,24 @@ export default function AnalyticsPage() {
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={filteredRoiData}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                   <XAxis dataKey="tier" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="roi" fill={COLORS.success} name="ROI %" />
-                  <Bar dataKey="leadCount" fill={COLORS.info} name="Lead Count" />
+                  <Bar dataKey="roi" fill={COLORS.success} name="ROI %" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="leadCount" fill={COLORS.info} name="Lead Count" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Lead Status Distribution */}
-          <Card>
+          <Card className="card-kingdom hover-lift animate-fade-in animate-delay-400" data-testid="card-status-distribution">
             <CardHeader>
-              <CardTitle>Lead Status Distribution</CardTitle>
+              <CardTitle className="font-serif flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" />
+                Lead Status Distribution
+              </CardTitle>
               <CardDescription>Current status of all leads</CardDescription>
             </CardHeader>
             <CardContent>
@@ -615,180 +640,190 @@ export default function AnalyticsPage() {
           </Card>
         </div>
 
-        {/* Enrichment Statistics */}
         {analyticsData?.enrichmentStats && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Lead Enrichment Statistics</CardTitle>
-              <CardDescription>Data enrichment metrics and source breakdown</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Total Enriched Leads</span>
-                    <Badge variant="outline">{analyticsData.enrichmentStats.totalEnriched}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Average Confidence Score</span>
-                    <Badge variant="outline">{analyticsData.enrichmentStats.averageConfidence.toFixed(1)}%</Badge>
-                  </div>
-                  <div className="mt-4">
-                    <div className="text-xs text-muted-foreground mb-1">Premium Value Added</div>
-                    <div className="text-2xl font-bold text-green-600">
-                      +30% per lead
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Source Breakdown */}
-                <div className="col-span-2">
-                  <div className="text-sm font-medium mb-3">Enrichment Sources</div>
-                  <div className="space-y-2">
-                    {Object.entries(analyticsData.enrichmentStats.sourceBreakdown).map(([source, count]) => (
-                      <div key={source} className="flex items-center justify-between p-2 bg-muted rounded">
-                        <span className="text-sm capitalize">{source}</span>
-                        <Badge>{count as number} leads</Badge>
-                      </div>
-                    ))}
-                    {Object.keys(analyticsData.enrichmentStats.sourceBreakdown).length === 0 && (
-                      <div className="text-sm text-muted-foreground">No enriched leads yet</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ML Model Performance */}
-        {mlModelData && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* ML Model Overview */}
-            <Card className="lg:col-span-2">
+          <>
+            <div className="divider-elegant" />
+            <Card className="card-kingdom animate-fade-in" data-testid="card-enrichment-stats">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-600" />
-                  ML Model Performance
-                </CardTitle>
-                <CardDescription>
-                  {mlModelData.usingDefault 
-                    ? "Using default heuristics - no trained model yet"
-                    : `Model: ${mlModelData.name} v${mlModelData.version}`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {mlModelData.usingDefault ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Brain className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                    <p>No ML model trained yet</p>
-                    <p className="text-sm mt-2">Models are trained automatically as more lead performance data becomes available</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Accuracy</p>
-                        <p className="text-2xl font-bold text-green-600">
-                          {(mlModelData.accuracy * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Precision</p>
-                        <p className="text-2xl font-bold text-blue-600">
-                          {(mlModelData.precision * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Recall</p>
-                        <p className="text-2xl font-bold text-purple-600">
-                          {(mlModelData.recall * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">F1 Score</p>
-                        <p className="text-2xl font-bold text-orange-600">
-                          {(mlModelData.f1Score * 100).toFixed(1)}%
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Training Data Size</span>
-                        <span className="font-medium">{mlModelData.trainingDataSize?.toLocaleString() || "N/A"} leads</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Last Trained</span>
-                        <span className="font-medium">
-                          {mlModelData.trainedAt ? new Date(mlModelData.trainedAt).toLocaleDateString() : "N/A"}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Features Used</span>
-                        <span className="font-medium">{mlModelData.features?.length || 0} features</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* ML Insights */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+                <CardTitle className="font-serif flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-yellow-500" />
-                  ML Insights
+                  Lead Enrichment Statistics
                 </CardTitle>
+                <CardDescription>Data enrichment metrics and source breakdown</CardDescription>
               </CardHeader>
               <CardContent>
-                {mlInsights ? (
-                  <div className="space-y-3">
-                    {mlInsights.trends && mlInsights.trends.length > 0 ? (
-                      mlInsights.trends.slice(0, 5).map((trend: any, idx: number) => (
-                        <div key={idx} className="flex items-start gap-2 text-sm">
-                          {trend.direction === "up" ? (
-                            <TrendingUp className="w-4 h-4 text-green-500 mt-0.5" />
-                          ) : (
-                            <TrendingDown className="w-4 h-4 text-red-500 mt-0.5" />
-                          )}
-                          <p className="text-xs">{trend.insight}</p>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5" />
-                          <p className="text-xs">High-value leads typically have 85%+ quality scores</p>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500 mt-0.5" />
-                          <p className="text-xs">Best conversion rates seen in Restaurant and Retail industries</p>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          <Target className="w-4 h-4 text-blue-500 mt-0.5" />
-                          <p className="text-xs">Leads with urgency 'immediate' convert 3x faster</p>
-                        </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <span className="text-sm font-medium">Total Enriched Leads</span>
+                      <Badge className="badge-gold">{analyticsData.enrichmentStats.totalEnriched}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <span className="text-sm font-medium">Average Confidence</span>
+                      <Badge className="badge-emerald">{analyticsData.enrichmentStats.averageConfidence.toFixed(1)}%</Badge>
+                    </div>
+                    <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/30 dark:to-green-950/30 border border-emerald-200/50 dark:border-emerald-800/30">
+                      <div className="text-xs text-muted-foreground mb-1">Premium Value Added</div>
+                      <div className="text-2xl font-bold font-serif text-emerald-600 dark:text-emerald-400">
+                        +30% per lead
                       </div>
-                    )}
+                    </div>
                   </div>
-                ) : (
-                  <div className="text-center py-4 text-muted-foreground text-sm">
-                    Loading insights...
+                  
+                  <div className="col-span-2">
+                    <div className="text-sm font-medium font-serif mb-3">Enrichment Sources</div>
+                    <div className="space-y-2">
+                      {Object.entries(analyticsData.enrichmentStats.sourceBreakdown).map(([source, count]) => (
+                        <div key={source} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover-lift transition-all duration-200">
+                          <span className="text-sm capitalize font-medium">{source}</span>
+                          <Badge className="badge-royal">{count as number} leads</Badge>
+                        </div>
+                      ))}
+                      {Object.keys(analyticsData.enrichmentStats.sourceBreakdown).length === 0 && (
+                        <div className="text-sm text-muted-foreground p-4 text-center">No enriched leads yet</div>
+                      )}
+                    </div>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
-          </div>
+          </>
         )}
 
-        {/* Lead Performance Table */}
-        <Card>
+        {mlModelData && (
+          <>
+            <div className="divider-elegant" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-slide-up">
+              <Card className="lg:col-span-2 card-kingdom hover-lift" data-testid="card-ml-performance">
+                <CardHeader>
+                  <CardTitle className="font-serif flex items-center gap-2">
+                    <Brain className="w-5 h-5 text-purple-600" />
+                    ML Model Performance
+                  </CardTitle>
+                  <CardDescription>
+                    {mlModelData.usingDefault 
+                      ? "Using default heuristics - no trained model yet"
+                      : `Model: ${mlModelData.name} v${mlModelData.version}`}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {mlModelData.usingDefault ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <div className="p-4 rounded-full badge-royal inline-block mb-4">
+                        <Brain className="w-12 h-12 opacity-50" />
+                      </div>
+                      <p className="font-medium">No ML model trained yet</p>
+                      <p className="text-sm mt-2">Models are trained automatically as more lead performance data becomes available</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="p-4 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border border-green-200/50 dark:border-green-800/30">
+                          <p className="text-xs text-muted-foreground mb-1">Accuracy</p>
+                          <p className="text-2xl font-bold font-serif text-green-600 dark:text-green-400">
+                            {(mlModelData.accuracy * 100).toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border border-blue-200/50 dark:border-blue-800/30">
+                          <p className="text-xs text-muted-foreground mb-1">Precision</p>
+                          <p className="text-2xl font-bold font-serif text-blue-600 dark:text-blue-400">
+                            {(mlModelData.precision * 100).toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-gradient-to-br from-purple-50 to-violet-50 dark:from-purple-950/30 dark:to-violet-950/30 border border-purple-200/50 dark:border-purple-800/30">
+                          <p className="text-xs text-muted-foreground mb-1">Recall</p>
+                          <p className="text-2xl font-bold font-serif text-purple-600 dark:text-purple-400">
+                            {(mlModelData.recall * 100).toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="p-4 rounded-lg bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 border border-orange-200/50 dark:border-orange-800/30">
+                          <p className="text-xs text-muted-foreground mb-1">F1 Score</p>
+                          <p className="text-2xl font-bold font-serif text-orange-600 dark:text-orange-400">
+                            {(mlModelData.f1Score * 100).toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <Separator className="my-4" />
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm p-2 rounded-lg bg-muted/30">
+                          <span className="text-muted-foreground">Training Data Size</span>
+                          <span className="font-medium">{mlModelData.trainingDataSize?.toLocaleString() || "N/A"} leads</span>
+                        </div>
+                        <div className="flex justify-between text-sm p-2 rounded-lg bg-muted/30">
+                          <span className="text-muted-foreground">Last Trained</span>
+                          <span className="font-medium">
+                            {mlModelData.trainedAt ? new Date(mlModelData.trainedAt).toLocaleDateString() : "N/A"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm p-2 rounded-lg bg-muted/30">
+                          <span className="text-muted-foreground">Features Used</span>
+                          <span className="font-medium">{mlModelData.features?.length || 0} features</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="card-kingdom hover-lift" data-testid="card-ml-insights">
+                <CardHeader>
+                  <CardTitle className="font-serif flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-yellow-500" />
+                    ML Insights
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {mlInsights ? (
+                    <div className="space-y-3">
+                      {mlInsights.trends && mlInsights.trends.length > 0 ? (
+                        mlInsights.trends.slice(0, 5).map((trend: any, idx: number) => (
+                          <div key={idx} className="flex items-start gap-2 text-sm p-3 rounded-lg bg-muted/30 hover-lift transition-all duration-200">
+                            {trend.direction === "up" ? (
+                              <TrendingUp className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <TrendingDown className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                            )}
+                            <p className="text-xs">{trend.insight}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/30 dark:border-amber-800/30">
+                            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs">High-value leads typically have 85%+ quality scores</p>
+                          </div>
+                          <div className="flex items-start gap-2 p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/30 dark:border-emerald-800/30">
+                            <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs">Best conversion rates seen in Restaurant and Retail industries</p>
+                          </div>
+                          <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/30 dark:border-blue-800/30">
+                            <Target className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs">Leads with urgency 'immediate' convert 3x faster</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground text-sm">
+                      Loading insights...
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+
+        <div className="divider-elegant" />
+
+        <Card className="card-kingdom animate-fade-in" data-testid="card-lead-performance">
           <CardHeader>
-            <CardTitle>Lead Performance Details</CardTitle>
+            <CardTitle className="font-serif flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-primary" />
+              Lead Performance Details
+            </CardTitle>
             <CardDescription>Track and update individual lead status</CardDescription>
           </CardHeader>
           <CardContent>
@@ -796,49 +831,56 @@ export default function AnalyticsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">Purchase ID</th>
-                      <th className="text-left p-2">Tier</th>
-                      <th className="text-left p-2">Lead Count</th>
-                      <th className="text-left p-2">Contacted</th>
-                      <th className="text-left p-2">Qualified</th>
-                      <th className="text-left p-2">Closed</th>
-                      <th className="text-left p-2">Revenue</th>
-                      <th className="text-left p-2">ROI</th>
-                      <th className="text-left p-2">Actions</th>
+                    <tr className="border-b border-border/50">
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">Purchase ID</th>
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">Tier</th>
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">Lead Count</th>
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">Contacted</th>
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">Qualified</th>
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">Closed</th>
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">Revenue</th>
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">ROI</th>
+                      <th className="text-left p-3 font-serif font-medium text-muted-foreground">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {purchases.slice(0, 10).map((purchase: any) => (
+                    {purchases.slice(0, 10).map((purchase: any, index: number) => (
                       <tr 
                         key={purchase.id} 
-                        className="border-b hover-elevate"
+                        className={`border-b border-border/30 hover-lift transition-all duration-200 ${
+                          index % 2 === 0 ? 'bg-muted/20' : ''
+                        }`}
                         data-testid={`row-purchase-${purchase.id}`}
                       >
-                        <td className="p-2 font-mono text-sm">
+                        <td className="p-3 font-mono text-sm">
                           {purchase.id.slice(0, 8)}...
                         </td>
-                        <td className="p-2">
-                          <Badge variant="outline" className="capitalize">
+                        <td className="p-3">
+                          <Badge className={
+                            purchase.tier === 'gold' ? 'badge-gold' :
+                            purchase.tier === 'elite' || purchase.tier === 'diamond' ? 'badge-royal' :
+                            'badge-emerald'
+                          }>
                             {purchase.tier}
                           </Badge>
                         </td>
-                        <td className="p-2 text-center">{purchase.leadCount}</td>
-                        <td className="p-2 text-center">{purchase.totalContacted || 0}</td>
-                        <td className="p-2 text-center">{purchase.totalQualified || 0}</td>
-                        <td className="p-2 text-center">{purchase.totalClosed || 0}</td>
-                        <td className="p-2">${purchase.totalRevenue || '0.00'}</td>
-                        <td className="p-2">
-                          <span className={`font-medium ${
-                            Number(purchase.roi || 0) > 0 ? 'text-green-600' : 'text-red-600'
+                        <td className="p-3 text-center font-medium">{purchase.leadCount}</td>
+                        <td className="p-3 text-center">{purchase.totalContacted || 0}</td>
+                        <td className="p-3 text-center">{purchase.totalQualified || 0}</td>
+                        <td className="p-3 text-center">{purchase.totalClosed || 0}</td>
+                        <td className="p-3 font-medium">${purchase.totalRevenue || '0.00'}</td>
+                        <td className="p-3">
+                          <span className={`font-bold ${
+                            Number(purchase.roi || 0) > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                           }`}>
                             {purchase.roi || '0'}%
                           </span>
                         </td>
-                        <td className="p-2">
+                        <td className="p-3">
                           <Button
                             variant="ghost"
                             size="sm"
+                            className="btn-kingdom"
                             data-testid={`button-view-details-${purchase.id}`}
                           >
                             View Details
@@ -850,9 +892,12 @@ export default function AnalyticsPage() {
                 </table>
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No purchases to track yet</p>
+              <div className="text-center py-12 text-muted-foreground">
+                <div className="p-4 rounded-full badge-royal inline-block mb-4">
+                  <Users className="w-12 h-12 opacity-50" />
+                </div>
+                <p className="font-medium">No purchases to track yet</p>
+                <p className="text-sm mt-2">Start acquiring leads to see performance analytics</p>
               </div>
             )}
           </CardContent>

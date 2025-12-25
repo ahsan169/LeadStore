@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import {
   Plus, GripVertical, Phone, Mail, Building2, DollarSign, 
   Calendar, User, MoreHorizontal, Edit, Trash, ChevronRight,
   Eye, CheckCircle, XCircle, Clock, AlertCircle, Settings, 
-  ArrowLeft, ArrowRight
+  ArrowLeft, ArrowRight, Crown, Sparkles
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -196,12 +196,12 @@ export default function PipelineBoardPage() {
     }
   };
 
-  const getLeadQualityColor = (qualityScore?: number | null) => {
-    if (!qualityScore) return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200";
-    if (qualityScore >= 80) return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
-    if (qualityScore >= 60) return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200";
-    if (qualityScore >= 40) return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-    return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
+  const getLeadQualityBadge = (qualityScore?: number | null) => {
+    if (!qualityScore) return "badge-royal";
+    if (qualityScore >= 80) return "badge-gold";
+    if (qualityScore >= 60) return "badge-emerald";
+    if (qualityScore >= 40) return "badge-royal";
+    return "badge-royal";
   };
 
   const formatCurrency = (value?: string | null) => {
@@ -219,33 +219,44 @@ export default function PipelineBoardPage() {
   if (loadingStages || loadingLeads) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-muted-foreground">Loading pipeline...</div>
+        <div className="flex flex-col items-center gap-4 animate-fade-in">
+          <Crown className="w-12 h-12 text-primary animate-pulse" />
+          <p className="text-muted-foreground font-serif">Loading your kingdom pipeline...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b bg-background">
-        <div>
-          <h1 className="text-2xl font-bold" data-testid="text-page-title">Pipeline Board</h1>
-          <p className="text-muted-foreground">Manage leads through your sales pipeline</p>
+    <div className="flex flex-col h-full animate-fade-in">
+      <div className="flex items-center justify-between p-6 border-b bg-gradient-to-r from-background via-card to-background">
+        <div className="animate-slide-up">
+          <div className="flex items-center gap-3">
+            <Crown className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-serif text-gradient-royal" data-testid="text-page-title">
+              Pipeline Board
+            </h1>
+          </div>
+          <p className="text-muted-foreground mt-1 ml-11">Manage leads through your sales pipeline</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="px-3 py-1">
+        <div className="flex items-center gap-3 animate-slide-up animate-delay-100">
+          <Badge className="badge-gold px-4 py-1.5">
+            <Sparkles className="w-3 h-3 mr-1" />
             {leads.length} total leads
           </Badge>
-          <Button onClick={() => handleOpenStageDialog()} data-testid="button-add-stage">
+          <Button onClick={() => handleOpenStageDialog()} className="btn-kingdom" data-testid="button-add-stage">
             <Plus className="w-4 h-4 mr-2" />
             Add Stage
           </Button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-x-auto p-4">
-        <div className="flex gap-4 h-full min-w-max">
+      <div className="divider-elegant" />
+
+      <div className="flex-1 overflow-x-auto p-6">
+        <div className="flex gap-5 h-full min-w-max">
           <div
-            className="flex flex-col w-80 min-h-96 bg-muted/30 rounded-lg border border-dashed"
+            className="flex flex-col w-80 min-h-96 bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30 animate-slide-up"
             onDragOver={handleDragOver}
             onDrop={(e) => {
               e.preventDefault();
@@ -255,21 +266,22 @@ export default function PipelineBoardPage() {
               }
             }}
           >
-            <div className="p-3 border-b bg-background/50 rounded-t-lg">
+            <div className="p-4 border-b bg-card/50 rounded-t-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                  <h3 className="font-semibold">Unassigned</h3>
+                  <div className="w-3 h-3 rounded-full bg-muted-foreground/50"></div>
+                  <h3 className="font-serif font-semibold">Unassigned</h3>
                 </div>
-                <Badge variant="secondary">{unassignedLeads.length}</Badge>
+                <Badge className="badge-royal">{unassignedLeads.length}</Badge>
               </div>
             </div>
             <ScrollArea className="flex-1">
-              <div className="p-2 space-y-2">
-                {unassignedLeads.map((lead) => (
+              <div className="p-3 space-y-3">
+                {unassignedLeads.map((lead, index) => (
                   <Card
                     key={lead.id}
-                    className="cursor-grab hover-elevate active:cursor-grabbing"
+                    className="card-kingdom hover-lift cursor-grab active:cursor-grabbing animate-fade-in"
+                    style={{ animationDelay: `${index * 50}ms` }}
                     draggable
                     onDragStart={(e) => handleDragStart(e, lead)}
                     onClick={() => {
@@ -278,13 +290,13 @@ export default function PipelineBoardPage() {
                     }}
                     data-testid={`card-lead-${lead.id}`}
                   >
-                    <CardContent className="p-3 space-y-2">
-                      <div className="flex items-start justify-between">
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{lead.businessName || "Unnamed Business"}</p>
+                          <p className="font-serif font-medium truncate">{lead.businessName || "Unnamed Business"}</p>
                           <p className="text-sm text-muted-foreground truncate">{lead.ownerName || "No contact"}</p>
                         </div>
-                        <Badge className={getLeadQualityColor(lead.qualityScore)} variant="outline">
+                        <Badge className={getLeadQualityBadge(lead.qualityScore)}>
                           {lead.qualityScore || "N/A"}
                         </Badge>
                       </div>
@@ -306,7 +318,8 @@ export default function PipelineBoardPage() {
                   </Card>
                 ))}
                 {unassignedLeads.length === 0 && (
-                  <div className="p-4 text-center text-muted-foreground text-sm">
+                  <div className="p-6 text-center text-muted-foreground text-sm">
+                    <Crown className="w-8 h-8 mx-auto mb-2 opacity-30" />
                     No unassigned leads
                   </div>
                 )}
@@ -314,38 +327,40 @@ export default function PipelineBoardPage() {
             </ScrollArea>
           </div>
 
-          {stagesWithLeads.map((stage) => (
+          {stagesWithLeads.map((stage, stageIndex) => (
             <div
               key={stage.id}
-              className="flex flex-col w-80 min-h-96 bg-muted/30 rounded-lg border"
+              className="flex flex-col w-80 min-h-96 bg-card/30 rounded-lg border border-border/50 animate-slide-up"
+              style={{ animationDelay: `${(stageIndex + 1) * 100}ms` }}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, stage.id)}
             >
-              <div className="p-3 border-b bg-background/50 rounded-t-lg">
+              <div className="p-4 border-b bg-card/80 rounded-t-lg backdrop-blur-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: stage.color || "#3b82f6" }}
+                      className="w-3 h-3 rounded-full ring-2 ring-offset-1 ring-offset-background"
+                      style={{ backgroundColor: stage.color || "#3b82f6", ringColor: stage.color || "#3b82f6" }}
                     ></div>
-                    <h3 className="font-semibold">{stage.name}</h3>
+                    <h3 className="font-serif font-semibold">{stage.name}</h3>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">{stage.leads.length}</Badge>
+                    <Badge className="badge-emerald">{stage.leads.length}</Badge>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" data-testid={`button-stage-menu-${stage.id}`}>
                           <MoreHorizontal className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleOpenStageDialog(stage)}>
+                        <DropdownMenuItem onClick={() => handleOpenStageDialog(stage)} data-testid={`button-edit-stage-${stage.id}`}>
                           <Edit className="w-4 h-4 mr-2" />
                           Edit Stage
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => deleteStageMutation.mutate(stage.id)}
                           className="text-destructive"
+                          data-testid={`button-delete-stage-${stage.id}`}
                         >
                           <Trash className="w-4 h-4 mr-2" />
                           Delete Stage
@@ -356,11 +371,12 @@ export default function PipelineBoardPage() {
                 </div>
               </div>
               <ScrollArea className="flex-1">
-                <div className="p-2 space-y-2">
-                  {stage.leads.map((lead) => (
+                <div className="p-3 space-y-3">
+                  {stage.leads.map((lead, index) => (
                     <Card
                       key={lead.id}
-                      className="cursor-grab hover-elevate active:cursor-grabbing"
+                      className="card-kingdom hover-lift cursor-grab active:cursor-grabbing animate-fade-in"
+                      style={{ animationDelay: `${index * 50}ms` }}
                       draggable
                       onDragStart={(e) => handleDragStart(e, lead)}
                       onClick={() => {
@@ -369,13 +385,13 @@ export default function PipelineBoardPage() {
                       }}
                       data-testid={`card-lead-${lead.id}`}
                     >
-                      <CardContent className="p-3 space-y-2">
-                        <div className="flex items-start justify-between">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{lead.businessName || "Unnamed Business"}</p>
+                            <p className="font-serif font-medium truncate">{lead.businessName || "Unnamed Business"}</p>
                             <p className="text-sm text-muted-foreground truncate">{lead.ownerName || "No contact"}</p>
                           </div>
-                          <Badge className={getLeadQualityColor(lead.qualityScore)} variant="outline">
+                          <Badge className={getLeadQualityBadge(lead.qualityScore)}>
                             {lead.qualityScore || "N/A"}
                           </Badge>
                         </div>
@@ -394,7 +410,7 @@ export default function PipelineBoardPage() {
                           )}
                         </div>
                         {lead.lastContactDate && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground pt-1 border-t border-border/50">
                             <Calendar className="w-3 h-3" />
                             Last contact: {formatDate(lead.lastContactDate)}
                           </div>
@@ -403,7 +419,8 @@ export default function PipelineBoardPage() {
                     </Card>
                   ))}
                   {stage.leads.length === 0 && (
-                    <div className="p-4 text-center text-muted-foreground text-sm">
+                    <div className="p-6 text-center text-muted-foreground text-sm">
+                      <ChevronRight className="w-8 h-8 mx-auto mb-2 opacity-30" />
                       Drag leads here
                     </div>
                   )}
@@ -414,65 +431,72 @@ export default function PipelineBoardPage() {
 
           <Button
             variant="outline"
-            className="h-full min-h-96 w-60 border-dashed flex flex-col items-center justify-center gap-2 text-muted-foreground"
+            className="h-full min-h-96 w-64 border-dashed border-2 flex flex-col items-center justify-center gap-3 text-muted-foreground hover-lift animate-slide-up"
+            style={{ animationDelay: `${(stagesWithLeads.length + 1) * 100}ms` }}
             onClick={() => handleOpenStageDialog()}
             data-testid="button-add-stage-column"
           >
-            <Plus className="w-6 h-6" />
-            <span>Add New Stage</span>
+            <Plus className="w-8 h-8" />
+            <span className="font-serif">Add New Stage</span>
           </Button>
         </div>
       </div>
 
       <Dialog open={showStageDialog} onOpenChange={setShowStageDialog}>
-        <DialogContent>
+        <DialogContent className="card-kingdom border-2">
           <DialogHeader>
-            <DialogTitle>{editingStage ? "Edit Stage" : "Create New Stage"}</DialogTitle>
+            <DialogTitle className="font-serif text-gradient-royal text-xl">
+              {editingStage ? "Edit Stage" : "Create New Stage"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="divider-elegant my-2" />
+          <div className="space-y-5 py-4">
             <div className="space-y-2">
-              <Label htmlFor="stageName">Stage Name</Label>
+              <Label htmlFor="stageName" className="font-serif">Stage Name</Label>
               <Input
                 id="stageName"
                 value={newStageName}
                 onChange={(e) => setNewStageName(e.target.value)}
                 placeholder="e.g., Qualified, Proposal, Negotiation"
+                className="border-2"
                 data-testid="input-stage-name"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="stageColor">Stage Color</Label>
-              <div className="flex items-center gap-3">
+              <Label htmlFor="stageColor" className="font-serif">Stage Color</Label>
+              <div className="flex items-center gap-4">
                 <Input
                   id="stageColor"
                   type="color"
                   value={newStageColor}
                   onChange={(e) => setNewStageColor(e.target.value)}
-                  className="w-16 h-10 p-1 cursor-pointer"
+                  className="w-16 h-10 p-1 cursor-pointer border-2"
                   data-testid="input-stage-color"
                 />
                 <div className="flex gap-2">
                   {["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"].map((color) => (
                     <button
                       key={color}
-                      className={`w-8 h-8 rounded-full border-2 transition-all ${
-                        newStageColor === color ? "border-foreground scale-110" : "border-transparent"
+                      className={`w-9 h-9 rounded-full border-2 transition-all hover-lift ${
+                        newStageColor === color ? "border-foreground scale-110 ring-2 ring-offset-2" : "border-transparent"
                       }`}
                       style={{ backgroundColor: color }}
                       onClick={() => setNewStageColor(color)}
+                      data-testid={`button-color-${color}`}
                     />
                   ))}
                 </div>
               </div>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowStageDialog(false)}>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowStageDialog(false)} data-testid="button-cancel-stage">
               Cancel
             </Button>
             <Button
               onClick={handleSaveStage}
               disabled={createStageMutation.isPending || updateStageMutation.isPending}
+              className="btn-kingdom"
               data-testid="button-save-stage"
             >
               {createStageMutation.isPending || updateStageMutation.isPending
@@ -489,39 +513,43 @@ export default function PipelineBoardPage() {
         setShowLeadModal(open);
         if (!open) setSelectedLead(null);
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col card-kingdom border-2">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Building2 className="w-5 h-5" />
+            <DialogTitle className="flex items-center gap-3 font-serif text-gradient-royal text-xl">
+              <Building2 className="w-6 h-6" />
               {selectedLead?.businessName || "Lead Details"}
             </DialogTitle>
           </DialogHeader>
           
+          <div className="divider-elegant my-2" />
+          
           {selectedLead && (
-            <div className="flex-1 overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      <User className="w-4 h-4" />
-                      Contact Information
-                    </h3>
-                    <div className="space-y-2 text-sm">
+            <div className="flex-1 overflow-y-auto animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
+                <div className="space-y-6">
+                  <Card className="card-kingdom">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        <User className="w-5 h-5 text-primary" />
+                        Contact Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Owner:</span>
-                        <span>{selectedLead.ownerName || "N/A"}</span>
+                        <span className="font-medium">{selectedLead.ownerName || "N/A"}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Phone:</span>
                         <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
+                          <Phone className="w-3 h-3 text-primary" />
                           {selectedLead.phone || "N/A"}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Email:</span>
                         <span className="flex items-center gap-1">
-                          <Mail className="w-3 h-3" />
+                          <Mail className="w-3 h-3 text-primary" />
                           {selectedLead.email || "N/A"}
                         </span>
                       </div>
@@ -529,22 +557,24 @@ export default function PipelineBoardPage() {
                         <span className="text-muted-foreground w-24">Address:</span>
                         <span>{selectedLead.address || "N/A"}</span>
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
 
-                  <div>
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      Business Details
-                    </h3>
-                    <div className="space-y-2 text-sm">
+                  <Card className="card-kingdom">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-primary" />
+                        Business Details
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Industry:</span>
                         <span>{selectedLead.industry || "N/A"}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Est. Value:</span>
-                        <span>{formatCurrency(selectedLead.estimatedValue)}</span>
+                        <span className="font-medium text-primary">{formatCurrency(selectedLead.estimatedValue)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Revenue:</span>
@@ -554,18 +584,20 @@ export default function PipelineBoardPage() {
                         <span className="text-muted-foreground w-24">Employees:</span>
                         <span>{selectedLead.employeeCount || "N/A"}</span>
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
 
-                  <div>
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4" />
-                      Lead Scoring
-                    </h3>
-                    <div className="space-y-2 text-sm">
+                  <Card className="card-kingdom">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-primary" />
+                        Lead Scoring
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Quality:</span>
-                        <Badge className={getLeadQualityColor(selectedLead.qualityScore)}>
+                        <Badge className={getLeadQualityBadge(selectedLead.qualityScore)}>
                           {selectedLead.qualityScore || "N/A"}
                         </Badge>
                       </div>
@@ -575,38 +607,40 @@ export default function PipelineBoardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Status:</span>
-                        <Badge variant={selectedLead.status === "available" ? "default" : "secondary"}>
+                        <Badge className={selectedLead.status === "available" ? "badge-emerald" : "badge-royal"}>
                           {selectedLead.status}
                         </Badge>
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4" />
-                      Tasks
-                    </h3>
-                    <div className="space-y-2">
+                <div className="space-y-6">
+                  <Card className="card-kingdom">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        <CheckCircle className="w-5 h-5 text-primary" />
+                        Tasks
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
                       {leadTasks.length > 0 ? (
                         leadTasks.slice(0, 3).map((task) => (
-                          <div key={task.id} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded">
+                          <div key={task.id} className="flex items-center gap-2 text-sm p-3 bg-muted/30 rounded-lg border">
                             <span className={task.status === "completed" ? "line-through text-muted-foreground" : ""}>
                               {task.title}
                             </span>
                             {task.dueDate && (
-                              <Badge variant="outline" className="ml-auto text-xs">
+                              <Badge className="badge-gold ml-auto text-xs">
                                 {formatDate(task.dueDate)}
                               </Badge>
                             )}
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-muted-foreground">No tasks yet</p>
+                        <p className="text-sm text-muted-foreground italic">No tasks yet</p>
                       )}
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2 mt-3">
                         <Input
                           placeholder="New task..."
                           value={newTaskTitle}
@@ -633,31 +667,34 @@ export default function PipelineBoardPage() {
                             }
                           }}
                           disabled={!newTaskTitle}
+                          className="btn-kingdom"
                           data-testid="button-add-task"
                         >
                           Add
                         </Button>
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
 
-                  <div>
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      <Edit className="w-4 h-4" />
-                      Notes
-                    </h3>
-                    <div className="space-y-2">
+                  <Card className="card-kingdom">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        <Edit className="w-5 h-5 text-primary" />
+                        Notes
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
                       {leadNotes.length > 0 ? (
                         leadNotes.slice(0, 3).map((note) => (
-                          <div key={note.id} className="text-sm p-2 bg-muted/50 rounded">
+                          <div key={note.id} className="text-sm p-3 bg-muted/30 rounded-lg border">
                             <p>{note.content}</p>
-                            <p className="text-xs text-muted-foreground mt-1">{formatDate(note.createdAt)}</p>
+                            <p className="text-xs text-muted-foreground mt-2">{formatDate(note.createdAt)}</p>
                           </div>
                         ))
                       ) : (
-                        <p className="text-sm text-muted-foreground">No notes yet</p>
+                        <p className="text-sm text-muted-foreground italic">No notes yet</p>
                       )}
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-2 mt-3">
                         <Textarea
                           placeholder="Add a note..."
                           value={newNote}
@@ -676,44 +713,51 @@ export default function PipelineBoardPage() {
                             }
                           }}
                           disabled={!newNote}
+                          className="btn-kingdom"
                           data-testid="button-add-note"
                         >
                           Add
                         </Button>
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
 
-                  <div>
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      Recent Activity
-                    </h3>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {leadActivities.length > 0 ? (
-                        leadActivities.slice(0, 5).map((activity) => (
-                          <div key={activity.id} className="flex items-start gap-2 text-sm">
-                            <div className="w-2 h-2 rounded-full bg-primary mt-1.5"></div>
-                            <div>
-                              <p>{activity.type}: {activity.description}</p>
-                              <p className="text-xs text-muted-foreground">{formatDate(activity.createdAt)}</p>
+                  <Card className="card-kingdom">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-lg flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-primary" />
+                        Recent Activity
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3 max-h-40 overflow-y-auto">
+                        {leadActivities.length > 0 ? (
+                          leadActivities.slice(0, 5).map((activity) => (
+                            <div key={activity.id} className="flex items-start gap-3 text-sm">
+                              <div className="w-2 h-2 rounded-full bg-primary mt-1.5 ring-4 ring-primary/20"></div>
+                              <div>
+                                <p className="font-medium">{activity.type}: {activity.description}</p>
+                                <p className="text-xs text-muted-foreground">{formatDate(activity.createdAt)}</p>
+                              </div>
                             </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">No activity yet</p>
-                      )}
-                    </div>
-                  </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic">No activity yet</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </div>
           )}
 
+          <div className="divider-elegant my-2" />
+
           <DialogFooter>
-            <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Move to:</span>
+            <div className="flex items-center justify-between w-full gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground font-serif">Move to:</span>
                 <Select
                   value={selectedLead?.pipelineStageId || "unassigned"}
                   onValueChange={(value) => {
@@ -724,7 +768,7 @@ export default function PipelineBoardPage() {
                     }
                   }}
                 >
-                  <SelectTrigger className="w-40" data-testid="select-pipeline-stage">
+                  <SelectTrigger className="w-44" data-testid="select-pipeline-stage">
                     <SelectValue placeholder="Select stage" />
                   </SelectTrigger>
                   <SelectContent>
@@ -743,7 +787,7 @@ export default function PipelineBoardPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" onClick={() => setShowLeadModal(false)}>
+              <Button variant="outline" onClick={() => setShowLeadModal(false)} data-testid="button-close-lead-modal">
                 Close
               </Button>
             </div>

@@ -377,11 +377,11 @@ export default function LeadsPage() {
   console.log("Component render - totalLeads:", totalLeads);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden animate-fade-in">
       {/* Filter Sidebar */}
       <div className="w-80 border-r bg-muted/20 flex flex-col">
         <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold flex items-center gap-2">
+          <h2 className="text-lg font-serif font-semibold flex items-center gap-2 text-gradient-royal">
             <Filter className="w-5 h-5" />
             Advanced Filters
           </h2>
@@ -417,7 +417,7 @@ export default function LeadsPage() {
               </div>
             </div>
 
-            <Separator />
+            <div className="divider-elegant" />
 
             {/* Saved Searches */}
             {Array.isArray(savedSearches) && savedSearches.length > 0 && (
@@ -445,7 +445,7 @@ export default function LeadsPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Separator />
+                <div className="divider-elegant" />
               </>
             )}
 
@@ -454,8 +454,9 @@ export default function LeadsPage() {
               <CollapsibleTrigger
                 onClick={() => toggleSection("basic")}
                 className="flex items-center justify-between w-full py-2 hover:bg-muted/50 rounded px-2"
+                data-testid="trigger-basic-filters"
               >
-                <span className="font-medium">Basic Filters</span>
+                <span className="font-serif font-medium">Basic Filters</span>
                 {expandedSections.has("basic") ? 
                   <ChevronUp className="w-4 h-4" /> : 
                   <ChevronDown className="w-4 h-4" />
@@ -539,8 +540,9 @@ export default function LeadsPage() {
               <CollapsibleTrigger
                 onClick={() => toggleSection("financial")}
                 className="flex items-center justify-between w-full py-2 hover:bg-muted/50 rounded px-2"
+                data-testid="trigger-financial-filters"
               >
-                <span className="font-medium">Financial</span>
+                <span className="font-serif font-medium">Financial</span>
                 {expandedSections.has("financial") ? 
                   <ChevronUp className="w-4 h-4" /> : 
                   <ChevronDown className="w-4 h-4" />
@@ -600,8 +602,9 @@ export default function LeadsPage() {
               <CollapsibleTrigger
                 onClick={() => toggleSection("business")}
                 className="flex items-center justify-between w-full py-2 hover:bg-muted/50 rounded px-2"
+                data-testid="trigger-business-filters"
               >
-                <span className="font-medium">Business</span>
+                <span className="font-serif font-medium">Business</span>
                 {expandedSections.has("business") ? 
                   <ChevronUp className="w-4 h-4" /> : 
                   <ChevronDown className="w-4 h-4" />
@@ -659,8 +662,9 @@ export default function LeadsPage() {
               <CollapsibleTrigger
                 onClick={() => toggleSection("status")}
                 className="flex items-center justify-between w-full py-2 hover:bg-muted/50 rounded px-2"
+                data-testid="trigger-status-filters"
               >
-                <span className="font-medium">Status</span>
+                <span className="font-serif font-medium">Data Quality</span>
                 {expandedSections.has("status") ? 
                   <ChevronUp className="w-4 h-4" /> : 
                   <ChevronDown className="w-4 h-4" />
@@ -847,8 +851,9 @@ export default function LeadsPage() {
               <CollapsibleTrigger
                 onClick={() => toggleSection("advanced")}
                 className="flex items-center justify-between w-full py-2 hover:bg-muted/50 rounded px-2"
+                data-testid="trigger-advanced-filters"
               >
-                <span className="font-medium">Advanced</span>
+                <span className="font-serif font-medium">Advanced</span>
                 {expandedSections.has("advanced") ? 
                   <ChevronUp className="w-4 h-4" /> : 
                   <ChevronDown className="w-4 h-4" />
@@ -907,12 +912,13 @@ export default function LeadsPage() {
           </div>
         </ScrollArea>
 
-        <div className="p-4 border-t space-y-2">
+        <div className="divider-elegant" />
+        <div className="p-4 space-y-2">
           <div className="flex gap-2">
             <Button
               onClick={() => setSaveDialogOpen(true)}
               disabled={Object.keys(filters).length === 0}
-              className="flex-1"
+              className="flex-1 btn-kingdom"
               data-testid="button-save-search"
             >
               <Save className="w-4 h-4 mr-2" />
@@ -935,10 +941,10 @@ export default function LeadsPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b bg-background">
-          <div className="flex items-center justify-between">
+        <div className="p-4 border-b bg-background animate-slide-down">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
+              <h1 className="text-2xl font-serif font-bold flex items-center gap-2 text-gradient-royal">
                 <Database className="w-6 h-6" />
                 Lead Discovery
               </h1>
@@ -968,11 +974,11 @@ export default function LeadsPage() {
               >
                 {sortOrder === "asc" ? "↑" : "↓"}
               </Button>
-              <Button variant="outline" onClick={() => refetchLeads()}>
+              <Button variant="outline" onClick={() => refetchLeads()} data-testid="button-refresh-leads">
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Refresh
               </Button>
-              <Button>
+              <Button className="btn-kingdom" data-testid="button-export-leads">
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
@@ -1002,7 +1008,7 @@ export default function LeadsPage() {
           ) : leadsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
-                <Card key={i}>
+                <Card key={i} className="card-kingdom animate-pulse" style={{ animationDelay: `${i * 100}ms` }}>
                   <CardHeader>
                     <Skeleton className="h-4 w-3/4" />
                     <Skeleton className="h-3 w-1/2 mt-2" />
@@ -1030,9 +1036,9 @@ export default function LeadsPage() {
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="leads-list">
-              {leads.map((lead: any) => (
-                <Card key={lead.id} className="hover-elevate relative overflow-hidden" data-testid="lead-card">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-slide-up" data-testid="leads-list">
+              {leads.map((lead: any, index: number) => (
+                <Card key={lead.id} className="card-kingdom hover-lift relative overflow-visible" data-testid={`card-lead-${lead.id}`} style={{ animationDelay: `${index * 50}ms` }}>
                   {lead.intelligenceScore > 0 && (
                     <div className="absolute top-2 left-2 z-10">
                       <IntelligenceScoreBadge score={lead.intelligenceScore} />
@@ -1092,16 +1098,16 @@ export default function LeadsPage() {
                       </div>
 
                       <div className="flex flex-wrap gap-1 mt-2">
-                        <Badge variant="outline" className="text-xs">
+                        <Badge className="badge-royal text-xs">
                           {lead.exclusivityStatus}
                         </Badge>
                         {lead.previousMCAHistory !== "none" && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge className="badge-gold text-xs">
                             MCA History
                           </Badge>
                         )}
                         {lead.urgencyLevel === "immediate" && (
-                          <Badge variant="destructive" className="text-xs">
+                          <Badge className="badge-emerald text-xs animate-pulse">
                             Urgent
                           </Badge>
                         )}
@@ -1185,7 +1191,7 @@ export default function LeadsPage() {
                   <CardFooter className="pt-0">
                     <div className="flex gap-2 w-full">
                       <Button
-                        className="flex-1"
+                        className="flex-1 btn-kingdom"
                         size="sm"
                         disabled={lead.sold}
                         data-testid={`button-view-lead-${lead.id}`}
@@ -1201,7 +1207,7 @@ export default function LeadsPage() {
                           setSelectedLeadForUcc(lead);
                           setUccModalOpen(true);
                         }}
-                        data-testid="button-ucc-intelligence"
+                        data-testid={`button-ucc-intelligence-${lead.id}`}
                       >
                         <Shield className="w-4 h-4" />
                       </Button>
@@ -1281,9 +1287,9 @@ export default function LeadsPage() {
 
       {/* Save Search Dialog */}
       <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
-        <DialogContent>
+        <DialogContent className="animate-scale-in">
           <DialogHeader>
-            <DialogTitle>Save Current Search</DialogTitle>
+            <DialogTitle className="font-serif text-gradient-royal">Save Current Search</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
@@ -1325,6 +1331,7 @@ export default function LeadsPage() {
                 }
               }}
               disabled={!searchName || saveSearchMutation.isPending}
+              className="btn-kingdom"
               data-testid="button-confirm-save"
             >
               Save Search
@@ -1335,9 +1342,9 @@ export default function LeadsPage() {
 
       {/* ML Scoring Breakdown Modal */}
       <Dialog open={scoringModalOpen} onOpenChange={setScoringModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto animate-scale-in">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 font-serif text-gradient-royal">
               <Brain className="w-5 h-5 text-purple-600" />
               ML Scoring Analysis
             </DialogTitle>
@@ -1357,7 +1364,7 @@ export default function LeadsPage() {
               {scoringDetails ? (
                 <>
                   <div className="grid grid-cols-3 gap-4">
-                    <Card className="p-4">
+                    <Card className="card-kingdom p-4 hover-lift">
                       <div className="flex flex-col items-center">
                         <Brain className="w-8 h-8 text-purple-500 mb-2" />
                         <p className="text-xs text-muted-foreground">ML Score</p>
@@ -1366,7 +1373,7 @@ export default function LeadsPage() {
                         </p>
                       </div>
                     </Card>
-                    <Card className="p-4">
+                    <Card className="card-kingdom p-4 hover-lift">
                       <div className="flex flex-col items-center">
                         <Target className="w-8 h-8 text-green-500 mb-2" />
                         <p className="text-xs text-muted-foreground">Conversion</p>
@@ -1377,7 +1384,7 @@ export default function LeadsPage() {
                         </p>
                       </div>
                     </Card>
-                    <Card className="p-4">
+                    <Card className="card-kingdom p-4 hover-lift">
                       <div className="flex flex-col items-center">
                         <DollarSign className="w-8 h-8 text-blue-500 mb-2" />
                         <p className="text-xs text-muted-foreground">Expected Deal</p>
@@ -1392,8 +1399,8 @@ export default function LeadsPage() {
 
                   {/* Scoring Factors Breakdown */}
                   {scoringDetails.scoringFactors && (
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Card className="card-kingdom p-4">
+                      <h4 className="font-serif font-semibold mb-3 flex items-center gap-2">
                         <Info className="w-4 h-4" />
                         Scoring Factors Breakdown
                       </h4>
@@ -1454,8 +1461,8 @@ export default function LeadsPage() {
 
                   {/* Similar Leads Comparison */}
                   {scoringDetails.scoringFactors?.marketComparison && (
-                    <Card className="p-4">
-                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Card className="card-kingdom p-4">
+                      <h4 className="font-serif font-semibold mb-3 flex items-center gap-2">
                         <TrendingUp className="w-4 h-4" />
                         Market Comparison
                       </h4>
@@ -1491,9 +1498,9 @@ export default function LeadsPage() {
 
       {/* UCC Intelligence Modal */}
       <Dialog open={uccModalOpen} onOpenChange={setUccModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto animate-scale-in">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2 font-serif text-gradient-royal">
               <Shield className="w-5 h-5 text-primary" />
               UCC Intelligence Analysis
             </DialogTitle>

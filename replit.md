@@ -82,7 +82,10 @@ Super admin control center for AI Brain and analytics:
 
 ### UI/UX Decisions
 - Streamlined 6-page interface for core functionality.
-- Professional blue primary color with green accents.
+- **Kingdom Theme**: Elegant forest green (#2d6a4f) and golden amber color palette.
+- **Typography**: Playfair Display serif for headings, Inter for body text.
+- **Premium Effects**: 20+ CSS utilities including `text-gradient-royal`, `card-kingdom`, `btn-kingdom`, `badge-gold/emerald/royal`, `glow-crown`, `hover-lift`, `divider-elegant`, shimmer animations.
+- **Dark Mode**: Full support with proper color variants across all components.
 - Enhanced Admin Panel with 8 tabs for comprehensive management (Upload, Analytics, User, Lead, Customers, Activity, Settings, UCC).
 - Visual indicators for lead quality, UCC risk, and verification status.
 - Kanban-style Pipeline Board for CRM.
