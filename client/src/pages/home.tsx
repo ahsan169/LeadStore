@@ -603,21 +603,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats Section with Animated Counters */}
-      <section className="py-16 bg-gradient-to-b from-muted/20 to-background">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <AnimatedStats 
-            stats={[
-              { label: "Active Buyers", value: 5847, icon: Users },
-              { label: "Leads Delivered", value: 250000, suffix: "+", icon: Download },
-              { label: "Success Rate", value: 94, suffix: "%", icon: TrendingUp },
-              { label: "Years Experience", value: 10, suffix: "+", icon: Award },
-            ]}
-            className="grid-cols-2 md:grid-cols-4"
-          />
-        </div>
-      </section>
-
       {/* Elegant Divider */}
       <div className="divider-elegant w-full"></div>
 
