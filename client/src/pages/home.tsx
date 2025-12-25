@@ -89,14 +89,14 @@ const PRICING_TIERS = [
 
 const FEATURES = [
   {
-    icon: Users,
-    title: "Human-Sourced & Verified",
-    description: "Every lead is sourced by our expert team, not scraped or auto-generated. Real businesses manually verified for authenticity.",
+    icon: Target,
+    title: "Fresh UCC Data Daily",
+    description: "We pull fresh leads from state UCC filings every day. You get businesses that recently took on financing - prime MCA prospects.",
   },
   {
     icon: Brain,
-    title: "Hand-Selected + AI Enhanced",
-    description: "Our team hand-picks quality leads, then AI analyzes 50+ data points to provide transparent 0-100 quality scores.",
+    title: "AI-Scored 0-100",
+    description: "Every lead gets a simple quality score from 0-100. Higher scores mean better prospects. No guesswork needed.",
   },
   {
     icon: Shield,
@@ -104,42 +104,42 @@ const FEATURES = [
     description: "All leads have provided express written consent for MCA contact. Full compliance documentation available.",
   },
   {
-    icon: FileCheck,
-    title: "Expert Quality Control",
-    description: "Human reviewers validate every batch before release. Advanced deduplication ensures you never buy the same lead twice.",
+    icon: Users,
+    title: "Multi-State Coverage",
+    description: "We source leads from Colorado and Florida UCC filings, with more states coming soon. Expand your reach nationwide.",
   },
   {
     icon: Zap,
-    title: "Instant Secure Delivery",
-    description: "Download your hand-selected leads immediately after purchase. Secure links remain active for 24 hours.",
+    title: "Instant CSV Download",
+    description: "Download your leads immediately after purchase in CSV format. Import directly into your CRM and start calling.",
   },
   {
-    icon: Target,
-    title: "Curated for Conversion",
-    description: "Our team focuses on businesses with genuine funding needs, not just contact lists. Quality over quantity.",
+    icon: DollarSign,
+    title: "Simple Tier Pricing",
+    description: "Pick your tier, pay once, get leads. No subscriptions, no hidden fees. Gold, Platinum, Diamond, or Elite - you choose.",
   },
 ];
 
 const TRUST_BADGES = [
   {
-    icon: Users,
-    title: "Human-Sourced",
-    description: "Expert Team",
+    icon: Target,
+    title: "Fresh Daily",
+    description: "New UCC Data",
   },
   {
     icon: Shield,
     title: "TCPA Compliant",
-    description: "100% Verified",
+    description: "100% Legal",
   },
   {
     icon: Brain,
-    title: "AI-Enhanced",
-    description: "Smart Scoring",
+    title: "AI Scored",
+    description: "0-100 Rating",
   },
   {
     icon: Lock,
-    title: "Secure Payments",
-    description: "Stripe Powered",
+    title: "Secure",
+    description: "Stripe Payments",
   },
 ];
 
@@ -166,40 +166,36 @@ const HOW_IT_WORKS = [
 
 const FAQS = [
   {
-    question: "How are your leads sourced?",
-    answer: "All our leads are human-sourced by our expert team of MCA specialists. We manually identify and verify real businesses with genuine funding needs. Once hand-selected, each lead is enhanced with our AI scoring system that analyzes 50+ data points to provide a transparent 0-100 quality score.",
+    question: "Where do the leads come from?",
+    answer: "We pull leads daily from state UCC filings in Colorado and Florida. These are real businesses that recently took on financing - which means they're familiar with alternative funding and may need more.",
   },
   {
     question: "What is the quality score?",
-    answer: "After our team hand-selects each lead, our AI enhancement system evaluates them based on 50+ factors including business age, revenue indicators, credit signals, and funding history. The 0-100 score helps you prioritize leads, but remember - every lead has been pre-qualified by human experts first.",
+    answer: "Every lead gets a score from 0-100 based on factors like filing recency, lender type, and business data completeness. Higher scores mean better prospects. Gold tier is 60-79, Platinum is 70-89, Diamond is 80-100, Elite is 85-100.",
   },
   {
     question: "Are leads TCPA compliant?",
-    answer: "Yes, 100%. All our leads have provided express written consent to be contacted regarding Merchant Cash Advance offers. We maintain strict compliance with TCPA regulations and keep detailed consent records.",
+    answer: "Yes, 100%. All leads have provided express written consent to be contacted regarding MCA offers. We maintain strict compliance with TCPA regulations.",
   },
   {
     question: "How quickly do I get my leads?",
-    answer: "Instantly! As soon as your payment is processed, you'll receive a secure download link to access your leads in CSV format. There's no waiting period - you can start calling immediately.",
+    answer: "Instantly! Pay with Stripe, download your CSV, and start calling. No waiting period.",
   },
   {
     question: "Can I get duplicates?",
-    answer: "No. Our advanced deduplication system ensures that each lead is unique to you. Once you purchase a lead, it's marked as sold and won't be included in future batches for any customer.",
+    answer: "No. Once you purchase a lead, it's marked as sold and won't be included in future batches.",
+  },
+  {
+    question: "What format are the leads in?",
+    answer: "CSV format with business name, contact info, filing details, and quality score. Import directly into any CRM.",
   },
   {
     question: "What payment methods do you accept?",
-    answer: "We accept all major credit cards (Visa, Mastercard, American Express, Discover) through our secure Stripe payment processing system. All transactions are encrypted and PCI compliant.",
-  },
-  {
-    question: "How long is the download link valid?",
-    answer: "Your secure download link remains active for 24 hours from the time of purchase. This gives you flexibility to download your leads at your convenience while maintaining security.",
+    answer: "All major credit cards through Stripe. Secure, encrypted, PCI compliant.",
   },
   {
     question: "What's your refund policy?",
-    answer: "Due to the digital nature of our product and instant delivery, all sales are final. However, if you encounter any technical issues or quality concerns, please contact our support team within 48 hours and we'll work to resolve the issue.",
-  },
-  {
-    question: "How are leads distributed?",
-    answer: "Leads are allocated based on tier and quality score. Gold tier gets 60-79 scores, Platinum 70-89, Diamond 80-100, and Elite gets premium 85-100 scores. Each tier ensures you get the quality level you're paying for.",
+    answer: "All sales are final due to instant digital delivery. Contact support within 48 hours if you have quality concerns.",
   },
 ];
 
@@ -376,12 +372,11 @@ export default function Home() {
             </div>
             
             <p className="text-2xl md:text-3xl font-semibold text-foreground animate-slide-down animate-delay-100">
-              Human-Sourced Leads Enhanced with AI Intelligence
+              Fresh MCA Leads from State UCC Filings
             </p>
             
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed animate-slide-up animate-delay-200">
-              Premium human-sourced MCA leads, hand-selected by our expert team and enhanced with AI scoring. 
-              Real businesses, verified data, TCPA compliant, and ready to convert.
+              We pull fresh leads daily from Colorado and Florida UCC records. Businesses that recently took financing are prime MCA prospects. AI-scored 0-100, TCPA compliant, instant CSV download.
             </p>
           </div>
 
@@ -573,10 +568,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
             <h2 className="text-4xl md:text-5xl font-bold font-serif" data-testid="heading-features">
-              <span className="text-gradient-royal">Human Expertise</span> Meets <span className="text-gradient-royal">AI Intelligence</span>
+              <span className="text-gradient-royal">Why Land of Leads?</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              Every lead is hand-selected by MCA experts, then enhanced with advanced AI scoring
+              Fresh UCC data, AI scoring, instant delivery - everything you need to close more deals
             </p>
             <div className="flex items-center justify-center gap-2 text-primary/60 pt-2">
               <div className="h-px bg-primary/20 w-16"></div>
@@ -973,10 +968,10 @@ export default function Home() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-foreground font-serif" data-testid="heading-contact">
-              <span className="text-gradient-royal">Get in Touch with Land of Leads</span>
+              <span className="text-gradient-royal">Have Questions?</span>
             </h2>
             <p className="text-xl text-muted-foreground">
-              Have questions? We're here to help you explore your kingdom
+              We're here to help - reach out and we'll get back to you within 24 hours
             </p>
           </div>
 

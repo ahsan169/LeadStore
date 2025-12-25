@@ -139,3 +139,19 @@ Super admin control center for AI Brain and analytics:
 - Created My Leads page (client/src/pages/my-leads.tsx) for buyer workspace with activity tracking
 - Created God Mode page (client/src/pages/god-mode.tsx) for super_admin with analytics and brain settings
 - Wired up Stripe webhook to create leadAssignments when purchases complete
+
+### Lead Generation Pipelines (Latest)
+- Created Colorado UCC pipeline (server/pipelines/colorado-ucc-pipeline.ts) - pulls data from Colorado SOS via Socrata API
+- Created Florida pipeline (server/pipelines/florida-pipeline.ts) - pulls data from Florida Sunbiz/SFTP
+- Created pipeline API routes (server/routes/pipeline-routes.ts) - endpoints to run/monitor pipelines
+- Registered pipeline routes at /api/pipelines in server/routes.ts
+- Environment variable SOCRATA_APP_TOKEN configured for Colorado public data access
+
+### Home Page Content Simplification (Latest)
+- Updated hero section to emphasize "Fresh MCA Leads from State UCC Filings"
+- Simplified FEATURES content: "Fresh UCC Data Daily" (Colorado/Florida), "AI-Powered Scoring" (0-100), "Pay Per Lead"
+- Updated trust badges: "Fresh Daily", "TCPA Compliant", "AI Scored", "Secure"
+- Simplified FAQs to 8 questions focused on UCC data sourcing, scoring, and purchasing
+- Updated Features section heading to "Why Land of Leads?"
+- Updated Contact section heading to "Have Questions?"
+- Removed references to "enrichment" and "validation" from UI (backend routes remain)

@@ -75,6 +75,7 @@ import { registerCrmRoutes } from "./routes/crm-routes";
 import multiTenantRoutes from "./routes/multi-tenant";
 import buyerFeedbackRoutes from "./routes/buyer-feedback";
 import godModeRoutes from "./routes/god-mode";
+import pipelineRoutes from "./routes/pipeline-routes";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-09-30.clover",
@@ -1175,6 +1176,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // God Mode admin portal routes
   app.use(godModeRoutes);
+  
+  // Lead generation pipeline routes
+  app.use('/api/pipelines', pipelineRoutes);
   
   // Register CRM routes
   registerCrmRoutes(app);
