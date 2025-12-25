@@ -341,9 +341,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        {/* Professional gradient background */}
-        <div className="absolute inset-0 gradient-hero"></div>
+      <section className="relative overflow-hidden bg-hero-kingdom">
+        {/* Kingdom-themed gradient background */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-secondary/3 to-accent/2"></div>
         
         {/* Wave pattern overlay */}
@@ -366,10 +365,8 @@ export default function Home() {
             </div>
             
             <div className="space-y-4">
-              <h1 className="text-5xl md:text-7xl font-bold tracking-tight animate-fade-in font-serif" data-testid="heading-hero">
-                <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-600 bg-clip-text text-transparent">Land</span>
-                <span className="text-muted-foreground mx-2">of</span>
-                <span className="bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 bg-clip-text text-transparent">Leads</span>
+              <h1 className="text-5xl md:text-7xl font-bold tracking-tight animate-fade-in font-serif text-gradient-royal" data-testid="heading-hero">
+                Land of Leads
               </h1>
               <div className="flex items-center justify-center gap-3 text-primary/80">
                 <Compass className="w-6 h-6" />
@@ -406,12 +403,12 @@ export default function Home() {
           {/* Trust Badges */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
             {TRUST_BADGES.map((badge, index) => (
-              <Card key={index} className={`text-center glass border-primary/10 hover-lift animate-scale-in ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`} data-testid={`trust-badge-${index}`}>
+              <Card key={index} className={`text-center card-kingdom hover-lift animate-scale-in ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`} data-testid={`trust-badge-${index}`}>
                 <CardContent className="pt-6 pb-4">
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
                     <badge.icon className="w-6 h-6 text-primary" />
                   </div>
-                  <div className="font-semibold text-sm">{badge.title}</div>
+                  <div className="font-semibold text-sm font-serif">{badge.title}</div>
                   <div className="text-xs text-muted-foreground">{badge.description}</div>
                 </CardContent>
               </Card>
@@ -556,6 +553,7 @@ export default function Home() {
             <div className="text-center space-y-4">
               <Button 
                 size="lg"
+                className="btn-kingdom"
                 onClick={() => setLocation("/dashboard")}
                 data-testid="button-go-to-dashboard"
               >
@@ -567,16 +565,19 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
       {/* Hot Leads Section - Urgency Feature */}
-      <section className="py-16 bg-gradient-to-r from-red-500/5 to-orange-500/5">
+      <section className="py-16 bg-gradient-to-r from-red-500/5 to-orange-500/5 animate-fade-in">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <div className="flex justify-center items-center gap-2 mb-4">
               <div className="p-2 bg-red-500/20 rounded-full animate-pulse">
                 <Flame className="w-8 h-8 text-red-500" />
               </div>
-              <h2 className="text-4xl font-bold">
-                <span className="text-gradient">Hot Leads</span>
+              <h2 className="text-4xl font-bold font-serif">
+                <span className="text-gradient-royal">Hot Leads</span>
               </h2>
               <div className="p-2 bg-red-500/20 rounded-full animate-pulse">
                 <Flame className="w-8 h-8 text-red-500" />
@@ -589,9 +590,9 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Hot Lead Card 1 */}
-            <Card className="relative overflow-hidden border-red-500/20 bg-gradient-to-br from-red-500/5 to-transparent hover-lift">
+            <Card className="relative overflow-hidden card-kingdom border-red-500/20 hover-lift">
               <div className="absolute top-3 right-3">
-                <Badge className="bg-red-500 text-white animate-pulse">
+                <Badge className="badge-gold animate-pulse">
                   NEW TODAY
                 </Badge>
               </div>
@@ -632,9 +633,9 @@ export default function Home() {
             </Card>
 
             {/* Hot Lead Card 2 */}
-            <Card className="relative overflow-hidden border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-transparent hover-lift">
+            <Card className="relative overflow-hidden card-kingdom border-orange-500/20 hover-lift">
               <div className="absolute top-3 right-3">
-                <Badge className="bg-orange-500 text-white">
+                <Badge className="badge-emerald">
                   LIMITED TIME
                 </Badge>
               </div>
@@ -675,9 +676,9 @@ export default function Home() {
             </Card>
 
             {/* Hot Lead Card 3 */}
-            <Card className="relative overflow-hidden border-green-500/20 bg-gradient-to-br from-green-500/5 to-transparent hover-lift">
+            <Card className="relative overflow-hidden card-kingdom border-green-500/20 hover-lift">
               <div className="absolute top-3 right-3">
-                <Badge className="bg-green-500 text-white">
+                <Badge className="badge-emerald">
                   FRESH
                 </Badge>
               </div>
@@ -732,12 +733,15 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
       {/* Features Section */}
       <section className="py-24 bg-gradient-to-b from-background via-muted/20 to-background">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
-            <h2 className="text-4xl md:text-5xl font-bold" data-testid="heading-features">
-              <span className="text-gradient">Human Expertise</span> Meets <span className="text-gradient">AI Intelligence</span>
+            <h2 className="text-4xl md:text-5xl font-bold font-serif" data-testid="heading-features">
+              <span className="text-gradient-royal">Human Expertise</span> Meets <span className="text-gradient-royal">AI Intelligence</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
               Every lead is hand-selected by MCA experts, then enhanced with advanced AI scoring
@@ -751,12 +755,12 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {FEATURES.map((feature, index) => (
-              <Card key={index} className={`group card-hover border-primary/10 shadow-lg transition-all duration-300 animate-slide-up ${index < 3 ? `animate-delay-${(index + 1) * 100}` : index < 5 ? 'animate-delay-400' : 'animate-delay-500'}`} data-testid={`feature-${index}`}>
+              <Card key={index} className={`group card-kingdom shadow-lg transition-all duration-300 animate-slide-up ${index < 3 ? `animate-delay-${(index + 1) * 100}` : index < 5 ? 'animate-delay-400' : 'animate-delay-500'}`} data-testid={`feature-${index}`}>
                 <CardHeader className="pb-4">
                   <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
                     <feature.icon className="w-7 h-7 text-primary" />
                   </div>
-                  <CardTitle className="text-xl font-semibold">{feature.title}</CardTitle>
+                  <CardTitle className="text-xl font-semibold font-serif">{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
@@ -782,13 +786,16 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
       {/* How It Works */}
       <section className="py-24 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
-            <h2 className="text-4xl md:text-5xl font-bold" data-testid="heading-how-it-works">
-              How It <span className="text-gradient">Works</span>
+            <h2 className="text-4xl md:text-5xl font-bold font-serif" data-testid="heading-how-it-works">
+              How It <span className="text-gradient-royal">Works</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Get started with premium leads in three simple steps
@@ -803,17 +810,17 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
             {HOW_IT_WORKS.map((step, index) => (
               <div key={index} className={`relative animate-scale-in ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : 'animate-delay-300'}`} data-testid={`step-${step.step}`}>
-                <Card className="h-full hover-lift border-0 shadow-xl bg-gradient-to-br from-card via-card to-card/80">
+                <Card className="h-full card-kingdom hover-lift border-0 shadow-xl">
                   <CardHeader>
                     <div className="flex items-center gap-4 mb-4">
-                      <div className="flex items-center justify-center w-14 h-14 rounded-2xl gradient-primary text-primary-foreground font-bold text-xl shadow-lg">
+                      <div className="flex items-center justify-center w-14 h-14 rounded-2xl btn-kingdom text-white font-bold text-xl shadow-lg font-serif">
                         {step.step}
                       </div>
                       <div className="p-3 rounded-xl bg-gradient-to-br from-primary/10 to-secondary/10">
                         <step.icon className="w-6 h-6 text-primary" />
                       </div>
                     </div>
-                    <CardTitle className="text-xl font-semibold">{step.title}</CardTitle>
+                    <CardTitle className="text-xl font-semibold font-serif">{step.title}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground leading-relaxed">{step.description}</p>
@@ -832,8 +839,11 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
       {/* ROI Calculator Section */}
-      <section className="py-20 bg-muted/30 border-b">
+      <section className="py-20 bg-muted/30 border-b animate-fade-in">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
             <div className="flex justify-center mb-4">
@@ -841,17 +851,17 @@ export default function Home() {
                 <Calculator className="w-10 h-10 text-primary" />
               </div>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-roi-calculator">
-              ROI Calculator
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground font-serif" data-testid="heading-roi-calculator">
+              <span className="text-gradient-royal">ROI Calculator</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Calculate your potential return on investment with MCA leads
             </p>
           </div>
 
-          <Card className="max-w-4xl mx-auto animate-slide-up animate-delay-200">
+          <Card className="max-w-4xl mx-auto card-kingdom animate-slide-up animate-delay-200">
             <CardHeader>
-              <CardTitle className="text-2xl flex items-center gap-2">
+              <CardTitle className="text-2xl flex items-center gap-2 font-serif">
                 <PieChart className="w-6 h-6 text-primary" />
                 MCA Lead ROI Calculator
               </CardTitle>
@@ -1030,7 +1040,7 @@ export default function Home() {
               </Alert>
             </CardContent>
             <CardFooter className="flex justify-center">
-              <Button size="lg" onClick={() => setLocation(user ? "/purchase" : "/auth")}>
+              <Button size="lg" className="btn-gold" onClick={() => setLocation(user ? "/purchase" : "/auth")}>
                 {user ? "Start Purchasing Leads" : "Sign Up to Get Started"}
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
@@ -1039,12 +1049,15 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
       {/* Pricing Preview */}
-      <section className="py-20 border-b">
+      <section className="py-20 border-b animate-fade-in">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-pricing-preview">
-              Simple, Transparent Pricing
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground font-serif" data-testid="heading-pricing-preview">
+              <span className="text-gradient-royal">Simple, Transparent Pricing</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
               Choose the tier that fits your business needs
@@ -1055,16 +1068,16 @@ export default function Home() {
             {PRICING_TIERS.map((tier, index) => (
               <Card 
                 key={index} 
-                className={`relative hover-elevate transition-smooth animate-scale-in ${tier.popular ? 'border-primary' : ''} ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`}
+                className={`relative card-kingdom hover-elevate transition-smooth animate-scale-in ${tier.popular ? 'tier-highlight' : ''} ${index === 0 ? 'animate-delay-100' : index === 1 ? 'animate-delay-200' : index === 2 ? 'animate-delay-300' : 'animate-delay-400'}`}
                 data-testid={`pricing-tier-${tier.tier}`}
               >
                 {tier.popular && (
                   <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                    <Badge className="bg-primary text-primary-foreground">Most Popular</Badge>
+                    <Badge className="badge-gold">Most Popular</Badge>
                   </div>
                 )}
                 <CardHeader>
-                  <CardTitle className="text-2xl">{tier.name}</CardTitle>
+                  <CardTitle className="text-2xl font-serif">{tier.name}</CardTitle>
                   <CardDescription>{tier.leadCount}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1075,8 +1088,7 @@ export default function Home() {
                 </CardContent>
                 <CardFooter>
                   <Button 
-                    className="w-full"
-                    variant={tier.popular ? "default" : "outline"}
+                    className={`w-full ${tier.popular ? 'btn-kingdom' : 'btn-gold'}`}
                     onClick={() => setLocation(tier.tier === "elite" ? "/pricing" : `/purchase/${tier.tier}`)}
                     data-testid={`button-select-${tier.tier}`}
                   >
@@ -1090,7 +1102,7 @@ export default function Home() {
           <div className="text-center">
             <Button 
               size="lg"
-              variant="outline"
+              className="btn-kingdom"
               onClick={() => setLocation("/pricing")}
               data-testid="button-view-full-pricing"
             >
@@ -1101,12 +1113,15 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
       {/* FAQ Section */}
-      <section className="py-20 bg-muted/30 border-b">
+      <section className="py-20 bg-muted/30 border-b animate-fade-in">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-16 animate-fade-in">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-faq">
-              Frequently Asked Questions
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground font-serif" data-testid="heading-faq">
+              <span className="text-gradient-royal">Frequently Asked Questions</span>
             </h2>
             <p className="text-xl text-muted-foreground">
               Everything you need to know about our MCA leads
@@ -1118,10 +1133,10 @@ export default function Home() {
               <AccordionItem 
                 key={index} 
                 value={`item-${index}`}
-                className="bg-background border rounded-lg px-6 transition-smooth hover-elevate"
+                className="bg-background border rounded-lg px-6 transition-smooth card-kingdom"
                 data-testid={`faq-${index}`}
               >
-                <AccordionTrigger className="text-left font-semibold hover:no-underline">
+                <AccordionTrigger className="text-left font-semibold font-serif hover:no-underline">
                   {faq.question}
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground">
@@ -1133,21 +1148,24 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
       {/* Contact Form Section */}
-      <section className="py-20 border-b">
+      <section className="py-20 border-b animate-fade-in">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground" data-testid="heading-contact">
-              Get in Touch with Land of Leads
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground font-serif" data-testid="heading-contact">
+              <span className="text-gradient-royal">Get in Touch with Land of Leads</span>
             </h2>
             <p className="text-xl text-muted-foreground">
               Have questions? We're here to help you explore your kingdom
             </p>
           </div>
 
-          <Card>
+          <Card className="card-kingdom">
             <CardHeader>
-              <CardTitle>Contact Us</CardTitle>
+              <CardTitle className="font-serif">Contact Us</CardTitle>
               <CardDescription>
                 Fill out the form below and we'll get back to you within 24 hours
               </CardDescription>
@@ -1234,7 +1252,7 @@ export default function Home() {
 
                   <Button 
                     type="submit" 
-                    className="w-full"
+                    className="w-full btn-kingdom"
                     disabled={contactMutation.isPending}
                     data-testid="button-contact-submit"
                   >
@@ -1247,15 +1265,18 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
       {/* Compliance & Footer */}
-      <section className="py-16 border-b bg-background">
+      <section className="py-16 border-b bg-background animate-fade-in">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-            <Card>
+            <Card className="card-kingdom">
               <CardHeader>
                 <div className="flex items-center gap-2 mb-2">
                   <Shield className="w-5 h-5 text-primary" />
-                  <CardTitle className="text-lg">TCPA Compliance</CardTitle>
+                  <CardTitle className="text-lg font-serif">TCPA Compliance</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1266,11 +1287,11 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="card-kingdom">
               <CardHeader>
                 <div className="flex items-center gap-2 mb-2">
                   <Mail className="w-5 h-5 text-primary" />
-                  <CardTitle className="text-lg">CAN-SPAM Compliance</CardTitle>
+                  <CardTitle className="text-lg font-serif">CAN-SPAM Compliance</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1281,11 +1302,11 @@ export default function Home() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="card-kingdom">
               <CardHeader>
                 <div className="flex items-center gap-2 mb-2">
                   <FileCheck className="w-5 h-5 text-primary" />
-                  <CardTitle className="text-lg">Data Usage Terms</CardTitle>
+                  <CardTitle className="text-lg font-serif">Data Usage Terms</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
