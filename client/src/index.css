@@ -1152,4 +1152,245 @@
     color: rgb(239, 68, 68);
   }
 
+  /* Kingdom-Inspired Premium Utilities */
+  
+  /* Royal Gradient Text */
+  .text-gradient-royal {
+    background: linear-gradient(135deg, hsl(160 60% 30%) 0%, hsl(45 85% 45%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .dark .text-gradient-royal {
+    background: linear-gradient(135deg, hsl(160 55% 50%) 0%, hsl(45 75% 55%) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* Royal Crown Glow */
+  .glow-crown {
+    box-shadow: 0 0 20px -5px hsl(45 85% 55% / 0.5), 0 0 40px -10px hsl(160 60% 40% / 0.3);
+  }
+  
+  .dark .glow-crown {
+    box-shadow: 0 0 25px -5px hsl(45 75% 55% / 0.6), 0 0 50px -10px hsl(160 55% 50% / 0.4);
+  }
+  
+  /* Kingdom Card with Subtle Border Glow */
+  .card-kingdom {
+    position: relative;
+    background: linear-gradient(145deg, hsl(var(--card)) 0%, hsl(45 20% 98%) 100%);
+    border: 1px solid hsl(160 30% 80% / 0.5);
+    box-shadow: 
+      0 1px 2px hsl(160 30% 30% / 0.02),
+      0 4px 12px hsl(160 30% 30% / 0.04),
+      inset 0 1px 0 hsl(45 50% 95% / 0.5);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .card-kingdom:hover {
+    border-color: hsl(160 40% 60% / 0.6);
+    box-shadow: 
+      0 2px 4px hsl(160 30% 30% / 0.04),
+      0 8px 24px hsl(160 30% 30% / 0.08),
+      0 0 0 1px hsl(45 70% 70% / 0.1),
+      inset 0 1px 0 hsl(45 50% 95% / 0.5);
+    transform: translateY(-2px);
+  }
+  
+  .dark .card-kingdom {
+    background: linear-gradient(145deg, hsl(var(--card)) 0%, hsl(150 25% 10%) 100%);
+    border-color: hsl(160 30% 25% / 0.5);
+    box-shadow: 
+      0 1px 2px hsl(0 0% 0% / 0.2),
+      0 4px 12px hsl(0 0% 0% / 0.3),
+      inset 0 1px 0 hsl(45 30% 30% / 0.1);
+  }
+  
+  .dark .card-kingdom:hover {
+    border-color: hsl(160 40% 40% / 0.6);
+    box-shadow: 
+      0 2px 4px hsl(0 0% 0% / 0.3),
+      0 8px 24px hsl(0 0% 0% / 0.4),
+      0 0 20px hsl(45 60% 50% / 0.1),
+      inset 0 1px 0 hsl(45 30% 30% / 0.1);
+  }
+  
+  /* Royal Hero Background */
+  .bg-hero-kingdom {
+    background: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(160 60% 30% / 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 40% at 80% 20%, hsl(45 85% 55% / 0.1) 0%, transparent 40%),
+      linear-gradient(180deg, hsl(45 30% 98%) 0%, hsl(var(--background)) 100%);
+  }
+  
+  .dark .bg-hero-kingdom {
+    background: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(160 55% 45% / 0.2) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 40% at 80% 20%, hsl(45 75% 55% / 0.15) 0%, transparent 40%),
+      linear-gradient(180deg, hsl(150 30% 8%) 0%, hsl(var(--background)) 100%);
+  }
+  
+  /* Elegant Divider */
+  .divider-elegant {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, hsl(160 40% 60% / 0.4) 20%, hsl(45 70% 60% / 0.6) 50%, hsl(160 40% 60% / 0.4) 80%, transparent 100%);
+  }
+  
+  .dark .divider-elegant {
+    background: linear-gradient(90deg, transparent 0%, hsl(160 40% 40% / 0.4) 20%, hsl(45 60% 50% / 0.5) 50%, hsl(160 40% 40% / 0.4) 80%, transparent 100%);
+  }
+  
+  /* Kingdom Badge Variants */
+  .badge-gold {
+    background: linear-gradient(135deg, hsl(45 90% 55%) 0%, hsl(35 85% 50%) 100%);
+    color: hsl(45 40% 15%);
+    border: 1px solid hsl(45 80% 45% / 0.5);
+    box-shadow: 0 2px 8px hsl(45 80% 50% / 0.3);
+  }
+  
+  .badge-emerald {
+    background: linear-gradient(135deg, hsl(160 60% 35%) 0%, hsl(155 55% 30%) 100%);
+    color: hsl(0 0% 100%);
+    border: 1px solid hsl(160 50% 30% / 0.5);
+    box-shadow: 0 2px 8px hsl(160 60% 35% / 0.3);
+  }
+  
+  .badge-royal {
+    background: linear-gradient(135deg, hsl(270 50% 45%) 0%, hsl(280 45% 40%) 100%);
+    color: hsl(0 0% 100%);
+    border: 1px solid hsl(270 40% 35% / 0.5);
+    box-shadow: 0 2px 8px hsl(270 50% 45% / 0.3);
+  }
+  
+  /* Elegant Input Focus */
+  .input-elegant:focus {
+    border-color: hsl(160 50% 50%);
+    box-shadow: 0 0 0 3px hsl(160 50% 50% / 0.15), 0 0 0 1px hsl(160 50% 50% / 0.3);
+    outline: none;
+  }
+  
+  .dark .input-elegant:focus {
+    border-color: hsl(160 45% 55%);
+    box-shadow: 0 0 0 3px hsl(160 45% 55% / 0.2), 0 0 0 1px hsl(160 45% 55% / 0.4);
+  }
+  
+  /* Premium Button Glow on Hover */
+  .btn-kingdom {
+    background: linear-gradient(135deg, hsl(160 60% 32%) 0%, hsl(160 55% 28%) 100%);
+    color: white;
+    border: 1px solid hsl(160 50% 25%);
+    transition: all 0.3s ease;
+  }
+  
+  .btn-kingdom:hover {
+    background: linear-gradient(135deg, hsl(160 60% 36%) 0%, hsl(160 55% 32%) 100%);
+    box-shadow: 0 4px 16px hsl(160 60% 35% / 0.4), 0 0 0 1px hsl(45 70% 60% / 0.2);
+    transform: translateY(-1px);
+  }
+  
+  .btn-gold {
+    background: linear-gradient(135deg, hsl(45 85% 50%) 0%, hsl(40 80% 45%) 100%);
+    color: hsl(45 40% 12%);
+    border: 1px solid hsl(45 70% 40%);
+    transition: all 0.3s ease;
+  }
+  
+  .btn-gold:hover {
+    background: linear-gradient(135deg, hsl(45 85% 55%) 0%, hsl(40 80% 50%) 100%);
+    box-shadow: 0 4px 16px hsl(45 80% 50% / 0.4);
+    transform: translateY(-1px);
+  }
+  
+  /* Ornamental Corner Decoration */
+  .corner-ornament::before,
+  .corner-ornament::after {
+    content: "";
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border: 2px solid hsl(45 60% 50% / 0.3);
+    pointer-events: none;
+  }
+  
+  .corner-ornament::before {
+    top: 8px;
+    left: 8px;
+    border-right: none;
+    border-bottom: none;
+    border-radius: 4px 0 0 0;
+  }
+  
+  .corner-ornament::after {
+    bottom: 8px;
+    right: 8px;
+    border-left: none;
+    border-top: none;
+    border-radius: 0 0 4px 0;
+  }
+  
+  /* Animated Shimmer for Loading States */
+  @keyframes kingdom-shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  
+  .shimmer-kingdom {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(45 40% 90%) 25%,
+      hsl(160 30% 88%) 50%,
+      hsl(45 40% 90%) 75%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: kingdom-shimmer 2s infinite linear;
+  }
+  
+  .dark .shimmer-kingdom {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(45 30% 20%) 25%,
+      hsl(160 25% 18%) 50%,
+      hsl(45 30% 20%) 75%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+  }
+  
+  /* Scroll Shadow for Containers */
+  .scroll-shadow-y {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black 20px,
+      black calc(100% - 20px),
+      transparent
+    );
+  }
+  
+  /* Pricing Tier Highlight */
+  .tier-highlight {
+    position: relative;
+  }
+  
+  .tier-highlight::before {
+    content: "";
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
+    padding: 2px;
+    background: linear-gradient(135deg, hsl(160 60% 40%) 0%, hsl(45 85% 55%) 50%, hsl(160 60% 40%) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    animation: gradient-rotate 3s linear infinite;
+    background-size: 200% 200%;
+  }
+
 }
