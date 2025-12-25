@@ -1,8 +1,8 @@
-# Lakefront Leadworks - Multi-Tenant MCA Lead CRM
+# Land of Leads - Multi-Tenant MCA Lead CRM
 
 ## Overview
 
-Lakefront Leadworks is a multi-tenant CRM platform designed for the Merchant Cash Advance (MCA) industry. The system supports multiple companies with role-based access (super_admin, company_admin, agent), features an AI Brain for calculating hot scores (0-100) and suggesting next best leads, includes call logging with outcome tracking, automated workflow for follow-ups, and company-scoped data isolation.
+Land of Leads is a multi-tenant CRM platform designed for the Merchant Cash Advance (MCA) industry. The system supports multiple companies with role-based access (super_admin, company_admin, agent), features an AI Brain for calculating hot scores (0-100) and suggesting next best leads, includes call logging with outcome tracking, automated workflow for follow-ups, and company-scoped data isolation.
 
 **Note**: Lead enrichment features have been removed from the UI (backend routes remain intact for future use).
 

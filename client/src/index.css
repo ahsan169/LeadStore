@@ -1,67 +1,68 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Merriweather:wght@300;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@400;500;600;700;800;900&family=Crimson+Pro:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --button-outline: rgba(11, 79, 108, .15);
-  --badge-outline: rgba(11, 79, 108, .08);
+  --button-outline: rgba(16, 95, 67, .15);
+  --badge-outline: rgba(16, 95, 67, .08);
 
   --opaque-button-border-intensity: -12;
 
-  --elevate-1: rgba(11, 79, 108, .03);
-  --elevate-2: rgba(11, 79, 108, .08);
+  --elevate-1: rgba(16, 95, 67, .03);
+  --elevate-2: rgba(16, 95, 67, .08);
 
-  /* Lakefront Theme - Light Mode */
-  --background: 195 25% 98%;  /* Subtle off-white with blue undertones */
-  --foreground: 197 45% 15%;  /* Deep lake blue text */
-  --border: 197 30% 85%;      /* Soft blue-gray border */
+  /* Land of Leads Theme - Light Mode */
+  /* A kingdom-inspired palette with rich forest greens and royal golds */
+  --background: 45 30% 98%;   /* Warm parchment-like off-white */
+  --foreground: 150 35% 15%;  /* Deep forest text */
+  --border: 45 20% 85%;       /* Soft warm border */
 
-  --card: 195 20% 99%;        /* Almost white with hint of blue */
-  --card-foreground: 197 45% 15%;
-  --card-border: 197 25% 88%;
+  --card: 45 25% 99%;         /* Warm white card */
+  --card-foreground: 150 35% 15%;
+  --card-border: 45 20% 88%;
 
-  --sidebar: 197 40% 97%;     /* Light blue-tinted sidebar */
-  --sidebar-foreground: 197 45% 15%;
-  --sidebar-border: 197 30% 85%;
-  --sidebar-primary: 197 80% 23%;  /* Deep lake blue */
+  --sidebar: 150 25% 97%;     /* Light forest-tinted sidebar */
+  --sidebar-foreground: 150 35% 15%;
+  --sidebar-border: 150 20% 85%;
+  --sidebar-primary: 160 60% 30%;  /* Royal forest green */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 168 60% 94%;   /* Light aqua accent */
-  --sidebar-accent-foreground: 197 45% 15%;
-  --sidebar-ring: 197 80% 23%;
+  --sidebar-accent: 45 70% 94%;    /* Light gold accent */
+  --sidebar-accent-foreground: 150 35% 15%;
+  --sidebar-ring: 160 60% 30%;
 
-  --popover: 195 20% 99%;
-  --popover-foreground: 197 45% 15%;
-  --popover-border: 197 25% 88%;
+  --popover: 45 25% 99%;
+  --popover-foreground: 150 35% 15%;
+  --popover-border: 45 20% 88%;
 
-  --primary: 197 80% 23%;          /* Deep lake blue */
+  --primary: 160 60% 30%;          /* Royal forest green */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 168 71% 43%;        /* Soft aqua/teal */
-  --secondary-foreground: 0 0% 100%;
+  --secondary: 45 85% 55%;         /* Rich golden amber */
+  --secondary-foreground: 150 35% 15%;
 
-  --muted: 197 15% 92%;            /* Muted blue-gray */
-  --muted-foreground: 197 30% 40%;
+  --muted: 45 15% 92%;             /* Warm muted gray */
+  --muted-foreground: 150 20% 40%;
 
-  --accent: 28 87% 67%;            /* Sunset gold */
-  --accent-foreground: 197 45% 15%;
+  --accent: 35 90% 50%;            /* Treasure gold */
+  --accent-foreground: 150 35% 15%;
 
   --destructive: 356 90% 54%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 197 20% 95%;
-  --ring: 197 80% 23%;
+  --input: 45 20% 95%;
+  --ring: 160 60% 30%;
 
-  /* Chart colors with lakefront theme */
-  --chart-1: 197 80% 23%;  /* Deep lake blue */
-  --chart-2: 168 71% 43%;  /* Soft aqua */
-  --chart-3: 28 87% 67%;   /* Sunset gold */
-  --chart-4: 197 60% 35%;  /* Medium lake blue */
-  --chart-5: 168 50% 60%;  /* Light aqua */
+  /* Chart colors with Land of Leads kingdom theme */
+  --chart-1: 160 60% 30%;  /* Royal forest green */
+  --chart-2: 45 85% 55%;   /* Rich gold */
+  --chart-3: 35 90% 50%;   /* Treasure gold */
+  --chart-4: 160 45% 40%;  /* Medium forest green */
+  --chart-5: 45 60% 65%;   /* Light gold */
 
   --font-sans: 'Inter', sans-serif;
-  --font-serif: 'Merriweather', serif;
+  --font-serif: 'Playfair Display', 'Crimson Pro', serif;
   --font-mono: 'Menlo', monospace;
   --radius: 0.5rem;
   
@@ -101,60 +102,61 @@
 }
 
 .dark {
-  --button-outline: rgba(32, 191, 159, .15);
-  --badge-outline: rgba(32, 191, 159, .08);
+  --button-outline: rgba(180, 150, 80, .15);
+  --badge-outline: rgba(180, 150, 80, .08);
 
   --opaque-button-border-intensity: 10;
 
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* Lakefront Theme - Dark Mode */
-  --background: 197 35% 8%;        /* Deep dark blue-black */
-  --foreground: 195 20% 90%;       /* Light blue-gray text */
-  --border: 197 30% 18%;           /* Dark blue border */
+  /* Land of Leads Theme - Dark Mode */
+  /* A mysterious forest kingdom at night */
+  --background: 150 30% 6%;        /* Deep forest night */
+  --foreground: 45 20% 90%;        /* Warm parchment text */
+  --border: 150 25% 16%;           /* Dark forest border */
 
-  --card: 197 30% 11%;             /* Dark blue card */
-  --card-foreground: 195 20% 88%;
-  --card-border: 197 25% 20%;
+  --card: 150 25% 9%;              /* Dark forest card */
+  --card-foreground: 45 20% 88%;
+  --card-border: 150 20% 18%;
 
-  --sidebar: 197 35% 10%;          /* Deep blue sidebar */
-  --sidebar-foreground: 195 20% 88%;
-  --sidebar-border: 197 30% 18%;
-  --sidebar-primary: 197 70% 50%;  /* Brighter lake blue for dark mode */
+  --sidebar: 150 30% 8%;           /* Deep forest sidebar */
+  --sidebar-foreground: 45 20% 88%;
+  --sidebar-border: 150 25% 16%;
+  --sidebar-primary: 160 55% 45%;  /* Brighter forest green for dark mode */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 168 60% 25%;   /* Darker aqua accent */
-  --sidebar-accent-foreground: 195 20% 88%;
-  --sidebar-ring: 197 70% 50%;
+  --sidebar-accent: 45 50% 20%;    /* Dark gold accent */
+  --sidebar-accent-foreground: 45 20% 88%;
+  --sidebar-ring: 160 55% 45%;
 
-  --popover: 197 30% 11%;
-  --popover-foreground: 195 20% 90%;
-  --popover-border: 197 25% 20%;
+  --popover: 150 25% 9%;
+  --popover-foreground: 45 20% 90%;
+  --popover-border: 150 20% 18%;
 
-  --primary: 197 70% 50%;          /* Brighter lake blue for visibility */
+  --primary: 160 55% 45%;          /* Brighter forest green for visibility */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 168 65% 50%;        /* Brighter aqua for dark mode */
-  --secondary-foreground: 0 0% 100%;
+  --secondary: 45 75% 55%;         /* Brighter gold for dark mode */
+  --secondary-foreground: 150 35% 10%;
 
-  --muted: 197 20% 20%;            /* Dark blue-gray muted */
-  --muted-foreground: 195 15% 60%;
+  --muted: 150 20% 18%;            /* Dark forest muted */
+  --muted-foreground: 45 15% 60%;
 
-  --accent: 28 75% 55%;            /* Slightly darker sunset gold */
-  --accent-foreground: 197 35% 8%;
+  --accent: 35 80% 55%;            /* Treasure gold for dark mode */
+  --accent-foreground: 150 35% 8%;
 
   --destructive: 356 90% 54%;
   --destructive-foreground: 0 0% 100%;
 
-  --input: 197 25% 15%;
-  --ring: 197 70% 50%;
+  --input: 150 25% 14%;
+  --ring: 160 55% 45%;
 
-  /* Chart colors for dark mode */
-  --chart-1: 197 70% 50%;  /* Bright lake blue */
-  --chart-2: 168 65% 50%;  /* Bright aqua */
-  --chart-3: 28 75% 55%;   /* Sunset gold */
-  --chart-4: 197 50% 45%;  /* Medium lake blue */
-  --chart-5: 168 45% 65%;  /* Light aqua */
+  /* Chart colors for dark mode - Land of Leads theme */
+  --chart-1: 160 55% 45%;  /* Bright forest green */
+  --chart-2: 45 75% 55%;   /* Bright gold */
+  --chart-3: 35 80% 55%;   /* Treasure gold */
+  --chart-4: 160 45% 40%;  /* Medium forest green */
+  --chart-5: 45 55% 65%;   /* Light gold */
 
   /* Professional shadows for dark mode */
   --shadow-2xs: 0 1px 2px 0 rgba(0, 0, 0, 0.2);

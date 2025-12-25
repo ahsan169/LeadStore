@@ -22,7 +22,6 @@ import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Act
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User, Company } from "@/../../shared/schema";
-import logoUrl from "@assets/generated_images/Lakefront_Leadworks_logo_9f434e28.png";
 
 import { StripeTestModeIndicator } from "@/components/StripeTestModeIndicator";
 import { Badge } from "@/components/ui/badge";
@@ -122,14 +121,14 @@ function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4 border-b">
         <div className="flex items-center gap-3">
-          <img 
-            src={logoUrl} 
-            alt="Lakefront Leadworks" 
-            className="w-12 h-12 rounded-lg shadow-md"
-          />
+          <div className="w-12 h-12 rounded-lg shadow-md bg-gradient-to-br from-emerald-600 via-emerald-700 to-amber-600 flex items-center justify-center">
+            <span className="text-2xl font-bold text-white font-serif">L</span>
+          </div>
           <div className="flex-1">
-            <h2 className="font-bold text-lg bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent" data-testid="text-app-title">
-              Lakefront Leadworks
+            <h2 className="font-bold text-lg font-serif tracking-wide" data-testid="text-app-title">
+              <span className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-amber-500 bg-clip-text text-transparent">Land</span>
+              <span className="text-muted-foreground mx-1">of</span>
+              <span className="bg-gradient-to-r from-amber-500 to-amber-600 bg-clip-text text-transparent">Leads</span>
             </h2>
             {company?.name && (
               <p className="text-sm font-medium text-foreground" data-testid="text-company-name">
