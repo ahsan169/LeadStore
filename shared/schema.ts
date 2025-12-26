@@ -4,6 +4,50 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 // ========================================
+// FUNDING PRODUCTS SYSTEM
+// ========================================
+
+// Funding products table - configurable funding types (MCA, SBA, Equipment, Factoring, etc.)
+export const fundingProducts = pgTable("funding_products", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(), // Display name (e.g., "Merchant Cash Advance", "SBA Loan")
+  slug: text("slug").notNull().unique(), // URL-friendly (e.g., "mca", "sba-loan", "equipment-financing")
+  description: text("description"), // Brief description of the funding type
+  icon: text("icon"), // Icon name for UI display
+  color: text("color").default("#2d6a4f"), // Brand color for the funding type
+  
+  // Configuration
+  isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false), // Default funding product
+  displayOrder: integer("display_order").notNull().default(0), // Sort order
+  
+  // Scoring configuration - weights for AI Brain scoring per funding type
+  scoringWeights: jsonb("scoring_weights").default(sql`'{
+    "recencyWeight": 0.3,
+    "sourceWeight": 0.2,
+    "financialWeight": 0.25,
+    "riskWeight": 0.25
+  }'::jsonb`),
+  
+  // Eligibility criteria - what makes a lead good for this funding type
+  eligibilityCriteria: jsonb("eligibility_criteria").default(sql`'{
+    "minTimeInBusiness": 6,
+    "minAnnualRevenue": 100000,
+    "minCreditScore": 500,
+    "requiredDocuments": []
+  }'::jsonb`),
+  
+  // Custom fields for this funding type
+  customFields: jsonb("custom_fields").default(sql`'[]'::jsonb`), // Array of custom field definitions
+  
+  // Pricing tiers for this funding type
+  pricingTiers: jsonb("pricing_tiers").default(sql`'[]'::jsonb`), // Array of tier configs
+  
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ========================================
 // MULTI-TENANT COMPANY SYSTEM
 // ========================================
 
@@ -85,6 +129,7 @@ export const leads = pgTable("leads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   companyId: varchar("company_id").references(() => companies.id), // Multi-tenant company scope
   batchId: varchar("batch_id").references(() => leadBatches.id),
+  fundingProductId: varchar("funding_product_id").references(() => fundingProducts.id), // Which funding type this lead is for
   
   // Lead data fields
   businessName: text("business_name").notNull(),
@@ -1520,6 +1565,22 @@ export const legacyRuleExecutions = pgTable("legacy_rule_executions", {
 });
 
 // Insert schemas with validation
+
+// Funding product insert schema
+export const insertFundingProductSchema = createInsertSchema(fundingProducts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  name: z.string().min(1).max(100),
+  slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
+  description: z.string().max(500).optional(),
+  icon: z.string().max(50).optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2d6a4f"),
+  isActive: z.boolean().default(true),
+  isDefault: z.boolean().default(false),
+  displayOrder: z.number().int().min(0).default(0),
+});
 
 // Company insert schema
 export const insertCompanySchema = createInsertSchema(companies).omit({
@@ -3009,6 +3070,10 @@ export const insertUccRelationshipSchema = createInsertSchema(uccRelationships).
 });
 
 // Type exports
+
+// Funding product types
+export type InsertFundingProduct = z.infer<typeof insertFundingProductSchema>;
+export type FundingProduct = typeof fundingProducts.$inferSelect;
 
 // Company types
 export type InsertCompany = z.infer<typeof insertCompanySchema>;
