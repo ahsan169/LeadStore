@@ -7,9 +7,11 @@ import {
   brainConfig,
   sourceStats,
   users,
-  purchases
+  purchases,
+  fundingProducts,
+  insertFundingProductSchema
 } from "@shared/schema";
-import { eq, and, desc, gte, lte, sql, count, sum } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, count, sum, asc } from "drizzle-orm";
 import { aiBrainService } from "../services/ai-brain";
 
 const router = Router();
@@ -264,6 +266,95 @@ router.get("/api/god-mode/activities", requireSuperAdmin, async (req: Request, r
     res.json({ activities: enriched });
   } catch (error: any) {
     console.error("[GodMode] Error fetching activities:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ========================================
+// FUNDING PRODUCTS CRUD
+// ========================================
+
+// GET /api/god-mode/funding-products - List all funding products
+router.get("/api/god-mode/funding-products", requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const products = await db.select()
+      .from(fundingProducts)
+      .orderBy(asc(fundingProducts.displayOrder), asc(fundingProducts.name));
+    
+    res.json({ products });
+  } catch (error: any) {
+    console.error("[GodMode] Error fetching funding products:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/god-mode/funding-products - Create a new funding product
+router.post("/api/god-mode/funding-products", requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const parsed = insertFundingProductSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid funding product data", details: parsed.error.errors });
+    }
+    
+    const [product] = await db.insert(fundingProducts)
+      .values(parsed.data)
+      .returning();
+    
+    res.status(201).json({ product, message: "Funding product created successfully" });
+  } catch (error: any) {
+    console.error("[GodMode] Error creating funding product:", error);
+    if (error.code === "23505") {
+      return res.status(400).json({ error: "A funding product with this slug already exists" });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/god-mode/funding-products/:id - Update a funding product
+router.put("/api/god-mode/funding-products/:id", requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const parsed = insertFundingProductSchema.partial().safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid funding product data", details: parsed.error.errors });
+    }
+    
+    const [product] = await db.update(fundingProducts)
+      .set({ ...parsed.data, updatedAt: new Date() })
+      .where(eq(fundingProducts.id, id))
+      .returning();
+    
+    if (!product) {
+      return res.status(404).json({ error: "Funding product not found" });
+    }
+    
+    res.json({ product, message: "Funding product updated successfully" });
+  } catch (error: any) {
+    console.error("[GodMode] Error updating funding product:", error);
+    if (error.code === "23505") {
+      return res.status(400).json({ error: "A funding product with this slug already exists" });
+    }
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/god-mode/funding-products/:id - Delete a funding product
+router.delete("/api/god-mode/funding-products/:id", requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const [deleted] = await db.delete(fundingProducts)
+      .where(eq(fundingProducts.id, id))
+      .returning();
+    
+    if (!deleted) {
+      return res.status(404).json({ error: "Funding product not found" });
+    }
+    
+    res.json({ message: "Funding product deleted successfully" });
+  } catch (error: any) {
+    console.error("[GodMode] Error deleting funding product:", error);
     res.status(500).json({ error: error.message });
   }
 });

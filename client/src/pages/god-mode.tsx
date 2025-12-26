@@ -16,7 +16,8 @@ import {
   Brain, Users, TrendingUp, DollarSign, Activity, 
   Settings, RefreshCcw, Zap, Target, Clock, AlertTriangle,
   CheckCircle2, XCircle, Phone, BarChart3, Sparkles, Crown,
-  Trophy, Medal, Award, Flame, ArrowUpRight, Gauge
+  Trophy, Medal, Award, Flame, ArrowUpRight, Gauge, Package,
+  Plus, Pencil, Trash2
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -79,9 +80,35 @@ interface RecentActivity {
   buyerName: string;
 }
 
+interface FundingProduct {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon: string | null;
+  color: string | null;
+  isActive: boolean;
+  isDefault: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export default function GodModePage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [editingProduct, setEditingProduct] = useState<FundingProduct | null>(null);
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [productFormData, setProductFormData] = useState({
+    name: "",
+    slug: "",
+    description: "",
+    icon: "",
+    color: "#2d6a4f",
+    isActive: true,
+    isDefault: false,
+    displayOrder: 0,
+  });
 
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/god-mode/dashboard"],
@@ -102,6 +129,89 @@ export default function GodModePage() {
   const { data: activitiesData } = useQuery<{ activities: RecentActivity[] }>({
     queryKey: ["/api/god-mode/activities"],
   });
+
+  const { data: productsData, isLoading: productsLoading } = useQuery<{ products: FundingProduct[] }>({
+    queryKey: ["/api/god-mode/funding-products"],
+  });
+
+  const createProductMutation = useMutation({
+    mutationFn: async (data: typeof productFormData) => {
+      return apiRequest("POST", "/api/god-mode/funding-products", data);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Funding product created" });
+      queryClient.invalidateQueries({ queryKey: ["/api/god-mode/funding-products"] });
+      resetProductForm();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const updateProductMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<typeof productFormData> }) => {
+      return apiRequest("PUT", `/api/god-mode/funding-products/${id}`, data);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Funding product updated" });
+      queryClient.invalidateQueries({ queryKey: ["/api/god-mode/funding-products"] });
+      resetProductForm();
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteProductMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiRequest("DELETE", `/api/god-mode/funding-products/${id}`);
+    },
+    onSuccess: () => {
+      toast({ title: "Success", description: "Funding product deleted" });
+      queryClient.invalidateQueries({ queryKey: ["/api/god-mode/funding-products"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const resetProductForm = () => {
+    setShowProductForm(false);
+    setEditingProduct(null);
+    setProductFormData({
+      name: "",
+      slug: "",
+      description: "",
+      icon: "",
+      color: "#2d6a4f",
+      isActive: true,
+      isDefault: false,
+      displayOrder: 0,
+    });
+  };
+
+  const handleEditProduct = (product: FundingProduct) => {
+    setEditingProduct(product);
+    setProductFormData({
+      name: product.name,
+      slug: product.slug,
+      description: product.description || "",
+      icon: product.icon || "",
+      color: product.color || "#2d6a4f",
+      isActive: product.isActive,
+      isDefault: product.isDefault,
+      displayOrder: product.displayOrder,
+    });
+    setShowProductForm(true);
+  };
+
+  const handleSubmitProduct = () => {
+    if (editingProduct) {
+      updateProductMutation.mutate({ id: editingProduct.id, data: productFormData });
+    } else {
+      createProductMutation.mutate(productFormData);
+    }
+  };
 
   const updateBrainMutation = useMutation({
     mutationFn: async (config: Partial<BrainConfig>) => {
@@ -220,7 +330,7 @@ export default function GodModePage() {
 
         {/* Royal Kingdom Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-slide-up">
-          <TabsList className="tabs-premium grid w-full grid-cols-5" data-testid="tabs-god-mode">
+          <TabsList className="tabs-premium grid w-full grid-cols-6" data-testid="tabs-god-mode">
             <TabsTrigger value="dashboard" className="tab-trigger-premium gap-2" data-testid="tab-dashboard">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -240,6 +350,10 @@ export default function GodModePage() {
             <TabsTrigger value="activity" className="tab-trigger-premium gap-2" data-testid="tab-activity">
               <Activity className="h-4 w-4" />
               <span className="hidden sm:inline">Activity</span>
+            </TabsTrigger>
+            <TabsTrigger value="products" className="tab-trigger-premium gap-2" data-testid="tab-products">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">Products</span>
             </TabsTrigger>
           </TabsList>
 
@@ -824,6 +938,232 @@ export default function GodModePage() {
                     )}
                   </div>
                 </ScrollArea>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="products" className="mt-6 animate-fade-in">
+            <Card className="card-kingdom">
+              <CardHeader>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="icon-container icon-container-gold w-10 h-10">
+                      <Package className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="font-serif text-gradient-royal">Funding Products</CardTitle>
+                      <CardDescription>Manage funding product types (MCA, SBA, Equipment, etc.)</CardDescription>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => { resetProductForm(); setShowProductForm(true); }}
+                    className="btn-kingdom gap-2"
+                    data-testid="button-add-funding-product"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Funding Product
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {showProductForm && (
+                  <Card className="mb-6 border-primary/20">
+                    <CardHeader>
+                      <CardTitle className="text-lg">
+                        {editingProduct ? "Edit Funding Product" : "New Funding Product"}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="product-name">Name</Label>
+                          <Input
+                            id="product-name"
+                            placeholder="Merchant Cash Advance"
+                            value={productFormData.name}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, name: e.target.value }))}
+                            data-testid="input-product-name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="product-slug">Slug</Label>
+                          <Input
+                            id="product-slug"
+                            placeholder="mca"
+                            value={productFormData.slug}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') }))}
+                            data-testid="input-product-slug"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="product-description">Description</Label>
+                        <Input
+                          id="product-description"
+                          placeholder="Short-term business financing..."
+                          value={productFormData.description}
+                          onChange={(e) => setProductFormData(prev => ({ ...prev, description: e.target.value }))}
+                          data-testid="input-product-description"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="product-icon">Icon Name</Label>
+                          <Input
+                            id="product-icon"
+                            placeholder="dollar-sign"
+                            value={productFormData.icon}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, icon: e.target.value }))}
+                            data-testid="input-product-icon"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="product-color">Color</Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              id="product-color"
+                              type="color"
+                              value={productFormData.color}
+                              onChange={(e) => setProductFormData(prev => ({ ...prev, color: e.target.value }))}
+                              className="w-12 h-9 p-1"
+                              data-testid="input-product-color"
+                            />
+                            <Input
+                              value={productFormData.color}
+                              onChange={(e) => setProductFormData(prev => ({ ...prev, color: e.target.value }))}
+                              placeholder="#2d6a4f"
+                              className="flex-1"
+                              data-testid="input-product-color-text"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="product-order">Display Order</Label>
+                          <Input
+                            id="product-order"
+                            type="number"
+                            min={0}
+                            value={productFormData.displayOrder}
+                            onChange={(e) => setProductFormData(prev => ({ ...prev, displayOrder: parseInt(e.target.value) || 0 }))}
+                            data-testid="input-product-display-order"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="product-active"
+                            checked={productFormData.isActive}
+                            onCheckedChange={(checked) => setProductFormData(prev => ({ ...prev, isActive: checked }))}
+                            data-testid="switch-product-active"
+                          />
+                          <Label htmlFor="product-active">Active</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="product-default"
+                            checked={productFormData.isDefault}
+                            onCheckedChange={(checked) => setProductFormData(prev => ({ ...prev, isDefault: checked }))}
+                            data-testid="switch-product-default"
+                          />
+                          <Label htmlFor="product-default">Default</Label>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-end gap-3">
+                      <Button variant="outline" onClick={resetProductForm} data-testid="button-cancel-product">
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleSubmitProduct}
+                        disabled={createProductMutation.isPending || updateProductMutation.isPending || !productFormData.name || !productFormData.slug}
+                        data-testid="button-save-product"
+                      >
+                        {createProductMutation.isPending || updateProductMutation.isPending ? "Saving..." : (editingProduct ? "Update" : "Create")}
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                )}
+
+                <div className="rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Slug</TableHead>
+                        <TableHead className="text-center">Active</TableHead>
+                        <TableHead className="text-center">Default</TableHead>
+                        <TableHead className="text-center">Order</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {productsData?.products.map((product) => (
+                        <TableRow key={product.id} data-testid={`row-funding-product-${product.id}`}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: product.color || "#2d6a4f" }}
+                              />
+                              <span className="font-medium">{product.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{product.slug}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {product.isActive ? (
+                              <Badge className="badge-emerald">Active</Badge>
+                            ) : (
+                              <Badge variant="outline">Inactive</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {product.isDefault && (
+                              <Badge className="badge-gold">Default</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">{product.displayOrder}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleEditProduct(product)}
+                                data-testid={`button-edit-product-${product.id}`}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (confirm("Are you sure you want to delete this funding product?")) {
+                                    deleteProductMutation.mutate(product.id);
+                                  }
+                                }}
+                                disabled={deleteProductMutation.isPending}
+                                data-testid={`button-delete-product-${product.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {(!productsData?.products || productsData.products.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                            <Package className="h-12 w-12 mx-auto mb-3 opacity-40" />
+                            <p className="text-lg font-serif font-medium">No funding products yet</p>
+                            <p className="text-sm">Create your first funding product to get started</p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
