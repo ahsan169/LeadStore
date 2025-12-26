@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { leads, callLogs, companies, brainConfig, leadAssignments, leadActivities, sourceStats, type Lead, type Company } from "@shared/schema";
+import { leads, callLogs, companies, brainConfig, leadAssignments, leadActivities, sourceStats, fundingProducts, type Lead, type Company, type FundingProduct } from "@shared/schema";
 import { eq, and, desc, or, isNull, lte, ne, asc, gt, count, sql } from "drizzle-orm";
 
 // Default AI Brain settings
@@ -43,15 +43,52 @@ interface AiBrainSettings {
   followUpDelayHours: number;
 }
 
+interface FundingProductScoringWeights {
+  recencyWeight?: number;
+  sourceWeight?: number;
+  financialWeight?: number;
+  riskWeight?: number;
+}
+
 export class AiBrainService {
   private settings: AiBrainSettings;
+  private fundingProductWeightsCache: Map<string, FundingProductScoringWeights> = new Map();
 
   constructor(settings?: Partial<AiBrainSettings>) {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
   }
 
   /**
+   * Get scoring weights for a specific funding product
+   */
+  async getFundingProductWeights(fundingProductId: string): Promise<FundingProductScoringWeights | null> {
+    // Check cache first
+    if (this.fundingProductWeightsCache.has(fundingProductId)) {
+      return this.fundingProductWeightsCache.get(fundingProductId) || null;
+    }
+
+    // Fetch from database
+    const [product] = await db.select().from(fundingProducts).where(eq(fundingProducts.id, fundingProductId)).limit(1);
+    
+    if (!product || !product.scoringWeights) {
+      return null;
+    }
+
+    const weights = product.scoringWeights as FundingProductScoringWeights;
+    this.fundingProductWeightsCache.set(fundingProductId, weights);
+    return weights;
+  }
+
+  /**
+   * Clear the funding product weights cache (call after updates)
+   */
+  clearFundingProductCache() {
+    this.fundingProductWeightsCache.clear();
+  }
+
+  /**
    * Calculate the hot score for a lead based on multiple factors
+   * Uses default weights - for funding product-specific scoring, use calculateHotScoreWithProduct
    */
   calculateHotScore(lead: Lead): number {
     const recencyScore = this.calculateRecencyScore(lead);
@@ -68,6 +105,43 @@ export class AiBrainService {
 
     // Scale to 0-100
     return Math.round(Math.max(0, Math.min(100, rawScore * 100)));
+  }
+
+  /**
+   * Calculate the hot score for a lead using funding product-specific weights if available
+   */
+  async calculateHotScoreWithProduct(lead: Lead): Promise<number> {
+    // If lead has a funding product, try to get product-specific weights
+    if (lead.fundingProductId) {
+      const productWeights = await this.getFundingProductWeights(lead.fundingProductId);
+      
+      if (productWeights) {
+        const recencyScore = this.calculateRecencyScore(lead);
+        const sourceScore = this.calculateSourceScore(lead);
+        const attemptScore = this.calculateAttemptScore(lead);
+        const outcomeScore = this.calculateOutcomeScore(lead);
+
+        // Use funding product weights (fall back to default if not specified)
+        const weights = {
+          recency: productWeights.recencyWeight ?? this.settings.recencyWeight,
+          source: productWeights.sourceWeight ?? this.settings.sourceWeight,
+          financial: productWeights.financialWeight ?? this.settings.attemptWeight,
+          risk: productWeights.riskWeight ?? this.settings.outcomeWeight,
+        };
+
+        // Weighted average using funding product weights
+        const rawScore = 
+          (recencyScore * weights.recency) +
+          (sourceScore * weights.source) +
+          (attemptScore * weights.financial) +
+          (outcomeScore * weights.risk);
+
+        return Math.round(Math.max(0, Math.min(100, rawScore * 100)));
+      }
+    }
+
+    // Fall back to default scoring
+    return this.calculateHotScore(lead);
   }
 
   /**
@@ -214,8 +288,8 @@ export class AiBrainService {
       lastContactedAt: new Date(),
     };
 
-    // Calculate new hot score
-    const hotScore = this.calculateHotScore(updatedLead as Lead);
+    // Calculate new hot score (using funding product-specific weights if available)
+    const hotScore = await this.calculateHotScoreWithProduct(updatedLead as Lead);
     const nextActionAt = this.calculateNextActionAt(updatedLead as Lead, outcome);
     const nextActionType = this.determineNextActionType(outcome);
 
@@ -257,10 +331,10 @@ export class AiBrainService {
         )
       );
 
-    // Update each lead's hot score
+    // Update each lead's hot score (using funding product-specific weights if available)
     let updated = 0;
     for (const lead of companyLeads) {
-      const hotScore = this.calculateHotScore(lead);
+      const hotScore = await this.calculateHotScoreWithProduct(lead);
       await db.update(leads)
         .set({ hotScore, updatedAt: new Date() })
         .where(eq(leads.id, lead.id));
