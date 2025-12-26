@@ -1,8 +1,14 @@
-# Land of Leads - Multi-Tenant MCA Lead CRM
+# Land of Leads - Customizable Funding Leads CRM
 
 ## Overview
 
-Land of Leads is a multi-tenant CRM platform designed for the Merchant Cash Advance (MCA) industry. The system supports multiple companies with role-based access (super_admin, company_admin, agent), features an AI Brain for calculating hot scores (0-100) and suggesting next best leads, includes call logging with outcome tracking, automated workflow for follow-ups, and company-scoped data isolation.
+Land of Leads is a customizable multi-tenant CRM platform for the funding industry. The system supports **multiple funding types** (MCA, SBA loans, equipment financing, invoice factoring, and more) with configurable AI scoring per funding product. It features multi-tenant company architecture with role-based access (super_admin, company_admin, agent), an AI Brain for calculating hot scores (0-100), call logging with outcome tracking, automated workflow for follow-ups, and company-scoped data isolation.
+
+**Key Features:**
+- **Configurable Funding Products**: Create and manage any funding type with custom scoring weights, eligibility criteria, and pricing tiers
+- **Daily UCC Data Pipelines**: Automated lead generation from Colorado and Florida state records
+- **AI-Powered Scoring**: Scores tailored per funding product type (0-100 scale)
+- **Buyer Feedback Loop**: Machine learning from buyer outcomes to improve source quality
 
 **Note**: Lead enrichment features have been removed from the UI (backend routes remain intact for future use).
 
@@ -38,9 +44,10 @@ Preferred communication style: Simple, everyday language.
 - **Database**: PostgreSQL via Neon serverless driver.
 - **ORM**: Drizzle ORM for type-safe queries and schema management.
 - **Key Tables**:
+  - `fundingProducts`: Configurable funding types with scoring weights, eligibility criteria, and pricing tiers
   - `companies`: Multi-tenant company management with AI Brain settings
   - `users`: User accounts with companyId and role
-  - `leads`: Lead records with hotScore, attemptCount, lastOutcome, nextActionAt
+  - `leads`: Lead records with hotScore, attemptCount, lastOutcome, nextActionAt, fundingProductId
   - `callLogs`: Call tracking with outcome and company scope
   - `tasks`: Task management with company scope
   - `pipelineStages`: Company-specific pipeline configurations
@@ -147,7 +154,7 @@ Super admin control center for AI Brain and analytics:
 - Registered pipeline routes at /api/pipelines in server/routes.ts
 - Environment variable SOCRATA_APP_TOKEN configured for Colorado public data access
 
-### Home Page Content Simplification (Latest)
+### Home Page Content Simplification
 - Updated hero section to emphasize "Fresh MCA Leads from State UCC Filings"
 - Simplified FEATURES content: "Fresh UCC Data Daily" (Colorado/Florida), "AI-Powered Scoring" (0-100), "Pay Per Lead"
 - Updated trust badges: "Fresh Daily", "TCPA Compliant", "AI Scored", "Secure"
@@ -155,3 +162,15 @@ Super admin control center for AI Brain and analytics:
 - Updated Features section heading to "Why Land of Leads?"
 - Updated Contact section heading to "Have Questions?"
 - Removed references to "enrichment" and "validation" from UI (backend routes remain)
+
+### Customizable Funding Products System (Latest)
+- Added `fundingProducts` table for configurable funding types (MCA, SBA loans, equipment financing, invoice factoring, etc.)
+- Each funding product has custom scoring weights (recency, source, financial, risk), eligibility criteria, custom fields, and pricing tiers
+- Added `fundingProductId` field to leads table for multi-funding-type support
+- Updated AI Brain service with `calculateHotScoreWithProduct()` method for funding product-specific scoring
+- Added funding product weights caching for efficient scoring
+- Created God Mode "Products" tab for super_admin to manage funding products (CRUD operations)
+- API routes: GET/POST/PUT/DELETE `/api/god-mode/funding-products`
+- Rebranded home page from MCA-specific to customizable funding leads platform
+- Updated all frontend MCA references to generic "funding" terminology (20+ files)
+- Platform now positioned as configurable funding leads CRM supporting any funding vertical
