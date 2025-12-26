@@ -91,7 +91,7 @@ const FEATURES = [
   {
     icon: Target,
     title: "Fresh UCC Data Daily",
-    description: "We pull fresh leads from state UCC filings every day. You get businesses that recently took on financing - prime MCA prospects.",
+    description: "We pull fresh leads from state UCC filings every day. Businesses that recently took on financing are prime funding prospects.",
   },
   {
     icon: Brain,
@@ -101,7 +101,7 @@ const FEATURES = [
   {
     icon: Shield,
     title: "100% TCPA Compliant",
-    description: "All leads have provided express written consent for MCA contact. Full compliance documentation available.",
+    description: "All leads have provided express written consent for funding contact. Full compliance documentation available.",
   },
   {
     icon: Users,
@@ -115,8 +115,8 @@ const FEATURES = [
   },
   {
     icon: DollarSign,
-    title: "Simple Tier Pricing",
-    description: "Pick your tier, pay once, get leads. No subscriptions, no hidden fees. Gold, Platinum, Diamond, or Elite - you choose.",
+    title: "Customizable Funding Types",
+    description: "Configure your platform for MCA, SBA loans, equipment financing, invoice factoring, or any funding product you offer.",
   },
 ];
 
@@ -175,7 +175,7 @@ const FAQS = [
   },
   {
     question: "Are leads TCPA compliant?",
-    answer: "Yes, 100%. All leads have provided express written consent to be contacted regarding MCA offers. We maintain strict compliance with TCPA regulations.",
+    answer: "Yes, 100%. All leads have provided express written consent to be contacted regarding funding offers. We maintain strict compliance with TCPA regulations.",
   },
   {
     question: "How quickly do I get my leads?",
@@ -366,17 +366,17 @@ export default function Home() {
               </h1>
               <div className="flex items-center justify-center gap-3 text-primary/80">
                 <Compass className="w-6 h-6" />
-                <span className="text-lg font-medium">Your Kingdom of Premium MCA Leads</span>
+                <span className="text-lg font-medium">Your Customizable Funding Leads Platform</span>
                 <Crown className="w-6 h-6" />
               </div>
             </div>
             
             <p className="text-2xl md:text-3xl font-semibold text-foreground animate-slide-down animate-delay-100">
-              Fresh MCA Leads from State UCC Filings
+              Fresh Funding Leads from State UCC Filings
             </p>
             
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed animate-slide-up animate-delay-200">
-              We pull fresh leads daily from Colorado and Florida UCC records. Businesses that recently took financing are prime MCA prospects. AI-scored 0-100, TCPA compliant, instant CSV download.
+              We pull fresh leads daily from Colorado and Florida UCC records. Configure for MCA, SBA, equipment, or any funding type. AI-scored 0-100, TCPA compliant, instant CSV download.
             </p>
           </div>
 
@@ -421,7 +421,7 @@ export default function Home() {
               <CardHeader>
                 <CardTitle>Get Started with Land of Leads</CardTitle>
                 <CardDescription>
-                  Sign up or log in to start accessing premium MCA leads
+                  Sign up or log in to start accessing premium funding leads
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -667,7 +667,7 @@ export default function Home() {
               <span className="text-gradient-royal">ROI Calculator</span>
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Calculate your potential return on investment with MCA leads
+              Calculate your potential return on investment with funding leads
             </p>
           </div>
 
@@ -675,7 +675,7 @@ export default function Home() {
             <CardHeader>
               <CardTitle className="text-2xl flex items-center gap-2 font-serif">
                 <PieChart className="w-6 h-6 text-primary" />
-                MCA Lead ROI Calculator
+                Funding Lead ROI Calculator
               </CardTitle>
               <CardDescription>
                 Adjust the sliders to see your potential returns based on industry averages
@@ -728,7 +728,7 @@ export default function Home() {
                 {/* Average Deal Size */}
                 <div className="space-y-2">
                   <Label htmlFor="deal-size" className="text-sm font-medium">
-                    Average MCA Deal Size
+                    Average Deal Size
                   </Label>
                   <div className="flex items-center justify-between">
                     <span className="text-2xl font-bold text-primary">
@@ -846,8 +846,8 @@ export default function Home() {
               <Alert>
                 <TrendingUp className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Industry Insight:</strong> MCA renewals (previous clients) convert at 70%+ vs 3-5% for cold leads. 
-                  Prioritize high-quality leads with previous MCA history for maximum ROI.
+                  <strong>Industry Insight:</strong> Repeat clients convert at 70%+ vs 3-5% for cold leads. 
+                  Prioritize high-quality leads with previous funding history for maximum ROI.
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -936,7 +936,7 @@ export default function Home() {
               <span className="text-gradient-royal">Frequently Asked Questions</span>
             </h2>
             <p className="text-xl text-muted-foreground">
-              Everything you need to know about our MCA leads
+              Everything you need to know about our funding leads
             </p>
           </div>
 
@@ -1094,7 +1094,7 @@ export default function Home() {
               <CardContent>
                 <p className="text-sm text-muted-foreground">
                   All leads are sourced in full compliance with the Telephone Consumer Protection Act (TCPA). 
-                  Each lead has provided express written consent for contact regarding MCA offers.
+                  Each lead has provided express written consent for contact regarding funding offers.
                 </p>
               </CardContent>
             </Card>
