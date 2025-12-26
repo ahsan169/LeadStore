@@ -470,7 +470,7 @@ export default function UploadLeadsPage() {
           <h1 className="text-3xl font-serif font-bold text-gradient-royal" data-testid="heading-upload">
             Upload Lead Batch
           </h1>
-          <p className="text-muted-foreground">Upload and process new MCA leads</p>
+          <p className="text-muted-foreground">Upload and process new funding leads</p>
         </div>
         {/* Test data generation removed - working with real data only */}
       </div>
@@ -856,14 +856,14 @@ export default function UploadLeadsPage() {
                       UCC Filing Data
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      Import UCC filing records to match against existing leads and analyze MCA eligibility signals.
+                      Import UCC filing records to match against existing leads and analyze funding eligibility signals.
                     </p>
                     <ul className="text-sm space-y-1 text-muted-foreground">
                       <li>• Debtor name matching</li>
                       <li>• Filing date analysis</li>
                       <li>• Secured party identification</li>
                       <li>• Collateral assessment</li>
-                      <li>• MCA eligibility scoring</li>
+                      <li>• Funding eligibility scoring</li>
                     </ul>
                   </div>
                 </div>

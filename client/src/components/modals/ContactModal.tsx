@@ -78,7 +78,7 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
             Contact Sales Team
           </DialogTitle>
           <DialogDescription>
-            Have questions? Our MCA experts are here to help you succeed.
+            Have questions? Our funding experts are here to help you succeed.
           </DialogDescription>
         </DialogHeader>
         
@@ -178,7 +178,7 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
                   <FormLabel>Message *</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Tell us about your MCA lead needs..." 
+                      placeholder="Tell us about your funding lead needs..." 
                       className="min-h-[120px]"
                       {...field} 
                       data-testid="input-contact-message"

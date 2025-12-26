@@ -602,7 +602,7 @@ export default function PipelineBoardPage() {
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground w-24">MCA Score:</span>
+                        <span className="text-muted-foreground w-24">Funding Score:</span>
                         <span>{selectedLead.mcaScore || "N/A"}</span>
                       </div>
                       <div className="flex items-center gap-2">

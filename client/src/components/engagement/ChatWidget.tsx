@@ -31,7 +31,7 @@ export function ChatWidget() {
     {
       icon: DollarSign,
       question: "What's included in each tier?",
-      response: "Each tier includes verified MCA leads with different quality scores. Gold (60-79), Platinum (70-89), Diamond (80-100), and Elite (85-100) with custom volumes.",
+      response: "Each tier includes verified funding leads with different quality scores. Gold (60-79), Platinum (70-89), Diamond (80-100), and Elite (85-100) with custom volumes.",
     },
     {
       icon: FileText,
@@ -41,7 +41,7 @@ export function ChatWidget() {
     {
       icon: HelpCircle,
       question: "Are leads TCPA compliant?",
-      response: "Yes! All our leads have provided express written consent for MCA contact. Full compliance documentation is available.",
+      response: "Yes! All our leads have provided express written consent for funding contact. Full compliance documentation is available.",
     },
     {
       icon: Users,

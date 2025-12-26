@@ -18,7 +18,7 @@ const PRICING_TIERS = [
     pricePerLead: "$10",
     quality: "60-79",
     features: [
-      "50 Premium MCA Leads",
+      "50 Premium Funding Leads",
       "60-79 Quality Score",
       "CSV Download",
       "24/7 Access",
@@ -35,7 +35,7 @@ const PRICING_TIERS = [
     pricePerLead: "$7.50",
     quality: "70-89",
     features: [
-      "200 Premium MCA Leads",
+      "200 Premium Funding Leads",
       "70-89 Quality Score",
       "CSV Download",
       "24/7 Access",
@@ -53,7 +53,7 @@ const PRICING_TIERS = [
     pricePerLead: "$6.67",
     quality: "80-100",
     features: [
-      "600 Premium MCA Leads",
+      "600 Premium Funding Leads",
       "80-100 Quality Score",
       "CSV Download",
       "24/7 Access",
@@ -110,7 +110,7 @@ export default function SimplifiedPurchasePage() {
             Choose Your Lead Package
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            High-quality MCA leads with verified business information. 
+            High-quality funding leads with verified business information. 
             All packages include instant CSV download and 24-hour support.
           </p>
         </div>

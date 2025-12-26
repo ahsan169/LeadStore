@@ -66,10 +66,10 @@ export function QuickQuoteModal({ isOpen, onClose }: QuickQuoteModalProps) {
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Calculator className="w-6 h-6 text-primary" />
-            <span className="text-gradient">MCA Lead ROI Calculator</span>
+            <span className="text-gradient">Funding Lead ROI Calculator</span>
           </DialogTitle>
           <DialogDescription>
-            Calculate your potential return on investment with our premium MCA leads
+            Calculate your potential return on investment with our premium funding leads
           </DialogDescription>
         </DialogHeader>
         
@@ -209,7 +209,7 @@ export function QuickQuoteModal({ isOpen, onClose }: QuickQuoteModalProps) {
               <p className="font-medium mb-1">Calculation Notes:</p>
               <ul className="list-disc list-inside space-y-1 text-xs">
                 <li>Conversion rates: Gold 5%, Platinum 8%, Diamond 12%</li>
-                <li>Based on industry average MCA conversion metrics</li>
+                <li>Based on industry average conversion metrics</li>
                 <li>Actual results may vary based on your sales process</li>
               </ul>
             </div>

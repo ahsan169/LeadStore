@@ -136,12 +136,12 @@ const EMPLOYEE_COUNTS = [
   "1-10", "11-50", "51-200", "201-500", "500+"
 ];
 
-// MCA History options
+// Funding History options
 const MCA_HISTORY_OPTIONS = [
-  { value: "none", label: "No Previous MCA" },
-  { value: "current", label: "Current MCA" },
+  { value: "none", label: "No Previous Funding" },
+  { value: "current", label: "Current Funding" },
   { value: "previous_paid", label: "Previous (Paid Off)" },
-  { value: "multiple", label: "Multiple MCAs" }
+  { value: "multiple", label: "Multiple Fundings" }
 ];
 
 // Urgency level options
@@ -707,9 +707,9 @@ export default function LeadsPage() {
                   </div>
                 </div>
 
-                {/* MCA History */}
+                {/* Funding History */}
                 <div>
-                  <Label className="text-sm">MCA History</Label>
+                  <Label className="text-sm">Funding History</Label>
                   <div className="mt-2 space-y-1">
                     {MCA_HISTORY_OPTIONS.map((option) => (
                       <div key={option.value} className="flex items-center">
@@ -1103,7 +1103,7 @@ export default function LeadsPage() {
                         </Badge>
                         {lead.previousMCAHistory !== "none" && (
                           <Badge className="badge-gold text-xs">
-                            MCA History
+                            Funding History
                           </Badge>
                         )}
                         {lead.urgencyLevel === "immediate" && (

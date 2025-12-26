@@ -50,7 +50,7 @@ export function QuickQuoteCalculator({ isOpen, onClose }: QuickQuoteCalculatorPr
             Quick ROI Calculator
           </DialogTitle>
           <DialogDescription>
-            Calculate your potential return on investment with our premium MCA leads
+            Calculate your potential return on investment with our premium funding leads
           </DialogDescription>
         </DialogHeader>
         

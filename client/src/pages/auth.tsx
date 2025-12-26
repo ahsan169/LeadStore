@@ -122,7 +122,7 @@ export default function AuthPage() {
                 <span className="block text-[#d4a574]">Leads</span>
               </h1>
               <p className="text-xl text-[#95d5b2] mb-8">
-                Your Kingdom of Premium MCA Leads
+                Your Kingdom of Premium Funding Leads
               </p>
             </div>
 
@@ -133,7 +133,7 @@ export default function AuthPage() {
                 </div>
                 <div>
                   <h3 className="font-serif font-semibold text-lg mb-1 text-[#d4a574]">AI-Verified Leads</h3>
-                  <p className="text-[#95d5b2]/80">Advanced AI scoring ensures only the highest quality MCA leads</p>
+                  <p className="text-[#95d5b2]/80">Advanced AI scoring ensures only the highest quality funding leads</p>
                 </div>
               </div>
               
@@ -182,7 +182,7 @@ export default function AuthPage() {
                 Land of Leads
               </h2>
               <p className="text-muted-foreground mt-2">
-                Your Kingdom of Premium MCA Leads
+                Your Kingdom of Premium Funding Leads
               </p>
             </div>
 

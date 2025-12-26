@@ -49,7 +49,7 @@ export default function AdminDashboardPage() {
             <span className="text-gradient-royal">Admin Dashboard</span>
             <BarChart3 className="w-8 h-8 text-primary" />
           </h1>
-          <p className="text-lg text-muted-foreground">Manage your MCA lead marketplace</p>
+          <p className="text-lg text-muted-foreground">Manage your funding lead marketplace</p>
         </div>
         
         <div className="divider-elegant" />

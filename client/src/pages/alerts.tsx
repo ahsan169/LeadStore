@@ -757,9 +757,9 @@ export default function AlertsPage() {
                     </div>
                   </div>
                   
-                  {/* MCA History */}
+                  {/* Funding History */}
                   <div className="space-y-2">
-                    <Label>MCA History</Label>
+                    <Label>Funding History</Label>
                     <div className="flex flex-wrap gap-2">
                       {MCA_HISTORY_OPTIONS.map((history) => (
                         <Badge

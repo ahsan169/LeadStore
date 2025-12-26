@@ -30,7 +30,7 @@ export function NewsletterSlideIn() {
     onSuccess: () => {
       toast({
         title: "Welcome to our newsletter!",
-        description: "Check your email for weekly MCA reports and 50 free lead samples.",
+        description: "Check your email for weekly funding reports and 50 free lead samples.",
       });
       setHasSubscribed(true);
       setIsOpen(false);
@@ -114,7 +114,7 @@ export function NewsletterSlideIn() {
                     <Mail className="w-5 h-5 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-gradient">Weekly MCA Reports</h3>
+                    <h3 className="font-semibold text-gradient">Weekly Funding Reports</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Industry insights + 50 free lead samples
                     </p>

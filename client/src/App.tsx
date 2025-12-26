@@ -113,7 +113,7 @@ function AppSidebar() {
     if (isCompanyAdmin) return "Company Admin";
     if (isAgent) return "Agent Portal";
     if (isLegacyAdmin) return "Admin Portal";
-    if (isBuyer) return "Premium MCA Leads";
+    if (isBuyer) return "Premium Funding Leads";
     return "Portal";
   };
 

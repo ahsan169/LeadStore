@@ -110,7 +110,7 @@ export function ScheduleDemoModal({ isOpen, onClose }: ScheduleDemoModalProps) {
             Schedule Your Demo
           </DialogTitle>
           <DialogDescription>
-            See how Land of Leads can transform your MCA business with a personalized demo
+            See how Land of Leads can transform your funding business with a personalized demo
           </DialogDescription>
         </DialogHeader>
         
@@ -304,7 +304,7 @@ export function ScheduleDemoModal({ isOpen, onClose }: ScheduleDemoModalProps) {
                 <li>• 30-minute personalized walkthrough</li>
                 <li>• Live demonstration of lead quality and features</li>
                 <li>• Custom pricing based on your volume needs</li>
-                <li>• Q&A with our MCA specialists</li>
+                <li>• Q&A with our funding specialists</li>
               </ul>
             </div>
             

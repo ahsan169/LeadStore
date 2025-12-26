@@ -90,7 +90,7 @@ export default function SimplifiedAdminPage() {
           Lead Management System
         </h1>
         <p className="text-lg text-muted-foreground">
-          Upload and validate your pre-enriched MCA leads
+          Upload and validate your pre-enriched funding leads
         </p>
       </div>
 

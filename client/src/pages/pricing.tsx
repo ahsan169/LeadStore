@@ -193,7 +193,7 @@ export default function PricingPage() {
                   
                   <p className="text-muted-foreground">
                     {tier.tier === 'starter' 
-                      ? 'Perfect for small teams just starting with MCA leads'
+                      ? 'Perfect for small teams just starting with funding leads'
                       : 'Ideal for growing teams and enterprise customers'
                     }
                   </p>
@@ -506,7 +506,7 @@ export default function PricingPage() {
           <h3 className="text-lg font-serif font-semibold mb-3">Compliance & Legal</h3>
           <p className="text-sm text-muted-foreground leading-relaxed">
             All leads are sourced in full compliance with TCPA and CAN-SPAM regulations. 
-            Each lead has provided express written consent for contact regarding MCA offers. 
+            Each lead has provided express written consent for contact regarding funding offers. 
             By purchasing leads, you agree to our Terms of Service and acknowledge 
             responsibility for compliance with all applicable regulations in your jurisdiction.
           </p>

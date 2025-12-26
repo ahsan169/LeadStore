@@ -335,7 +335,7 @@ export default function LeadManagementPage() {
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
             className="h-auto p-0 hover:bg-transparent font-medium"
           >
-            MCA Score
+            Funding Score
             {column.getIsSorted() === "asc" ? (
               <ArrowUp className="ml-2 h-4 w-4" />
             ) : column.getIsSorted() === "desc" ? (
@@ -549,10 +549,10 @@ export default function LeadManagementPage() {
 
             <Select value={mcaScoreFilter} onValueChange={setMcaScoreFilter}>
               <SelectTrigger className="w-[180px]" data-testid="select-mca-score">
-                <SelectValue placeholder="MCA Score" />
+                <SelectValue placeholder="Funding Score" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All MCA Scores</SelectItem>
+                <SelectItem value="all">All Funding Scores</SelectItem>
                 <SelectItem value="80-100">Excellent (80+)</SelectItem>
                 <SelectItem value="60-79">Good (60-79)</SelectItem>
                 <SelectItem value="40-59">Average (40-59)</SelectItem>

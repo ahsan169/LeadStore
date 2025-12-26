@@ -433,7 +433,7 @@ export default function TiersPage() {
                     <FormLabel>Features</FormLabel>
                     <FormControl>
                       <Textarea 
-                        placeholder="50 verified MCA leads&#10;Quality scores 60-79&#10;Basic deduplication"
+                        placeholder="50 verified funding leads&#10;Quality scores 60-79&#10;Basic deduplication"
                         rows={6}
                         {...field}
                         data-testid="input-tier-features"

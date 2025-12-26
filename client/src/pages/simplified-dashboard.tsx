@@ -50,7 +50,7 @@ export default function SimplifiedDashboard() {
               <ShoppingCart className="w-5 h-5" />
               Buy New Leads
             </CardTitle>
-            <CardDescription>Browse and purchase quality MCA leads</CardDescription>
+            <CardDescription>Browse and purchase quality funding leads</CardDescription>
           </CardHeader>
           <CardContent>
             <Button className="w-full" data-testid="button-buy-leads">
@@ -154,7 +154,7 @@ export default function SimplifiedDashboard() {
           <CardHeader>
             <CardTitle>Get Started</CardTitle>
             <CardDescription>
-              Ready to grow your MCA business? Start by purchasing your first lead package.
+              Ready to grow your funding business? Start by purchasing your first lead package.
             </CardDescription>
           </CardHeader>
           <CardContent>

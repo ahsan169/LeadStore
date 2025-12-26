@@ -1061,16 +1061,16 @@ export default function LeadEnrichmentManager() {
 
               <Separator />
 
-              {/* MCA Scoring Insights */}
+              {/* Funding Scoring Insights */}
               {(selectedLead.mcaScore || selectedLead.mcaInsights) && (
                 <>
                   <div className="space-y-4">
-                    <h3 className="font-semibold">MCA Suitability Analysis</h3>
+                    <h3 className="font-semibold">Funding Suitability Analysis</h3>
                     
                     {selectedLead.mcaScore !== undefined && (
                       <div className="flex items-center gap-3">
                         <div>
-                          <p className="text-sm text-muted-foreground">MCA Score</p>
+                          <p className="text-sm text-muted-foreground">Funding Score</p>
                           <p className="text-2xl font-bold">{Number(selectedLead.mcaScore).toFixed(1)}</p>
                         </div>
                         {selectedLead.mcaQualityTier && (
@@ -1086,7 +1086,7 @@ export default function LeadEnrichmentManager() {
                       </div>
                     )}
 
-                    {/* MCA Signals */}
+                    {/* Funding Signals */}
                     <div className="grid grid-cols-2 gap-2">
                       {selectedLead.hasBank && (
                         <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
@@ -1119,7 +1119,7 @@ export default function LeadEnrichmentManager() {
 
                     {selectedLead.whyGoodForMCA && (
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Why Good for MCA</p>
+                        <p className="text-sm text-muted-foreground">Why Good for Funding</p>
                         <p className="text-sm">{selectedLead.whyGoodForMCA}</p>
                       </div>
                     )}

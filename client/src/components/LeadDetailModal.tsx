@@ -212,7 +212,7 @@ export function LeadDetailModal({ lead, isOpen, onClose, onExport, onPurchase }:
             <TabsTrigger value="contact">Contact</TabsTrigger>
             <TabsTrigger value="financial">Financial</TabsTrigger>
             <TabsTrigger value="verification">Verification</TabsTrigger>
-            <TabsTrigger value="mca">MCA Analysis</TabsTrigger>
+            <TabsTrigger value="mca">Funding Analysis</TabsTrigger>
           </TabsList>
 
           <ScrollArea className="h-[500px]">
@@ -608,13 +608,13 @@ export function LeadDetailModal({ lead, isOpen, onClose, onExport, onPurchase }:
                     <CardHeader>
                       <CardTitle className="text-lg flex items-center gap-2">
                         <Target className="h-5 w-5" />
-                        California MCA Analysis
+                        California Funding Analysis
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">MCA Score</span>
+                          <span className="text-sm font-medium">Funding Score</span>
                           <div className={`px-3 py-1 rounded-lg font-bold ${getScoreColor(lead.mcaScore || 0)}`}>
                             {lead.mcaScore || 0}/100
                           </div>
@@ -675,7 +675,7 @@ export function LeadDetailModal({ lead, isOpen, onClose, onExport, onPurchase }:
                           <>
                             <Separator />
                             <div>
-                              <div className="text-sm font-medium mb-2">Why Good for MCA</div>
+                              <div className="text-sm font-medium mb-2">Why Good for Funding</div>
                               <div className="flex flex-wrap gap-2">
                                 {lead.whyGoodForMca.map((reason, index) => (
                                   <Badge key={index} className="bg-green-100 text-green-700">
@@ -691,7 +691,7 @@ export function LeadDetailModal({ lead, isOpen, onClose, onExport, onPurchase }:
                           <div className="p-3 bg-red-50 rounded-lg border border-red-200">
                             <div className="flex items-center gap-2 text-red-700">
                               <AlertTriangle className="h-4 w-4" />
-                              <span className="text-sm font-medium">Government Entity - Not Eligible for MCA</span>
+                              <span className="text-sm font-medium">Government Entity - Not Eligible for Funding</span>
                             </div>
                           </div>
                         )}

@@ -76,7 +76,7 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
             <span className="text-gradient">Contact Sales Team</span>
           </DialogTitle>
           <DialogDescription>
-            Get in touch with our MCA lead specialists for custom solutions
+            Get in touch with our funding lead specialists for custom solutions
           </DialogDescription>
         </DialogHeader>
         
@@ -158,7 +158,7 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
                       <FormControl>
                         <Textarea 
                           {...field} 
-                          placeholder="Tell us about your MCA lead needs..."
+                          placeholder="Tell us about your funding lead needs..."
                           rows={5}
                           data-testid="input-contact-message"
                         />

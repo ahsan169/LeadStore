@@ -135,7 +135,7 @@ export default function PurchaseFlowPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-4xl font-bold text-foreground mb-2" data-testid="heading-purchase">
-          Purchase MCA Leads
+          Purchase Funding Leads
         </h1>
         <p className="text-lg text-muted-foreground">
           Filter and select high-quality leads tailored to your needs
@@ -236,19 +236,19 @@ export default function PurchaseFlowPage() {
                 </div>
               </div>
               
-              {/* Previous MCA History */}
+              {/* Previous Funding History */}
               <div>
-                <Label>Previous MCA History</Label>
+                <Label>Previous Funding History</Label>
                 <Select value={filters.previousMCAHistory} onValueChange={(v) => setFilters({...filters, previousMCAHistory: v})}>
                   <SelectTrigger data-testid="select-mca-history">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="none">No Previous MCA</SelectItem>
+                    <SelectItem value="none">No Previous Funding</SelectItem>
                     <SelectItem value="previous_paid">Previous Paid Off</SelectItem>
-                    <SelectItem value="current">Current MCA</SelectItem>
-                    <SelectItem value="multiple">Multiple MCAs</SelectItem>
+                    <SelectItem value="current">Current Funding</SelectItem>
+                    <SelectItem value="multiple">Multiple Fundings</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

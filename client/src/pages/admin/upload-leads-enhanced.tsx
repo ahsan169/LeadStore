@@ -352,7 +352,7 @@ export default function UploadLeadsEnhancedPage() {
           <h1 className="text-3xl font-bold" data-testid="heading-upload">
             Upload Lead Batch
           </h1>
-          <p className="text-muted-foreground">Upload and process new MCA leads</p>
+          <p className="text-muted-foreground">Upload and process new funding leads</p>
         </div>
         <div className="flex items-center gap-4">
           {useAiVerification && uploading && (

@@ -18,7 +18,7 @@ const tourSteps: TourStep[] = [
   {
     target: '[data-testid="heading-hero"]',
     title: "Welcome to Land of Leads",
-    content: "Your premier source for high-quality, human-sourced MCA leads enhanced with AI intelligence",
+    content: "Your premier source for high-quality, human-sourced funding leads enhanced with AI intelligence",
     position: 'bottom',
   },
   {
@@ -36,7 +36,7 @@ const tourSteps: TourStep[] = [
   {
     target: '[data-testid="input-newsletter-email"]',
     title: "Free Lead Samples",
-    content: "Subscribe to our newsletter to receive 50 free lead samples and weekly MCA market reports",
+    content: "Subscribe to our newsletter to receive 50 free lead samples and weekly funding market reports",
     position: 'top',
   },
   {

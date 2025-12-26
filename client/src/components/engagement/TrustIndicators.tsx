@@ -88,7 +88,7 @@ const testimonials = [
     name: "Michael R.",
     company: "Capital Funding Solutions",
     rating: 5,
-    text: "Best quality MCA leads we've ever purchased. The AI scoring is incredibly accurate.",
+    text: "Best quality funding leads we've ever purchased. The AI scoring is incredibly accurate.",
   },
   {
     name: "Sarah K.",

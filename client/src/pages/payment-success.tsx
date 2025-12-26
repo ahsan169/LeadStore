@@ -67,7 +67,7 @@ export default function PaymentSuccessPage() {
               Your Leads Are Being Prepared
             </CardTitle>
             <CardDescription className="text-lg">
-              We're processing your order and preparing your high-quality MCA leads for download.
+              We're processing your order and preparing your high-quality funding leads for download.
             </CardDescription>
           </CardHeader>
           <CardContent>
