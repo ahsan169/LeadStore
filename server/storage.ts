@@ -3222,26 +3222,6 @@ export class DbStorage implements IStorage {
       .limit(1);
     return result[0];
   }
-  // UCC operations implementation
-  async createUccFiling(filing: InsertUccFiling): Promise<UccFiling> {
-    const result = await db.insert(uccFilings).values(filing).returning();
-    return result[0];
-  }
-
-  async createUccFilings(filings: InsertUccFiling[]): Promise<UccFiling[]> {
-    if (filings.length === 0) return [];
-    const result = await db.insert(uccFilings).values(filings).returning();
-    return result;
-  }
-
-  async getUccFiling(id: string): Promise<UccFiling | undefined> {
-    const result = await db.select().from(uccFilings).where(eq(uccFilings.id, id));
-    return result[0];
-  }
-
-  async getUccFilingsByLeadId(leadId: string): Promise<UccFiling[]> {
-    return await db.select().from(uccFilings).where(eq(uccFilings.leadId, leadId));
-  }
 
   async getAllUccFilings(): Promise<UccFiling[]> {
     return await db.select().from(uccFilings);
