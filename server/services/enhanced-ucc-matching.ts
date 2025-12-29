@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { leads, uccFilings } from "@shared/schema";
 import type { Lead, UccFiling } from "@shared/schema";
-import { eq, and, or, ilike, sql } from "drizzle-orm";
+import { eq, and, or, ilike, sql, isNull } from "drizzle-orm";
 
 export interface UccMatchResult {
   leadId: string;
@@ -433,7 +433,7 @@ export class EnhancedUccMatchingService {
     const allFilings = await db
       .select()
       .from(uccFilings)
-      .where(eq(uccFilings.leadId, null)); // Only unlinked filings
+      .where(isNull(uccFilings.leadId)); // Only unlinked filings
 
     let linkedCount = 0;
 

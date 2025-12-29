@@ -121,7 +121,7 @@ export default function DeveloperPage() {
     mutationFn: (data: any) => apiRequest("POST", "/api/developer/keys", data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/developer/keys"] });
-      setShowApiKey(data.apiKey);
+      setShowApiKey((data as any).apiKey);
       setCreateKeyOpen(false);
       setKeyName("");
       setSelectedScopes([]);
@@ -650,7 +650,7 @@ export default function DeveloperPage() {
                         <CardDescription>Total Requests</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">{usageData.stats.totalRequests}</div>
+                        <div className="text-2xl font-bold">{(usageData as any).stats.totalRequests}</div>
                       </CardContent>
                     </Card>
                     <Card>
@@ -658,7 +658,7 @@ export default function DeveloperPage() {
                         <CardDescription>Success Rate</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">{usageData.stats.successRate.toFixed(1)}%</div>
+                        <div className="text-2xl font-bold">{(usageData as any).stats.successRate.toFixed(1)}%</div>
                       </CardContent>
                     </Card>
                     <Card>
@@ -666,7 +666,7 @@ export default function DeveloperPage() {
                         <CardDescription>Avg Response Time</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">{usageData.stats.averageResponseTime.toFixed(0)}ms</div>
+                        <div className="text-2xl font-bold">{(usageData as any).stats.averageResponseTime.toFixed(0)}ms</div>
                       </CardContent>
                     </Card>
                     <Card>
@@ -679,14 +679,14 @@ export default function DeveloperPage() {
                     </Card>
                   </div>
 
-                  {usageData.stats.topEndpoints.length > 0 && (
+                  {(usageData as any).stats.topEndpoints.length > 0 && (
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-base">Top Endpoints</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <ResponsiveContainer width="100%" height={200}>
-                          <RechartsBarChart data={usageData.stats.topEndpoints}>
+                          <RechartsBarChart data={(usageData as any).stats.topEndpoints}>
                             <CartesianGrid strokeDasharray="3 3" />
                             <XAxis dataKey="endpoint" />
                             <YAxis />

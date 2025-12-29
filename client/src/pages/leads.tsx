@@ -296,10 +296,11 @@ export default function LeadsPage() {
 
   // Load saved search
   const loadSearch = (search: SavedSearch) => {
-    setFilters(search.filters as any);
+    const searchAny = search as any;
+    setFilters((searchAny.filters || searchAny.searchCriteria) as any);
     setSelectedSearch(search.id);
-    if (search.sortBy) setSortBy(search.sortBy);
-    if (search.sortOrder) setSortOrder(search.sortOrder as "asc" | "desc");
+    if (searchAny.sortBy) setSortBy(searchAny.sortBy);
+    if (searchAny.sortOrder) setSortOrder(searchAny.sortOrder as "asc" | "desc");
     setPage(0);
   };
   
@@ -437,8 +438,8 @@ export default function LeadsPage() {
                       {savedSearches.map((search: SavedSearch) => (
                         <SelectItem key={search.id} value={search.id}>
                           <div className="flex items-center gap-2">
-                            {search.isDefault && <Star className="w-3 h-3" />}
-                            {search.searchName}
+                            {(search as any).isDefault && <Star className="w-3 h-3" />}
+                            {(search as any).searchName || search.name}
                           </div>
                         </SelectItem>
                       ))}

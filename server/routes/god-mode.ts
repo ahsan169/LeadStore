@@ -60,7 +60,7 @@ router.get("/api/god-mode/dashboard", requireSuperAdmin, async (req: Request, re
       totalRevenue: sql<number>`coalesce(sum(${purchases.totalAmount}), 0)::numeric`,
       purchaseCount: count(),
     }).from(purchases)
-    .where(eq(purchases.status, "completed"));
+    .where(eq(purchases.paymentStatus, "succeeded"));
     
     // Active buyers (users with role = buyer who have assignments)
     const [buyerStats] = await db.select({

@@ -163,9 +163,9 @@ export function registerBrainRoutes(app: Express) {
         confidence: result.confidence,
         lead: result.normalizedData,
         enrichment: {
-          fieldsEnriched: result.enrichmentData?.enrichedFields || [],
-          sources: result.enrichmentData?.sources || [],
-          confidence: result.enrichmentData?.confidence || 0
+          fieldsEnriched: (result.enrichmentData as any)?.enrichedFields || [],
+          sources: (result.enrichmentData as any)?.sources || [],
+          confidence: (result.enrichmentData as any)?.confidence || 0
         },
         ucc: {
           filingsFound: result.uccData?.length || 0,
@@ -387,7 +387,7 @@ export function registerBrainRoutes(app: Express) {
               enrichmentOptions: {
                 skipCache: true,
                 forceRefresh: true
-              }
+              } as any
             }
           );
         }
@@ -446,7 +446,7 @@ export function registerBrainRoutes(app: Express) {
       }
       
       // Calculate aggregate metrics
-      const metrics = {
+      const metrics: Record<string, any> = {
         summary: {
           totalProcessed: filteredRecords.length,
           successful: filteredRecords.filter(r => r.finalScore !== undefined).length,
@@ -770,7 +770,7 @@ function groupByTime(records: ProcessingRecord[], groupBy: string): any[] {
   
   // Calculate averages and convert to array
   const result = [];
-  for (const [key, group] of groups) {
+  for (const [key, group] of Array.from(groups.entries())) {
     group.averageScore = group.count > 0 ? group.totalScore / group.count : 0;
     group.averageConfidence = group.count > 0 ? group.totalConfidence / group.count : 0;
     

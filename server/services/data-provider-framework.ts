@@ -425,7 +425,7 @@ export class DataProviderManager {
     }
 
     // Try all providers in order
-    for (const [name, provider] of this.providers) {
+    for (const [name, provider] of Array.from(this.providers.entries())) {
       if (name === preferredProvider) continue; // Already tried
       
       const result = await provider.findEmail(firstName, lastName, domain);
@@ -462,7 +462,7 @@ export class DataProviderManager {
     }
 
     // Try all providers in order
-    for (const [name, provider] of this.providers) {
+    for (const [name, provider] of Array.from(this.providers.entries())) {
       if (name === preferredProvider) continue;
       
       const result = await provider.enrichCompany(domain);
@@ -499,7 +499,7 @@ export class DataProviderManager {
     }
 
     // Try all providers
-    for (const [name, provider] of this.providers) {
+    for (const [name, provider] of Array.from(this.providers.entries())) {
       if (name === preferredProvider) continue;
       
       const result = await provider.verifyEmail(email);

@@ -70,7 +70,7 @@ export default function ManageGuaranteesPage() {
     },
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<any>({
     queryKey: ["/api/guarantee/stats"],
   });
 
@@ -354,7 +354,7 @@ export default function ManageGuaranteesPage() {
                     <TableCell>
                       <Badge variant={statusColors[report.status as keyof typeof statusColors]}>
                         <span className="flex items-center gap-1">
-                          {statusIcons[report.status]}
+                          {statusIcons[report.status as keyof typeof statusIcons]}
                           {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
                         </span>
                       </Badge>

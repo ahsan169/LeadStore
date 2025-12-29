@@ -599,7 +599,7 @@ export class RulesEngine {
   public detectConflicts(newRule: Rule): RuleConflict[] {
     const conflicts: RuleConflict[] = [];
 
-    for (const existingRule of this.rules.values()) {
+    for (const existingRule of Array.from(this.rules.values())) {
       if (existingRule.id === newRule.id) continue;
 
       // Check for field override conflicts

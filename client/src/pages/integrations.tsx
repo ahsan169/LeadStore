@@ -188,15 +188,15 @@ export default function IntegrationsPage() {
 
   // Export mutation
   const exportMutation = useMutation({
-    mutationFn: async ({ integrationId, purchaseId }: any) => {
+    mutationFn: async ({ integrationId, purchaseId }: any): Promise<ExportResult> => {
       // Get purchase details
-      const purchase = purchases?.find((p: any) => p.id === purchaseId);
+      const purchase = (purchases as any[])?.find((p: any) => p.id === purchaseId);
       if (!purchase) throw new Error('Purchase not found');
       
       return apiRequest('POST', `/api/integrations/${integrationId}/export`, {
         leadIds: purchase.leadIds || [],
         purchaseId
-      });
+      }) as any;
     },
     onSuccess: (result: ExportResult) => {
       toast({
@@ -271,7 +271,7 @@ export default function IntegrationsPage() {
         mappingConfig: mappingConfig ? JSON.parse(mappingConfig) : undefined
       };
       
-      const response = await apiRequest('POST', '/api/integrations/connect', tempData);
+      const response = await apiRequest('POST', '/api/integrations/connect', tempData) as any;
       setConnectionValid(true);
       
       // Delete the temporary integration
@@ -567,7 +567,7 @@ export default function IntegrationsPage() {
                   <SelectValue placeholder="Choose a purchase" />
                 </SelectTrigger>
                 <SelectContent>
-                  {purchases?.map((purchase: any) => (
+                  {(purchases as any[])?.map((purchase: any) => (
                     <SelectItem key={purchase.id} value={purchase.id}>
                       {purchase.tier.charAt(0).toUpperCase() + purchase.tier.slice(1)} - {purchase.leadCount} leads
                       ({formatDistanceToNow(new Date(purchase.createdAt), { addSuffix: true })})

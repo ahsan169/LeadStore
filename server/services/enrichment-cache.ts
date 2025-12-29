@@ -290,7 +290,7 @@ export class EnrichmentCache {
       const businessIndex = this.deduplicationIndex.get('businessName');
       
       if (businessIndex) {
-        for (const existingName of businessIndex) {
+        for (const existingName of Array.from(businessIndex)) {
           const similarity = this.calculateStringSimilarity(businessNameLower, existingName);
           if (similarity > this.config.deduplicationThreshold) {
             result.matchedFields.push('businessName');
@@ -531,12 +531,12 @@ export class EnrichmentCache {
     let factors = 0;
     
     // Check data sources
-    if (data.emailVerified) {
+    if ((data as any).emailVerified) {
       confidence += 0.9;
       factors++;
     }
     
-    if (data.phoneVerified) {
+    if ((data as any).phoneVerified) {
       confidence += 0.9;
       factors++;
     }
@@ -547,8 +547,8 @@ export class EnrichmentCache {
     factors++;
     
     // Check data age
-    if (data.lastUpdated) {
-      const age = Date.now() - new Date(data.lastUpdated).getTime();
+    if (data.updatedAt) {
+      const age = Date.now() - new Date(data.updatedAt).getTime();
       const ageFactor = Math.max(0, 1 - (age / (30 * 24 * 60 * 60 * 1000))); // 30 days
       confidence += ageFactor;
       factors++;
@@ -844,10 +844,3 @@ export const enrichmentCache = new EnrichmentCache({
   evictionPolicy: 'LRU'
 });
 
-// Export types
-export type {
-  EnrichmentCacheEntry,
-  CacheStatistics,
-  DeduplicationResult,
-  CacheConfig
-};

@@ -167,7 +167,7 @@ router.post('/api/rules', requireAuth, requireAdmin, async (req: Request, res: R
       updatedAt: new Date(),
       createdBy: req.session?.userId,
       version: 1
-    };
+    } as any;
 
     // Add rule to engine
     const validationResult = rulesEngine.addRule(newRule);
@@ -385,7 +385,7 @@ router.post('/api/rules/dry-run', requireAuth, requireAdmin, async (req: Request
         },
         rules: body.ruleIds || rulesEngine.getAllRules().map(r => r.id),
         options: body.options || {}
-      });
+      } as any);
     }
 
     // Generate scorecard result
@@ -462,7 +462,7 @@ router.put('/api/rules/scorecard', requireAuth, requireAdmin, async (req: Reques
     const body = updateScorecardSchema.parse(req.body);
 
     // Update configuration
-    await scorecardManager.updateConfig(body);
+    await scorecardManager.updateConfig(body as any);
 
     // Save to database
     const config = scorecardManager.getConfig();

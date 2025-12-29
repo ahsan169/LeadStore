@@ -20,24 +20,32 @@ import {
   ResponsiveContainer 
 } from "recharts";
 
+interface DashboardStats {
+  totalPurchases: number;
+  totalLeads: number;
+  totalSpent: number;
+  successfulPurchases: number;
+}
+
 export default function DashboardPage() {
-  const { data: purchases, isLoading } = useQuery({
+  const { data: purchases, isLoading } = useQuery<any[]>({
     queryKey: ["/api/purchases"],
   });
 
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<any>({
     queryKey: ["/api/auth/me"],
   });
 
-  const { data: analyticsData } = useQuery({
+  const { data: analyticsData } = useQuery<any>({
     queryKey: ["/api/analytics/dashboard"],
   });
 
-  const stats = {
-    totalPurchases: purchases?.length || 0,
-    totalLeads: purchases?.reduce((sum: number, p: any) => sum + (p.leadCount || 0), 0) || 0,
-    totalSpent: purchases?.reduce((sum: number, p: any) => sum + parseFloat(p.totalAmount || 0), 0) || 0,
-    successfulPurchases: purchases?.filter((p: any) => p.paymentStatus === "succeeded").length || 0,
+  const purchasesArray = purchases || [];
+  const stats: DashboardStats = {
+    totalPurchases: purchasesArray.length,
+    totalLeads: purchasesArray.reduce((sum: number, p: any) => sum + (p.leadCount || 0), 0),
+    totalSpent: purchasesArray.reduce((sum: number, p: any) => sum + parseFloat(p.totalAmount || 0), 0),
+    successfulPurchases: purchasesArray.filter((p: any) => p.paymentStatus === "succeeded").length,
   };
 
   if (isLoading) {
@@ -185,7 +193,7 @@ export default function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            {!purchases || purchases.length === 0 ? (
+            {!purchasesArray || purchasesArray.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Package className="w-12 h-12 mx-auto mb-3 text-primary opacity-50" />
                 <p className="font-serif">No purchases yet</p>
@@ -209,7 +217,7 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {purchases.slice(0, 5).map((purchase: any) => (
+                    {purchasesArray.slice(0, 5).map((purchase: any) => (
                       <tr 
                         key={purchase.id} 
                         className="border-b hover-elevate transition-smooth"

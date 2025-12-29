@@ -389,7 +389,7 @@ export class BatchProcessor extends EventEmitter {
    */
   private async enrichLead(lead: Lead): Promise<any> {
     try {
-      return await leadEnrichmentService.enrichLead(lead.id);
+      return await (leadEnrichmentService as any).enrichLead(lead.id);
     } catch (error) {
       console.warn(`[BatchProcessor] Enrichment failed for lead ${lead.id}:`, error);
       return null;
@@ -428,7 +428,7 @@ export class BatchProcessor extends EventEmitter {
       await db
         .update(leadBatches)
         .set({
-          processingStatus: status === BatchStatus.COMPLETED ? 'completed' : 
+          status: status === BatchStatus.COMPLETED ? 'completed' : 
                            status === BatchStatus.FAILED ? 'failed' : 'processing'
         })
         .where(eq(leadBatches.id, batchId));

@@ -262,7 +262,7 @@ export class CommandCenterService {
    * Get recent activities across the system
    */
   async getRecentActivities(limit: number = 20) {
-    const activities = [];
+    const activities: any[] = [];
     
     // Get recent purchases
     const recentPurchases = await db
@@ -362,8 +362,8 @@ export class CommandCenterService {
     const webhooks = await storage.getAllWebhooks();
     if (webhooks.length === 0) return 100;
 
-    const totalDeliveries = webhooks.reduce((sum, w) => sum + (w.successCount + w.failureCount), 0);
-    const successfulDeliveries = webhooks.reduce((sum, w) => sum + w.successCount, 0);
+    const totalDeliveries = webhooks.reduce((sum, w) => sum + (((w as any).successCount || 0) + w.failureCount), 0);
+    const successfulDeliveries = webhooks.reduce((sum, w) => sum + ((w as any).successCount || 0), 0);
 
     return totalDeliveries > 0 ? Math.round((successfulDeliveries / totalDeliveries) * 100) : 100;
   }

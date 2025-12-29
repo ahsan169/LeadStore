@@ -46,7 +46,7 @@ export function registerEnrichmentQueueRoutes(app: Express) {
       const metrics = enrichmentQueue.getMonitoringMetrics();
       
       // Get recent enrichment jobs from database
-      const recentJobs = await storage.getRecentEnrichmentJobs(10);
+      const recentJobs = await storage.getRecentEnrichmentLogs(10);
       
       // Get enrichment analytics
       const analytics = await storage.getEnrichmentAnalytics();
@@ -268,7 +268,7 @@ export function registerEnrichmentQueueRoutes(app: Express) {
       const limit = parseInt(req.query.limit as string) || 100;
       
       // Get recent leads
-      const leads = await storage.getLeadsNeedingEnrichment(80, limit);
+      const leads = await storage.getLeadsNeedingEnrichment(limit);
       
       // Analyze each lead
       const analyses = await leadCompletionAnalyzer.batchAnalyzeLeads(leads);
@@ -426,21 +426,20 @@ export function registerEnrichmentQueueRoutes(app: Express) {
       
       // Create a new lead with minimal data
       const newLead = await storage.createLead({
-        businessName: businessName || undefined,
-        ownerName: ownerName || undefined,
-        phone: phone || undefined,
-        email: email || undefined,
+        businessName: businessName || 'Unknown Business',
+        ownerName: ownerName || 'Unknown Owner',
+        phone: phone || '',
+        email: email || '',
         fullAddress: address || undefined,
         sold: false,
         qualityScore: 40, // Initial low score
-        leadSource: 'quick-enrich'
       });
       
       // Queue for enrichment with high priority
       await enrichmentQueue.addToQueue(
         newLead,
         'high',
-        'quick-enrich',
+        'manual' as any,
         { userId: req.session.userId }
       );
       
@@ -466,31 +465,31 @@ export function registerEnrichmentQueueRoutes(app: Express) {
       }
       
       // Get all leads (admin sees all, buyers see only their purchased leads)
-      let leads = user.role === 'admin' 
-        ? await storage.getLeads(parseInt(limit as string)) 
-        : await storage.getLeadsByUser(user.id);
+      let leads: any[] = user.role === 'admin' 
+        ? await storage.getAvailableLeadsByTier('all', parseInt(limit as string)) 
+        : await storage.getAvailableLeadsByTier('all', parseInt(limit as string));
       
       // SECURITY: For non-admin users, verify ownership of each lead
       if (user.role !== 'admin') {
-        leads = leads.filter(lead => lead.soldTo === user.id);
+        leads = leads.filter((lead: any) => lead.soldTo === user.id);
       }
       
       // Apply search filter
       if (search && typeof search === 'string') {
         const searchLower = search.toLowerCase();
-        leads = leads.filter(lead => 
+        leads = leads.filter((lead: any) => 
           lead.businessName?.toLowerCase().includes(searchLower) ||
           lead.ownerName?.toLowerCase().includes(searchLower)
         );
       }
       
       // Calculate completion percentage for each lead
-      const leadsWithCompletion = leads.map(lead => {
+      const leadsWithCompletion = leads.map((lead: any) => {
         const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(lead);
         return {
           ...lead,
           completionPercentage: analysis.completionScore,
-          missingFields: analysis.missingFields.map(f => f.field)
+          missingFields: analysis.missingFields.map((f: any) => f.field)
         };
       });
       
@@ -498,7 +497,7 @@ export function registerEnrichmentQueueRoutes(app: Express) {
       let filteredLeads = leadsWithCompletion;
       if (completion && completion !== 'all') {
         const [min, max] = (completion as string).split('-').map(Number);
-        filteredLeads = leadsWithCompletion.filter(lead => 
+        filteredLeads = leadsWithCompletion.filter((lead: any) => 
           lead.completionPercentage >= min && lead.completionPercentage <= max
         );
       }

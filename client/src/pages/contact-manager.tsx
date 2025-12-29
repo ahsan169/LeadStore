@@ -808,12 +808,12 @@ export default function ContactManagerPage() {
                   updateContactMutation.mutate({
                     id: editingContact.id,
                     firstName: editingContact.firstName,
-                    lastName: editingContact.lastName,
-                    title: editingContact.title,
-                    role: editingContact.role,
-                    email: editingContact.email,
-                    phone: editingContact.phone,
-                    notes: editingContact.notes,
+                    lastName: editingContact.lastName ?? undefined,
+                    title: editingContact.title ?? undefined,
+                    role: editingContact.role ?? undefined,
+                    email: editingContact.email ?? undefined,
+                    phone: editingContact.phone ?? undefined,
+                    notes: editingContact.notes ?? undefined,
                     isPrimary: editingContact.isPrimary,
                   });
                 }

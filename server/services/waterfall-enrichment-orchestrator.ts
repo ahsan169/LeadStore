@@ -329,7 +329,7 @@ export class WaterfallEnrichmentOrchestrator extends EventEmitter {
                 });
               } else if (lead.websiteUrl || lead.domains?.[0]) {
                 const domain = lead.domains?.[0] || this.extractDomain(lead.websiteUrl);
-                const finder = await hunterService.findEmailByDomain(
+                const finder = await (hunterService as any).findEmailByDomain(
                   domain,
                   lead.ownerName?.split(' ')[0],
                   lead.ownerName?.split(' ')[1]
@@ -672,7 +672,7 @@ export class WaterfallEnrichmentOrchestrator extends EventEmitter {
     const results: WaterfallResult[] = [];
     
     // Process each group with appropriate tier
-    for (const [group, groupLeads] of grouped) {
+    for (const [group, groupLeads] of Array.from(grouped)) {
       let maxTier = 3;
       if (group === 'skip') maxTier = 0;
       else if (group === 'basic') maxTier = 1;
@@ -689,7 +689,7 @@ export class WaterfallEnrichmentOrchestrator extends EventEmitter {
         const batch = groupLeads.slice(i, i + batchSize);
         
         const batchResults = await Promise.all(
-          batch.map(lead => 
+          batch.map((lead: any) => 
             this.enrichLead(lead, { 
               maxTier, 
               bulkMode: true 
@@ -754,7 +754,7 @@ export class WaterfallEnrichmentOrchestrator extends EventEmitter {
   private async processBatchQueues(): Promise<void> {
     const promises = [];
     
-    for (const [serviceId, queue] of this.batchQueue) {
+    for (const [serviceId, queue] of Array.from(this.batchQueue)) {
       if (queue.length > 0) {
         promises.push(this.processBatch(serviceId));
       }
@@ -848,7 +848,7 @@ export class WaterfallEnrichmentOrchestrator extends EventEmitter {
   getCostMetrics(): any {
     const serviceMetrics = [];
     
-    for (const [service, cost] of this.costMetrics.costByService) {
+    for (const [service, cost] of Array.from(this.costMetrics.costByService)) {
       const stats = this.costMetrics.successRate.get(service);
       serviceMetrics.push({
         service,

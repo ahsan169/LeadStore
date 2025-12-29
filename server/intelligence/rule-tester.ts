@@ -359,7 +359,7 @@ export class RuleTester {
     collectFields(after);
 
     // Compare each field
-    for (const field of allFields) {
+    for (const field of Array.from(allFields)) {
       const beforeValue = this.getNestedValue(before, field);
       const afterValue = this.getNestedValue(after, field);
 

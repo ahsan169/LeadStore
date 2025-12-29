@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import type { InsertVerificationResult } from "@shared/schema";
 import { storage } from "./storage";
-import * as levenshtein from 'fast-levenshtein';
 import { numverifyService } from "./numverify-service";
 
 const openai = new OpenAI({
@@ -227,7 +226,7 @@ export class AIVerificationEngine {
       businessLegitimacyScore: legitimacyAnalysis,
       riskAssessment,
       isDuplicate: duplicateAnalysis.isDuplicate,
-      duplicateAnalysis: duplicateAnalysis.isDuplicate ? duplicateAnalysis : undefined,
+      duplicateAnalysis: duplicateAnalysis.isDuplicate ? duplicateAnalysis as any : undefined,
       issues,
       warnings,
       suggestions,
@@ -1011,7 +1010,7 @@ Return JSON: {
       }
 
       // Check fuzzy matches in existing leads
-      for (const [key, existingLead] of this.existingLeads) {
+      for (const [key, existingLead] of Array.from(this.existingLeads)) {
         const similarity = this.calculateSimilarity(
           leadData.businessName.toLowerCase(),
           existingLead.businessName?.toLowerCase() || ''
@@ -1031,7 +1030,7 @@ Return JSON: {
     // Check email domain for same company
     if (leadData.email) {
       const domain = leadData.email.split('@')[1];
-      for (const [key, existingLead] of this.existingLeads) {
+      for (const [key, existingLead] of Array.from(this.existingLeads)) {
         if (existingLead.email && existingLead.email.includes(domain)) {
           // Same domain, check if names are similar
           const nameSimilarity = this.calculateSimilarity(
@@ -1268,7 +1267,7 @@ Return JSON: {
         };
         
         // Store additional AI insights in leadData for display
-        result.leadData.aiInsights = {
+        (result.leadData as any).aiInsights = {
           confidenceScore: aiResult.confidenceScore,
           industryClassification: aiResult.industryClassification,
           businessLegitimacyScore: aiResult.businessLegitimacyScore,

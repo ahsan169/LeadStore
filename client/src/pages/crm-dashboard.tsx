@@ -375,16 +375,16 @@ export default function CrmDashboardPage() {
                 {recentActivities.map((activity) => (
                   <div key={activity.id} className="flex items-start gap-3" data-testid={`activity-item-${activity.id}`}>
                     <div className="p-2 bg-muted rounded-lg">
-                      {activity.type === "call" ? (
+                      {activity.activityType === "call" ? (
                         <Phone className="w-4 h-4" />
-                      ) : activity.type === "email" ? (
+                      ) : activity.activityType === "email" ? (
                         <Mail className="w-4 h-4" />
                       ) : (
                         <Activity className="w-4 h-4" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium capitalize">{activity.type}</p>
+                      <p className="font-medium capitalize">{activity.activityType}</p>
                       <p className="text-sm text-muted-foreground truncate">
                         {activity.description || "No description"}
                       </p>

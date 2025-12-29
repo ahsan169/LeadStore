@@ -168,7 +168,7 @@ export class PublicDataAggregator {
           'User-Agent': 'Land of Leads/1.0 (contact@landofleads.com)',
           'Accept': 'application/json'
         },
-        signal: controller.signal
+        signal: controller.signal as any
       });
 
       clearTimeout(timeout);
@@ -227,7 +227,7 @@ export class PublicDataAggregator {
         headers: {
           'Accept': 'application/json'
         },
-        signal: controller.signal
+        signal: controller.signal as any
       });
 
       clearTimeout(timeout);
@@ -286,7 +286,7 @@ export class PublicDataAggregator {
       const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(companyName)}&key=${apiKey}`;
 
       const response = await fetch(searchUrl, {
-        signal: controller.signal
+        signal: controller.signal as any
       });
 
       clearTimeout(timeout);

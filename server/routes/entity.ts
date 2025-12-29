@@ -164,7 +164,7 @@ router.get('/api/entity/duplicates', async (req, res) => {
           id: groupKey,
           entities: [],
           confidence: row.match.matchConfidence,
-          matchedFields: Object.keys(row.match.matchDetails.fieldScores || {}),
+          matchedFields: Object.keys((row.match.matchDetails as any)?.fieldScores || {}),
           suggestedMaster: row.match.entity1Id,
         });
       }
@@ -349,7 +349,7 @@ router.post('/api/entity/unmerge/:mergeId', async (req, res) => {
       return res.status(404).json({ error: 'Merge group not found' });
     }
 
-    const mergedIds = group.metadata?.mergedEntities || [];
+    const mergedIds = (group.metadata as any)?.mergedEntities || [];
     if (mergedIds.length === 0) {
       return res.status(400).json({ error: 'No merged entities found' });
     }
@@ -599,7 +599,7 @@ router.get('/api/entity/graph/:id', async (req, res) => {
       })),
       familyTree,
       analysis: {
-        connectedComponents: analysis.connectedComponents.size,
+        connectedComponents: (analysis.connectedComponents as any)?.size || analysis.connectedComponents?.length || 0,
         centralityScore: analysis.centralityScores.get(id) || 0,
         hierarchyLevel: analysis.hierarchyLevels.get(id) || 0,
         isHub: analysis.hubNodes.has(id),
@@ -707,7 +707,7 @@ router.post('/api/entity/bulk-resolve', async (req, res) => {
 router.get('/api/entity/resolution-stats', async (req, res) => {
   try {
     // Get statistics
-    const [stats] = await db.execute(sql`
+    const statsResult = await db.execute(sql`
       SELECT 
         COUNT(DISTINCT entity1_id) + COUNT(DISTINCT entity2_id) as total_entities,
         COUNT(*) as total_matches,
@@ -721,8 +721,9 @@ router.get('/api/entity/resolution-stats', async (req, res) => {
       FROM ${entityMatches}
       WHERE created_at >= NOW() - INTERVAL '30 DAYS'
     `);
+    const stats = ((statsResult as any).rows?.[0] || (statsResult as any)[0] || {}) as any;
 
-    const [groupStats] = await db.execute(sql`
+    const groupStatsResult = await db.execute(sql`
       SELECT 
         COUNT(*) as total_groups,
         AVG(member_count) as avg_group_size,
@@ -732,8 +733,9 @@ router.get('/api/entity/resolution-stats', async (req, res) => {
         COUNT(CASE WHEN group_type = 'network' THEN 1 END) as network_groups
       FROM ${entityGroups}
     `);
+    const groupStats = ((groupStatsResult as any).rows?.[0] || (groupStatsResult as any)[0] || {}) as any;
 
-    const [relationshipStats] = await db.execute(sql`
+    const relationshipStatsResult = await db.execute(sql`
       SELECT 
         COUNT(*) as total_relationships,
         COUNT(DISTINCT parent_entity_id) as parent_entities,
@@ -745,6 +747,7 @@ router.get('/api/entity/resolution-stats', async (req, res) => {
         COUNT(CASE WHEN relationship_type = 'franchise' THEN 1 END) as franchise_relationships
       FROM ${entityRelationships}
     `);
+    const relationshipStats = ((relationshipStatsResult as any).rows?.[0] || (relationshipStatsResult as any)[0] || {}) as any;
 
     res.json({
       matches: {

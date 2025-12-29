@@ -221,7 +221,7 @@ export default function AlertsPage() {
   // Test alert mutation
   const testAlertMutation = useMutation({
     mutationFn: (id: string) => apiRequest("POST", `/api/alerts/${id}/test`),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       toast({
         title: "Test Complete",
         description: `Found ${data.count} matching leads`,
@@ -297,10 +297,10 @@ export default function AlertsPage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          {unviewedCount?.count > 0 && (
+          {(unviewedCount as any)?.count > 0 && (
             <Badge variant="destructive" className="px-3 py-1">
               <Bell className="w-4 h-4 mr-1" />
-              {unviewedCount.count} New
+              {(unviewedCount as any).count} New
             </Badge>
           )}
           <Button onClick={() => setIsCreateDialogOpen(true)}>
@@ -321,7 +321,7 @@ export default function AlertsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {alerts?.filter((a: any) => a.isActive).length || 0}
+              {(alerts as any)?.filter((a: any) => a.isActive).length || 0}
             </div>
           </CardContent>
         </Card>
@@ -347,7 +347,7 @@ export default function AlertsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {alerts?.filter((a: any) => a.emailNotifications).length || 0}
+              {(alerts as any)?.filter((a: any) => a.emailNotifications).length || 0}
             </div>
           </CardContent>
         </Card>
@@ -366,7 +366,7 @@ export default function AlertsPage() {
             <div className="text-center py-8 text-muted-foreground">
               Loading alerts...
             </div>
-          ) : alerts?.length === 0 ? (
+          ) : (alerts as any)?.length === 0 ? (
             <div className="text-center py-12">
               <Bell className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-medium mb-2">No alerts yet</h3>
@@ -380,7 +380,7 @@ export default function AlertsPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {alerts?.map((alert: any) => (
+              {(alerts as any)?.map((alert: any) => (
                 <Card key={alert.id}>
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between">
@@ -911,24 +911,24 @@ function AlertHistoryDialog({ alertId, onClose }: { alertId: string; onClose: ()
           </DialogDescription>
         </DialogHeader>
         
-        {stats && (
+        {(stats as any) && (
           <div className="grid grid-cols-3 gap-4 mb-4">
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{stats.totalTriggers}</div>
+                <div className="text-2xl font-bold">{(stats as any).totalTriggers}</div>
                 <p className="text-xs text-muted-foreground">Total Triggers</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{stats.totalMatches}</div>
+                <div className="text-2xl font-bold">{(stats as any).totalMatches}</div>
                 <p className="text-xs text-muted-foreground">Total Matches</p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="pt-6">
                 <div className="text-2xl font-bold">
-                  {stats.avgMatchesPerTrigger.toFixed(1)}
+                  {(stats as any).avgMatchesPerTrigger.toFixed(1)}
                 </div>
                 <p className="text-xs text-muted-foreground">Avg per Trigger</p>
               </CardContent>
@@ -938,7 +938,7 @@ function AlertHistoryDialog({ alertId, onClose }: { alertId: string; onClose: ()
         
         {isLoading ? (
           <div className="text-center py-8">Loading history...</div>
-        ) : history?.length === 0 ? (
+        ) : (history as any)?.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             This alert has not been triggered yet
           </div>
@@ -953,7 +953,7 @@ function AlertHistoryDialog({ alertId, onClose }: { alertId: string; onClose: ()
               </TableRow>
             </TableHeader>
             <TableBody>
-              {history?.map((item: any) => (
+              {(history as any)?.map((item: any) => (
                 <TableRow key={item.id}>
                   <TableCell>
                     {format(new Date(item.createdAt), "MMM d, yyyy h:mm a")}

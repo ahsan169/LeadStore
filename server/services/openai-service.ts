@@ -104,7 +104,7 @@ Respond in JSON format:
   "format": "detected format pattern if applicable"
 }`;
 
-      const response = await this.openai.chat.completions.create({
+      const response = await this.openai!.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           {
@@ -176,7 +176,7 @@ websiteUrl, linkedinUrl, urgencyLevel, businessDescription
 
 Only include fields that have clear values in the text.`;
 
-      const response = await this.openai.chat.completions.create({
+      const response = await this.openai!.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           {
@@ -239,7 +239,7 @@ Analyze the pattern and provide extraction logic. Return JSON:
   "pattern": "detected pattern description"
 }`;
 
-      const response = await this.openai.chat.completions.create({
+      const response = await this.openai!.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           {
@@ -299,7 +299,7 @@ Analyze the pattern and provide extraction logic. Return JSON:
         [CanonicalField.ANNUAL_REVENUE]: 'Annual revenue in dollars'
       };
 
-      const context = fieldContext[field] || 'business data field';
+      const context = (fieldContext as any)[field] || 'business data field';
 
       const prompt = `Validate and potentially fix this ${context}.
 
@@ -318,7 +318,7 @@ Respond in JSON:
   "issue": "description of any issues found"
 }`;
 
-      const response = await this.openai.chat.completions.create({
+      const response = await this.openai!.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           {

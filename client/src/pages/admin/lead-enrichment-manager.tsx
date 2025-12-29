@@ -221,7 +221,7 @@ export default function LeadEnrichmentManager() {
       return response;
     },
     onSuccess: (data) => {
-      setQuickEnrichmentResult(data);
+      setQuickEnrichmentResult(data as any);
       toast({
         title: "Lead Enriched Successfully",
         description: "New lead has been added and enriched",
@@ -1062,7 +1062,7 @@ export default function LeadEnrichmentManager() {
               <Separator />
 
               {/* Funding Scoring Insights */}
-              {(selectedLead.mcaScore || selectedLead.mcaInsights) && (
+              {(selectedLead.mcaScore || (selectedLead.mcaInsights as any)) && (
                 <>
                   <div className="space-y-4">
                     <h3 className="font-semibold">Funding Suitability Analysis</h3>
@@ -1117,10 +1117,10 @@ export default function LeadEnrichmentManager() {
                       </div>
                     )}
 
-                    {selectedLead.whyGoodForMCA && (
+                    {(selectedLead.whyGoodForMCA as any) && (
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Why Good for Funding</p>
-                        <p className="text-sm">{selectedLead.whyGoodForMCA}</p>
+                        <p className="text-sm">{selectedLead.whyGoodForMCA as any}</p>
                       </div>
                     )}
 

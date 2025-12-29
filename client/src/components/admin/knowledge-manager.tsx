@@ -100,10 +100,7 @@ export default function KnowledgeManager() {
   // Update ontology mutation
   const updateOntologyMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/admin/knowledge/ontology', {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
+      return apiRequest('PUT', '/api/admin/knowledge/ontology', data);
     },
     onSuccess: () => {
       toast({ title: "Ontology updated successfully" });
@@ -117,10 +114,7 @@ export default function KnowledgeManager() {
   // Update funders mutation
   const updateFundersMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/admin/knowledge/funders', {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      });
+      return apiRequest('PUT', '/api/admin/knowledge/funders', data);
     },
     onSuccess: () => {
       toast({ title: "Funders database updated successfully" });
@@ -134,12 +128,10 @@ export default function KnowledgeManager() {
   // Test field mapping mutation
   const testMappingMutation = useMutation({
     mutationFn: async (fieldName: string) => {
-      return apiRequest('/api/admin/knowledge/test-mapping', {
-        method: 'POST',
-        body: JSON.stringify({ field: fieldName }),
-      });
+      const response = await apiRequest('POST', '/api/admin/knowledge/test-mapping', { field: fieldName });
+      return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setTestResult(data.canonical || 'No mapping found');
     },
     onError: () => {
@@ -553,10 +545,7 @@ export default function KnowledgeManager() {
                     onClick={() => {
                       try {
                         const data = JSON.parse(editingIndustry);
-                        apiRequest('/api/admin/knowledge/industry', {
-                          method: 'PUT',
-                          body: JSON.stringify(data),
-                        }).then(() => {
+                        apiRequest('PUT', '/api/admin/knowledge/industry', data).then(() => {
                           toast({ title: "Industry knowledge updated" });
                           queryClient.invalidateQueries({ queryKey: ['/api/admin/knowledge/industry'] });
                         });

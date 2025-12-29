@@ -28,7 +28,7 @@ export default function SimplifiedDashboard() {
   const totalLeadsPurchased = purchases?.reduce((sum, p) => sum + (p.leadCount || 0), 0) || 0;
   
   // Calculate total spent
-  const totalSpent = purchases?.reduce((sum, p) => sum + (p.totalAmount || 0), 0) || 0;
+  const totalSpent = purchases?.reduce((sum, p) => sum + (parseFloat(p.totalAmount as any) || 0), 0) || 0;
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
@@ -116,8 +116,8 @@ export default function SimplifiedDashboard() {
                       <p className="font-medium">
                         {purchase.tier?.toUpperCase()} Package
                       </p>
-                      <Badge variant={purchase.status === 'fulfilled' ? 'default' : 'secondary'}>
-                        {purchase.status}
+                      <Badge variant={(purchase as any).status === 'fulfilled' ? 'default' : 'secondary'}>
+                        {(purchase as any).status}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">
@@ -130,11 +130,11 @@ export default function SimplifiedDashboard() {
                         {new Date(purchase.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                    {purchase.status === 'fulfilled' && purchase.csvUrl && (
+                    {(purchase as any).status === 'fulfilled' && (purchase as any).csvUrl && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => window.open(purchase.csvUrl, '_blank')}
+                        onClick={() => window.open((purchase as any).csvUrl, '_blank')}
                         data-testid={`button-download-${purchase.id}`}
                       >
                         <Download className="w-4 h-4" />

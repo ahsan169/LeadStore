@@ -691,15 +691,15 @@ Consider:
       
       // Fallback analysis
       const hasEquipment = collateralDescriptions.some(d => 
-        d.toLowerCase().includes('equipment') || 
-        d.toLowerCase().includes('machinery')
+        d && d.toLowerCase().includes('equipment') || 
+        d && d.toLowerCase().includes('machinery')
       );
       const hasInventory = collateralDescriptions.some(d => 
-        d.toLowerCase().includes('inventory')
+        d && d.toLowerCase().includes('inventory')
       );
       const hasReceivables = collateralDescriptions.some(d => 
-        d.toLowerCase().includes('receivable') || 
-        d.toLowerCase().includes('account')
+        d && d.toLowerCase().includes('receivable') || 
+        d && d.toLowerCase().includes('account')
       );
       
       return {
@@ -1155,6 +1155,7 @@ Consider:
     // Determine overall risk level
     let riskLevel: 'none' | 'low' | 'medium' | 'high' | 'critical' = 'none';
     if (patterns.length === 0) riskLevel = 'none';
+    else if (patterns.some(p => p.confidence > 90)) riskLevel = 'critical';
     else if (patterns.some(p => p.confidence > 80)) riskLevel = 'high';
     else if (patterns.some(p => p.confidence > 60)) riskLevel = 'medium';
     else riskLevel = 'low';
@@ -1805,7 +1806,7 @@ Consider:
       variations.push(parts[0].trim(), parts[1]?.trim());
     }
     
-    return [...new Set(variations.filter(v => v && v.length > 2))];
+    return Array.from(new Set(variations.filter(v => v && v.length > 2)));
   }
 
   /**
@@ -2079,28 +2080,31 @@ Consider:
       // Save to ucc_intelligence table
       await db.insert(uccIntelligence).values({
         leadId,
-        analysisType: 'enhanced_comprehensive',
-        businessIntelligence: analysis.businessIntelligence,
-        industryInsights: analysis.industryPatterns,
-        riskIndicators: {
-          ...analysis.advancedPatterns,
-          ...analysis.predictiveAnalysis
+        aiAnalysis: {
+          analysisType: 'enhanced_comprehensive',
+          businessIntelligence: analysis.businessIntelligence,
+          advancedPatterns: analysis.advancedPatterns,
+          predictiveAnalysis: analysis.predictiveAnalysis,
+          actionableInsights: analysis.dashboardData?.executiveSummary?.actionableInsights,
+          confidence: analysis.confidence,
+          analyzedAt: new Date()
         },
-        actionableInsights: analysis.dashboardData.executiveSummary.actionableInsights,
-        confidenceScore: analysis.confidence,
-        analyzedAt: new Date()
+        industryInsights: analysis.industryPatterns,
+        businessHealthScore: analysis.confidence
       }).onConflictDoUpdate({
         target: uccIntelligence.leadId,
         set: {
-          businessIntelligence: analysis.businessIntelligence,
-          industryInsights: analysis.industryPatterns,
-          riskIndicators: {
-            ...analysis.advancedPatterns,
-            ...analysis.predictiveAnalysis
-          },
-          actionableInsights: analysis.dashboardData.executiveSummary.actionableInsights,
-          confidenceScore: analysis.confidence,
-          analyzedAt: new Date()
+          aiAnalysis: {
+            analysisType: 'enhanced_comprehensive',
+            businessIntelligence: analysis.businessIntelligence,
+            advancedPatterns: analysis.advancedPatterns,
+            predictiveAnalysis: analysis.predictiveAnalysis,
+            actionableInsights: analysis.dashboardData?.executiveSummary?.actionableInsights,
+            confidence: analysis.confidence,
+            analyzedAt: new Date()
+          } as any,
+          industryInsights: analysis.industryPatterns as any,
+          businessHealthScore: analysis.confidence
         }
       });
     } catch (error) {

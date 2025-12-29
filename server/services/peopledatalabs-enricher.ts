@@ -1,5 +1,5 @@
 // PeopleDataLabs Premium Person & Company Enrichment Service
-import axios from 'axios';
+const axios = require('axios') as any;
 
 export class PeopleDataLabsEnricher {
   private apiKey: string;

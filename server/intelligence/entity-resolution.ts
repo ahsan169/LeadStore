@@ -250,10 +250,10 @@ export class EntityResolutionEngine {
         // Fuzzy match for address
         fieldScores.address = calculateJaroWinkler(norm1, norm2);
       }
-    } else if (entity1.city && entity1.state && entity2.city && entity2.state) {
+    } else if (entity1.city && entity1.stateCode && entity2.city && entity2.stateCode) {
       // Partial address match
       const cityMatch = entity1.city.toLowerCase() === entity2.city.toLowerCase();
-      const stateMatch = entity1.state?.toLowerCase() === entity2.state?.toLowerCase();
+      const stateMatch = entity1.stateCode?.toLowerCase() === entity2.stateCode?.toLowerCase();
       fieldScores.address = (cityMatch && stateMatch) ? 0.6 : 0;
     }
     
@@ -383,7 +383,7 @@ export class EntityResolutionEngine {
       
       switch (strategy.type) {
         case 'exact':
-          conditions.push(eq(leads[strategy.field as keyof typeof leads], value));
+          conditions.push(eq(leads[strategy.field as keyof typeof leads] as any, value as any));
           break;
         
         case 'prefix':
@@ -487,7 +487,7 @@ export class EntityResolutionEngine {
         const group2 = groups.get(entity2Group)!;
         
         // Move all entities from group2 to group1
-        for (const entity of group2) {
+        for (const entity of Array.from(group2)) {
           group1.add(entity);
           entityToGroup.set(entity, entity1Group);
         }

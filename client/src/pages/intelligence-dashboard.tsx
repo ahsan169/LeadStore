@@ -66,31 +66,31 @@ export default function IntelligenceDashboard() {
   const { data: intelligenceMetrics, isLoading: metricsLoading } = useQuery({
     queryKey: ['/api/intelligence/metrics', timeRange],
     refetchInterval: refreshInterval,
-  });
+  }) as { data: IntelligenceMetrics | undefined; isLoading: boolean };
 
   // Fetch database stats
   const { data: databaseStats, isLoading: dbLoading } = useQuery({
     queryKey: ['/api/intelligence/database-stats'],
     refetchInterval: refreshInterval,
-  });
+  }) as { data: DatabaseStats | undefined; isLoading: boolean };
 
   // Fetch cost metrics
   const { data: costMetrics, isLoading: costLoading } = useQuery({
     queryKey: ['/api/intelligence/cost-metrics'],
     refetchInterval: refreshInterval,
-  });
+  }) as { data: CostMetrics | undefined; isLoading: boolean };
 
   // Fetch recent decisions
   const { data: recentDecisions, isLoading: decisionsLoading } = useQuery({
     queryKey: ['/api/intelligence/recent-decisions'],
     refetchInterval: refreshInterval,
-  });
+  }) as { data: RecentDecision[] | undefined; isLoading: boolean };
 
   // Fetch time series data
   const { data: timeSeriesData } = useQuery({
     queryKey: ['/api/intelligence/time-series', timeRange],
     refetchInterval: refreshInterval,
-  });
+  }) as { data: any[] | undefined };
 
   const isLoading = metricsLoading || dbLoading || costLoading || decisionsLoading;
 
@@ -192,10 +192,10 @@ export default function IntelligenceDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(intelligenceMetrics?.modelAccuracy * 100 || 0).toFixed(1)}%
+              {((intelligenceMetrics?.modelAccuracy ?? 0) * 100).toFixed(1)}%
             </div>
             <Progress 
-              value={intelligenceMetrics?.modelAccuracy * 100 || 0} 
+              value={(intelligenceMetrics?.modelAccuracy ?? 0) * 100} 
               className="mt-2"
             />
           </CardContent>
@@ -435,7 +435,7 @@ export default function IntelligenceDashboard() {
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Avg Completeness</div>
-                  <div className="text-2xl font-bold">{(databaseStats?.avgCompleteness * 100 || 0).toFixed(1)}%</div>
+                  <div className="text-2xl font-bold">{((databaseStats?.avgCompleteness ?? 0) * 100).toFixed(1)}%</div>
                 </div>
                 <div>
                   <div className="text-sm text-muted-foreground">Last Crawl</div>
@@ -537,10 +537,10 @@ export default function IntelligenceDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {intelligenceMetrics?.averageProcessingTime || 0}ms
+                  {intelligenceMetrics?.averageProcessingTime ?? 0}ms
                 </div>
-                <Badge variant={intelligenceMetrics?.averageProcessingTime < 500 ? 'default' : 'destructive'}>
-                  {intelligenceMetrics?.averageProcessingTime < 500 ? 'Fast' : 'Slow'}
+                <Badge variant={(intelligenceMetrics?.averageProcessingTime ?? 0) < 500 ? 'default' : 'destructive'}>
+                  {(intelligenceMetrics?.averageProcessingTime ?? 0) < 500 ? 'Fast' : 'Slow'}
                 </Badge>
               </CardContent>
             </Card>
@@ -551,9 +551,9 @@ export default function IntelligenceDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {(intelligenceMetrics?.enrichmentSuccessRate * 100 || 0).toFixed(1)}%
+                  {((intelligenceMetrics?.enrichmentSuccessRate ?? 0) * 100).toFixed(1)}%
                 </div>
-                <Progress value={intelligenceMetrics?.enrichmentSuccessRate * 100 || 0} className="mt-2" />
+                <Progress value={(intelligenceMetrics?.enrichmentSuccessRate ?? 0) * 100} className="mt-2" />
               </CardContent>
             </Card>
 
@@ -563,9 +563,9 @@ export default function IntelligenceDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {(intelligenceMetrics?.averageConfidence * 100 || 0).toFixed(1)}%
+                  {((intelligenceMetrics?.averageConfidence ?? 0) * 100).toFixed(1)}%
                 </div>
-                <Progress value={intelligenceMetrics?.averageConfidence * 100 || 0} className="mt-2" />
+                <Progress value={(intelligenceMetrics?.averageConfidence ?? 0) * 100} className="mt-2" />
               </CardContent>
             </Card>
 

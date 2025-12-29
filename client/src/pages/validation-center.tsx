@@ -20,12 +20,12 @@ export default function ValidationCenter() {
   // Fetch leads for validation
   const { data: leads, isLoading: leadsLoading } = useQuery({
     queryKey: ["/api/leads/validation-queue"],
-  });
+  }) as { data: Lead[] | undefined; isLoading: boolean };
 
   // Fetch validation stats
   const { data: stats } = useQuery({
     queryKey: ["/api/validation/stats"],
-  });
+  }) as { data: { fullyValidated?: number; partiallyValidated?: number; failedValidation?: number; validationRate?: number } | undefined };
 
   // Validate single lead
   const validateMutation = useMutation({
@@ -443,19 +443,13 @@ export default function ValidationCenter() {
 
       {/* Lead Detail Modal */}
       <LeadDetailModal
-        lead={selectedLead}
+        lead={selectedLead as any}
         isOpen={showDetailModal}
         onClose={() => {
           setShowDetailModal(false);
           setSelectedLead(null);
         }}
-        onEnrich={async (lead) => {
-          toast({
-            title: "Enrichment Started",
-            description: `Enriching ${lead.businessName}`,
-          });
-        }}
-        onExport={async (lead, format) => {
+        onExport={(lead: any, format: string) => {
           toast({
             title: "Export Started",
             description: `Exporting lead as ${format}`,

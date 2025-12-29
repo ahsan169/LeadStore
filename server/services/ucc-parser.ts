@@ -401,7 +401,7 @@ class UccParserService {
           result.success = (result.records.length > 0 || result.continuationRecords.length > 0);
           resolve(result);
         },
-        error: (error) => {
+        error: (error: any) => {
           result.errors.push(error.message);
           resolve(result);
         }
@@ -567,8 +567,9 @@ class UccParserService {
     // Find and extract filing date
     const dateStr = this.findFieldValue(row, this.columnMappings.filingDate);
     if (dateStr) {
-      record.filingDate = this.parseDate(dateStr);
-      if (!record.filingDate) return null;
+      const parsedDate = this.parseDate(dateStr);
+      if (!parsedDate) return null;
+      record.filingDate = parsedDate;
     } else {
       return null;
     }
@@ -638,7 +639,7 @@ class UccParserService {
     // Try to extract optional fields
     const dateStr = this.findFieldValue(row, this.columnMappings.filingDate);
     if (dateStr) {
-      record.filingDate = this.parseDate(dateStr);
+      record.filingDate = this.parseDate(dateStr) ?? undefined;
     }
     
     record.debtorName = this.findFieldValue(row, this.columnMappings.debtorName);
@@ -935,7 +936,7 @@ class UccParserService {
     }
     
     // Create profile for each debtor
-    for (const [debtorKey, debtorRecords] of recordsByDebtor.entries()) {
+    for (const [debtorKey, debtorRecords] of Array.from(recordsByDebtor.entries())) {
       const profile = this.analyzeDebtorFilings(debtorRecords, leadMatches);
       profilesMap.set(debtorKey, profile);
     }
@@ -1307,7 +1308,7 @@ class UccParserService {
   async storeFilings(records: UccRecord[], leadMatches: Map<UccRecord, Lead | null>): Promise<UccFiling[]> {
     const filings: InsertUccFiling[] = [];
     
-    for (const [record, lead] of leadMatches.entries()) {
+    for (const [record, lead] of Array.from(leadMatches.entries())) {
       filings.push({
         leadId: lead?.id,
         debtorName: record.debtorName,
@@ -1316,7 +1317,7 @@ class UccParserService {
         fileNumber: record.fileNumber,
         collateralDescription: record.collateralDescription,
         loanAmount: record.loanAmount,
-        filingType: record.filingType,
+        filingType: record.filingType as any,
         jurisdiction: record.jurisdiction
       });
     }
@@ -1351,7 +1352,7 @@ class UccParserService {
     
     // Count matched vs unmatched
     let matchedCount = 0;
-    for (const lead of matches.values()) {
+    for (const lead of Array.from(matches.values())) {
       if (lead) matchedCount++;
     }
     
@@ -1376,7 +1377,7 @@ class UccParserService {
     }
     
     // Calculate signals for each lead
-    for (const [leadId, filings] of leadFilings.entries()) {
+    for (const [leadId, filings] of Array.from(leadFilings.entries())) {
       const signals = this.calculateMcaSignals(filings);
       signalsByLead.set(leadId, signals);
     }

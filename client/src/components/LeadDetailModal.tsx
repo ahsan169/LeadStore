@@ -303,7 +303,7 @@ export function LeadDetailModal({ lead, isOpen, onClose, onExport, onPurchase }:
                     <CardTitle className="text-sm font-medium">Additional Information</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
-                    {lead.tags?.length > 0 && (
+                    {lead.tags && lead.tags.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {lead.tags.map((tag, index) => (
                           <Badge key={index} variant="secondary">{tag}</Badge>
@@ -513,7 +513,7 @@ export function LeadDetailModal({ lead, isOpen, onClose, onExport, onPurchase }:
                         </div>
                       </div>
                     </div>
-                    {lead.securedParties?.length > 0 && (
+                    {lead.securedParties && lead.securedParties.length > 0 && (
                       <div className="mt-4">
                         <div className="text-sm text-muted-foreground mb-2">Secured Parties</div>
                         <div className="flex flex-wrap gap-2">
@@ -671,7 +671,7 @@ export function LeadDetailModal({ lead, isOpen, onClose, onExport, onPurchase }:
                           </div>
                         </div>
 
-                        {lead.whyGoodForMca?.length > 0 && (
+                        {lead.whyGoodForMca && lead.whyGoodForMca.length > 0 && (
                           <>
                             <Separator />
                             <div>

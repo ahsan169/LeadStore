@@ -83,7 +83,7 @@ passport.use(
         return done(null, false, { message: "Invalid username or password" });
       }
 
-      return done(null, user);
+      return done(null, user as any);
     } catch (error) {
       return done(error);
     }
@@ -97,7 +97,7 @@ passport.serializeUser((user, done) => {
 passport.deserializeUser(async (id: string, done) => {
   try {
     const user = await storage.getUser(id);
-    done(null, user);
+    done(null, user as any);
   } catch (error) {
     done(error);
   }
@@ -119,7 +119,7 @@ app.post("/api/auth/login", passport.authenticate("local"), async (req, res) => 
     
     // Set session with company context
     req.session.userId = user.id;
-    req.session.userRole = user.role;
+    req.session.userRole = user.role as any;
     req.session.companyId = user.companyId || undefined;
     
     // Update last login timestamp

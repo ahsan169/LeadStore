@@ -1,7 +1,7 @@
 import { storage } from "../storage";
 import { eventBus } from "./event-bus";
 import OpenAI from 'openai';
-import type { Lead, EnrichmentLog, InsertIntelligenceDecision } from "@shared/schema";
+import type { Lead, InsertIntelligenceDecision } from "@shared/schema";
 import { WaterfallEnrichmentOrchestrator } from "./waterfall-enrichment-orchestrator";
 import { MLScoringService } from "./ml-scoring";
 import { MasterDatabaseService } from "./master-database";
@@ -377,7 +377,7 @@ export class IntelligenceBrain {
       // Determine strategy based on plan priority
       let strategy: 'minimal' | 'standard' | 'comprehensive' | 'maximum' = 'standard';
       if (plan.priority === 'urgent' || plan.priority === 'high') {
-        strategy = metrics?.completenessScore < 40 ? 'maximum' : 'comprehensive';
+        strategy = (metrics?.completenessScore ?? 0) < 40 ? 'maximum' : 'comprehensive';
       } else if (plan.priority === 'medium') {
         strategy = 'standard';
       } else {
@@ -398,7 +398,7 @@ export class IntelligenceBrain {
         services: selectedServices,
         estimatedCost: adjustedCost,
         confidence: plan.confidenceLevel / 100,
-        reasoning: `Based on data analysis: ${metrics?.completenessScore.toFixed(0)}% complete, ${plan.expectedQualityImprovement.toFixed(0)}% expected improvement. ${plan.recommendations?.[0] || 'Targeted enrichment recommended'}`
+        reasoning: `Based on data analysis: ${(metrics?.completenessScore ?? 0).toFixed(0)}% complete, ${plan.expectedQualityImprovement.toFixed(0)}% expected improvement. ${plan.executionSteps?.[0]?.description || 'Targeted enrichment recommended'}`
       };
     }
     
@@ -420,13 +420,7 @@ export class IntelligenceBrain {
         actualCost: decision.actualCost ? decision.actualCost.toFixed(4) : undefined,
         confidence: decision.confidence.toFixed(4),
         reasoning: decision.reasoning,
-        skipReasons: decision.skipReasons,
-        metadata: {
-          batchContext: decision.batchContext,
-          executionDetails: decision.executionDetails,
-          timestamp: new Date().toISOString(),
-          source: 'intelligence_brain'
-        }
+        skipReasons: decision.skipReasons
       };
 
       await db.insert(intelligenceDecisions).values(decisionData);
@@ -477,7 +471,7 @@ export class IntelligenceBrain {
   private identifyCostOptimizations(groupedStrategies: Map<string, string[]>): string[] {
     const optimizations: string[] = [];
     
-    for (const [strategy, leadIds] of groupedStrategies.entries()) {
+    for (const [strategy, leadIds] of Array.from(groupedStrategies.entries())) {
       const count = leadIds.length;
       
       if (count >= 10) {
@@ -523,7 +517,7 @@ export class IntelligenceBrain {
     leadId: string, 
     decision: EnrichmentDecision
   ): Promise<{ jobId: string; status: string }> {
-    if (decision.services.length === 0 || decision.skipReasons?.length > 0) {
+    if (decision.services.length === 0 || (decision.skipReasons?.length ?? 0) > 0) {
       console.log(`[IntelligenceBrain] Skipping enrichment for lead ${leadId}: ${decision.skipReasons?.join(', ')}`);
       return { jobId: 'skipped', status: 'skipped' };
     }
@@ -547,16 +541,11 @@ export class IntelligenceBrain {
       {
         batchId: decision.batchContext?.batchId,
         enrichmentOptions: {
-          services: decision.services,
-          strategy: decision.strategy,
-          maxCost: decision.estimatedCost * 1.2, // Allow 20% overrun
-          skipVerification: false,
-          includeEmailDiscovery: decision.services.includes('hunter'),
-          includePhoneDiscovery: decision.services.includes('numverify'),
-          includeCompanyData: decision.services.includes('clearbit'),
-          includeSocialProfiles: decision.services.includes('proxycurl'),
-          includeRevenueEstimates: decision.services.includes('perplexity'),
-          useBrainPipeline: true
+          skipPerplexity: !decision.services.includes('perplexity'),
+          skipHunter: !decision.services.includes('hunter'),
+          skipNumverify: !decision.services.includes('numverify'),
+          skipOpenAI: !decision.services.includes('openai'),
+          maxRetries: 3
         },
         maxRetries: 3
       }
@@ -633,7 +622,7 @@ export class IntelligenceBrain {
         phone: lead.phone,
         email: lead.email
       }),
-      lead.businessName ? this.getUccDataForLead(lead) : null,
+      lead.businessName ? this.getUccDataForLead(lead as Lead) : null,
       this.getRelatedEntitiesForLead(lead.id),
       this.getHistoricalPerformance(lead),
       this.getIndustryInsights(lead)
@@ -654,7 +643,7 @@ export class IntelligenceBrain {
     // Check if we already have sufficient data from master database
     if (context.masterDbData && context.masterDbData.completeness > 0.85) {
       return {
-        leadId: context.lead.id,
+        leadId: context.lead.id as string,
         strategy: 'minimal',
         priority: 5,
         services: ['validation'],
@@ -684,7 +673,7 @@ export class IntelligenceBrain {
     const reasoning = await this.generateReasoning(context, strategy, services);
 
     return {
-      leadId: context.lead.id,
+      leadId: context.lead.id as string,
       strategy,
       priority,
       services,
@@ -696,7 +685,7 @@ export class IntelligenceBrain {
 
   private determineStrategy(valueScore: number, context: LeadContext): 'minimal' | 'standard' | 'comprehensive' | 'maximum' {
     // Intelligent strategy selection based on multiple factors
-    const existingCompleteness = this.calculateCompleteness(context.lead);
+    const existingCompleteness = this.calculateCompleteness(context.lead as Lead);
     const hasUccData = !!context.uccData && context.uccData.filings.length > 0;
     const hasRelatedEntities = context.relatedEntities && context.relatedEntities.length > 0;
     
@@ -728,7 +717,7 @@ export class IntelligenceBrain {
     const lead = context.lead;
     
     // Always validate phone if present
-    if (lead.phone && !lead.phoneVerified) {
+    if (lead.phone && !lead.phoneVerificationScore) {
       services.push('numverify');
     }
     
@@ -744,7 +733,7 @@ export class IntelligenceBrain {
         // Basic enrichment
         if (!lead.email) services.push('hunter');
         if (!lead.industry || !lead.annualRevenue) services.push('clearbit');
-        if (!lead.socialProfiles) services.push('proxycurl');
+        if (!lead.linkedinUrl) services.push('proxycurl');
         break;
         
       case 'comprehensive':
@@ -761,7 +750,7 @@ export class IntelligenceBrain {
     }
     
     // Remove duplicates and filter based on available credits
-    return [...new Set(services)].filter(service => this.hasCreditsFor(service));
+    return Array.from(new Set(services)).filter(service => this.hasCreditsFor(service));
   }
 
   private async calculateLeadValue(context: LeadContext): Promise<number> {
@@ -770,10 +759,16 @@ export class IntelligenceBrain {
     
     // Business characteristics (40 points)
     if (lead.annualRevenue) {
-      score += Math.min(lead.annualRevenue / 50000, 20);
+      const revenue = typeof lead.annualRevenue === 'string' ? parseFloat(lead.annualRevenue) : lead.annualRevenue;
+      if (!isNaN(revenue)) {
+        score += Math.min(revenue / 50000, 20);
+      }
     }
     if (lead.timeInBusiness) {
-      score += Math.min(lead.timeInBusiness * 2, 10);
+      const years = typeof lead.timeInBusiness === 'string' ? parseFloat(lead.timeInBusiness) : lead.timeInBusiness;
+      if (!isNaN(years)) {
+        score += Math.min(years * 2, 10);
+      }
     }
     if (lead.industry) {
       const industryScore = this.getIndustryScore(lead.industry);
@@ -789,7 +784,7 @@ export class IntelligenceBrain {
     }
     
     // Data quality (20 points)
-    const completeness = this.calculateCompleteness(lead);
+    const completeness = this.calculateCompleteness(lead as Lead);
     score += completeness * 20;
     
     // Urgency and intent (10 points)
@@ -914,7 +909,7 @@ export class IntelligenceBrain {
     return `Analyze this enrichment decision:
     
 Lead: ${context.lead.businessName || 'Unknown'} (${context.lead.industry || 'Unknown industry'})
-Current completeness: ${Math.round(this.calculateCompleteness(context.lead) * 100)}%
+Current completeness: ${Math.round(this.calculateCompleteness(context.lead as Lead) * 100)}%
 Strategy selected: ${strategy}
 Services to use: ${services.join(', ')}
 Has UCC data: ${!!context.uccData}
@@ -923,22 +918,22 @@ In master database: ${!!context.masterDbData}
 Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is optimal.`;
   }
 
-  private assessExistingData(lead: Lead): any {
+  private assessExistingData(lead: Lead | Partial<Lead>): any {
     return {
       hasBasicInfo: !!(lead.businessName && lead.ownerName),
       hasContactInfo: !!(lead.phone || lead.email),
       hasBusinessMetrics: !!(lead.annualRevenue && lead.timeInBusiness),
-      hasLocation: !!(lead.city && lead.state),
-      completeness: this.calculateCompleteness(lead)
+      hasLocation: !!(lead.city && lead.stateCode),
+      completeness: this.calculateCompleteness(lead as Lead)
     };
   }
 
-  private async getHistoricalPerformance(lead: Lead): Promise<any> {
+  private async getHistoricalPerformance(lead: Lead | Partial<Lead>): Promise<any> {
     // Get historical performance data for similar leads
     const similarLeads = await storage.searchSimilarLeads({
-      industry: lead.industry,
-      state: lead.state,
-      revenueRange: lead.annualRevenue
+      industry: lead.industry ?? undefined,
+      state: lead.stateCode ?? undefined,
+      revenueRange: lead.annualRevenue ?? undefined
     });
     
     return {
@@ -948,7 +943,7 @@ Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is 
     };
   }
 
-  private async getIndustryInsights(lead: Lead): Promise<any> {
+  private async getIndustryInsights(lead: Lead | Partial<Lead>): Promise<any> {
     if (!lead.industry) return null;
     
     return {
@@ -1022,7 +1017,10 @@ Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is 
 
   private calculateAverageValue(leads: Lead[]): number {
     if (leads.length === 0) return 0;
-    const total = leads.reduce((sum, l) => sum + (l.requestedAmount || 0), 0);
+    const total = leads.reduce((sum, l) => {
+      const amount = l.requestedAmount ? parseFloat(l.requestedAmount) : 0;
+      return sum + (isNaN(amount) ? 0 : amount);
+    }, 0);
     return total / leads.length;
   }
 
@@ -1065,16 +1063,16 @@ Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is 
       await this.masterDb.addToDatabase({
         id: lead.id,
         businessName: lead.businessName || '',
-        ownerName: lead.ownerName,
-        phone: lead.phone,
-        email: lead.email,
-        address: lead.address,
-        city: lead.city,
-        state: lead.state,
-        zipCode: lead.zipCode,
-        industry: lead.industry,
-        annualRevenue: lead.annualRevenue,
-        timeInBusiness: lead.timeInBusiness,
+        ownerName: lead.ownerName ?? undefined,
+        phone: lead.phone ?? undefined,
+        email: lead.email ?? undefined,
+        address: lead.fullAddress ?? undefined,
+        city: lead.city ?? undefined,
+        state: lead.stateCode ?? undefined,
+        zipCode: undefined,
+        industry: lead.industry ?? undefined,
+        annualRevenue: lead.annualRevenue ? parseFloat(lead.annualRevenue) : undefined,
+        timeInBusiness: lead.timeInBusiness ? parseInt(lead.timeInBusiness) : undefined,
         dataQuality: {
           completeness: results.completenessScore || 0,
           accuracy: 0.8,
@@ -1189,7 +1187,7 @@ Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is 
       return {
         filings: filings || [],
         intelligence: intelligence[0] || null,
-        riskScore: intelligence[0]?.riskScore || null
+        riskScore: intelligence[0]?.debtStackingScore || null
       };
     } catch (error) {
       console.error('Error fetching UCC data:', error);
@@ -1197,7 +1195,9 @@ Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is 
     }
   }
 
-  private async getRelatedEntitiesForLead(leadId: string): Promise<any[]> {
+  private async getRelatedEntitiesForLead(leadId: string | undefined): Promise<any[]> {
+    if (!leadId) return [];
+    
     try {
       // Build graph for this lead
       const leadData = await storage.getLeadById(leadId);
@@ -1205,9 +1205,9 @@ Provide a brief reasoning (max 2 sentences) for why this enrichment strategy is 
       
       // Simple related entities lookup based on common attributes
       const relatedLeads = await storage.searchSimilarLeads({
-        businessName: leadData.businessName,
-        state: leadData.state,
-        phone: leadData.phone
+        industry: leadData.industry ?? undefined,
+        state: leadData.stateCode ?? undefined,
+        revenueRange: leadData.annualRevenue ?? undefined
       });
 
       return relatedLeads || [];

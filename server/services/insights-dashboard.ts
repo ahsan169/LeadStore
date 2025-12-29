@@ -668,8 +668,8 @@ export class InsightsDashboardService {
 
       const cachedData = cached[0];
       
-      // Return the market timing from metadata
-      return cachedData.reportMetadata as MarketTiming || null;
+      // Return the market timing from data
+      return cachedData.data as MarketTiming || null;
     } catch (error) {
       console.error('[InsightsDashboard] Error fetching cached market timing:', error);
       return null;
@@ -701,7 +701,7 @@ export class InsightsDashboardService {
           indicatorCount: timing.indicators.length
         },
         recommendations: timing.optimalActions.map(a => a.action),
-        reportMetadata: timing,
+        data: timing as any,
         generatedAt: new Date(),
         generatedBy: 'system',
         reportStatus: 'final',

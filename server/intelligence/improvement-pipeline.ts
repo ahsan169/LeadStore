@@ -305,7 +305,7 @@ export class ContinuousImprovementPipeline {
       const grouped = this.groupFeedback(recentFeedback);
       
       // Detect patterns in each group
-      for (const [key, items] of grouped.entries()) {
+      for (const [key, items] of Array.from(grouped.entries())) {
         if (items.length >= 3) {
           const pattern = await this.detectPatternInGroup(items);
           if (pattern) {
@@ -380,7 +380,7 @@ export class ContinuousImprovementPipeline {
     let maxCount = 0;
     let mostCommonTransform = null;
     
-    for (const [transform, count] of commonalities.transformations.entries()) {
+    for (const [transform, count] of Array.from(commonalities.transformations.entries())) {
       if (count > maxCount) {
         maxCount = count;
         mostCommonTransform = transform;
@@ -422,9 +422,9 @@ export class ContinuousImprovementPipeline {
     });
     
     // Look for leads with multiple field corrections
-    for (const [leadId, items] of byLead.entries()) {
+    for (const [leadId, items] of Array.from(byLead.entries())) {
       if (items.length >= 2) {
-        const fields = [...new Set(items.map(i => i.fieldName).filter(Boolean))];
+        const fields = Array.from(new Set(items.map((i: any) => i.fieldName).filter(Boolean)));
         
         if (fields.length >= 2) {
           patterns.push({
@@ -461,7 +461,7 @@ export class ContinuousImprovementPipeline {
     let maxHourCount = 0;
     let peakHour = 0;
     
-    for (const [hour, items] of byHour.entries()) {
+    for (const [hour, items] of Array.from(byHour.entries())) {
       if (items.length > maxHourCount) {
         maxHourCount = items.length;
         peakHour = hour;
@@ -777,9 +777,9 @@ export class ContinuousImprovementPipeline {
         periodType: 'daily',
         periodStart,
         periodEnd: now,
-        accuracyAfter: metrics.find(m => m.name === 'accuracy')?.value || 0,
+        accuracyAfter: ((metrics.find(m => m.name === 'accuracy')?.value || 0) / 100).toString(),
         avgProcessingTime: Math.round(1000 / (metrics.find(m => m.name === 'processing_speed')?.value || 1)),
-        errorRate: (metrics.find(m => m.name === 'error_rate')?.value || 0) / 100,
+        errorRate: ((metrics.find(m => m.name === 'error_rate')?.value || 0) / 100).toString(),
         systemHealth: {
           metrics: metrics.map(m => ({
             name: m.name,
@@ -787,7 +787,7 @@ export class ContinuousImprovementPipeline {
             trend: m.trend,
           })),
         },
-      });
+      } as any);
     } catch (error) {
       console.error('Error storing performance metrics:', error);
     }
@@ -802,6 +802,7 @@ export class ContinuousImprovementPipeline {
       const regressions: string[] = [];
       const possibleCauses: string[] = [];
       let maxSeverity: 'low' | 'medium' | 'high' | 'critical' = 'low';
+      let maxDegradationPercent = 0;
       
       // Check each metric for regression
       for (const metric of currentMetrics) {
@@ -811,6 +812,7 @@ export class ContinuousImprovementPipeline {
         
         if (degradationPercent > this.config.regressionThreshold) {
           regressions.push(metric.name);
+          maxDegradationPercent = Math.max(maxDegradationPercent, degradationPercent);
           
           // Determine severity
           if (degradationPercent > 20) {
@@ -856,7 +858,7 @@ export class ContinuousImprovementPipeline {
           affectedMetrics: regressions,
           possibleCauses,
           recommendations,
-          rollbackRequired: degradationPercent > this.config.rollbackThreshold,
+          rollbackRequired: maxDegradationPercent > this.config.rollbackThreshold,
         };
       }
       

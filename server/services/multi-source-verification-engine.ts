@@ -218,7 +218,7 @@ export class MultiSourceVerificationEngine {
     }
 
     // Address verification (placeholder for future implementation)
-    if (this.config.sources.address && (lead.address || lead.city)) {
+    if (this.config.sources.address && ((lead as any).address || lead.city)) {
       verificationTasks.push(
         this.verifyAddress(lead).then(result => {
           if (result) sources.push(result);
@@ -401,9 +401,10 @@ export class MultiSourceVerificationEngine {
 
     // Check business data completeness
     if (lead.industry) confidence += 10;
-    if (lead.annualRevenue && lead.annualRevenue > 0) confidence += 15;
-    if (lead.yearEstablished) {
-      const age = new Date().getFullYear() - lead.yearEstablished;
+    const revenueValue = lead.annualRevenue ? parseInt(lead.annualRevenue.replace(/\D/g, ''), 10) : 0;
+    if (revenueValue > 0) confidence += 15;
+    if (lead.yearFounded) {
+      const age = new Date().getFullYear() - lead.yearFounded;
       if (age > 0 && age < 100) confidence += 10;
     }
     if (lead.employeeCount && lead.employeeCount > 0) confidence += 10;
@@ -425,7 +426,7 @@ export class MultiSourceVerificationEngine {
         dataCompleteness: {
           industry: !!lead.industry,
           revenue: !!lead.annualRevenue,
-          established: !!lead.yearEstablished,
+          established: !!lead.yearFounded,
           employees: !!lead.employeeCount
         }
       },
@@ -440,13 +441,14 @@ export class MultiSourceVerificationEngine {
     // Basic address validation for now
     let confidence = 0;
     const issues: string[] = [];
+    const leadAny = lead as any;
 
-    if (lead.address) confidence += 30;
+    if (leadAny.address || lead.fullAddress) confidence += 30;
     if (lead.city) confidence += 20;
     if (lead.stateCode) confidence += 20;
-    if (lead.zipCode && /^\d{5}(-\d{4})?$/.test(lead.zipCode)) confidence += 30;
+    if (leadAny.zipCode && /^\d{5}(-\d{4})?$/.test(leadAny.zipCode)) confidence += 30;
 
-    if (!lead.address && !lead.city) {
+    if (!leadAny.address && !lead.fullAddress && !lead.city) {
       issues.push('No address information');
     }
 
@@ -458,10 +460,10 @@ export class MultiSourceVerificationEngine {
         valid: confidence >= 50,
         issues,
         completeness: {
-          address: !!lead.address,
+          address: !!(leadAny.address || lead.fullAddress),
           city: !!lead.city,
           state: !!lead.stateCode,
-          zip: !!lead.zipCode
+          zip: !!leadAny.zipCode
         }
       },
       timestamp: new Date()
@@ -725,7 +727,7 @@ export class MultiSourceVerificationEngine {
     const cacheKey = `verification:${leadId}`;
     const ttl = this.config.cacheHours * 60 * 60 * 1000; // Convert hours to milliseconds
     
-    await cacheManager.set('multi-source-verification', cacheKey, decision, ttl);
+    await cacheManager.set('multi-source-verification', cacheKey, decision, { ttl });
   }
 
   /**
@@ -758,29 +760,28 @@ export class MultiSourceVerificationEngine {
       // Store detailed verification in enhancedVerification table
       await db.insert(enhancedVerification).values({
         leadId,
-        emailConfidence: decision.confidence.email,
-        phoneConfidence: decision.confidence.phone,
-        domainConfidence: 0, // Can be calculated separately if needed
-        dataQualityConfidence: decision.confidence.business,
-        overallConfidenceScore: decision.confidence.overall,
+        emailScore: decision.confidence.email,
+        emailStatus: decision.confidence.email >= 80 ? 'deliverable' : decision.confidence.email >= 50 ? 'risky' : 'unknown',
+        overallConfidenceScore: String(decision.confidence.overall),
         verificationStatus: decision.status,
-        emailDeliverable: decision.confidence.email >= 80,
-        emailDomainValid: decision.confidence.email >= 50,
-        emailNotDisposable: true, // This should come from actual verification
-        emailSmtpValid: decision.confidence.email >= 60,
-        emailMxRecordsValid: decision.confidence.email >= 40,
+        mxRecords: decision.confidence.email >= 40,
+        smtpCheck: decision.confidence.email >= 60,
+        emailDisposable: false,
         phoneValid: decision.confidence.phone >= 50,
-        phoneCorrectLineType: decision.confidence.phone >= 60,
-        phoneCorrectLocation: decision.confidence.phone >= 50,
-        phoneLowRisk: decision.confidence.phone >= 70,
-        phoneCarrierKnown: decision.confidence.phone >= 40,
-        explanations: [...decision.positiveSignals, ...decision.riskFactors],
-        recommendations: decision.recommendations,
-        verificationSources: decision.confidence.sources.map(s => s.name),
-        verificationTimestamp: new Date(),
+        phoneRiskScore: 100 - decision.confidence.phone,
+        confidenceBreakdown: {
+          email: decision.confidence.email,
+          phone: decision.confidence.phone,
+          business: decision.confidence.business,
+          address: decision.confidence.address,
+          social: decision.confidence.social,
+          positiveSignals: decision.positiveSignals,
+          riskFactors: decision.riskFactors,
+          recommendations: decision.recommendations
+        },
         cachedUntil: new Date(Date.now() + this.config.cacheHours * 60 * 60 * 1000),
-        rawVerificationData: decision.confidence.sources
-      });
+        verifiedAt: new Date()
+      } as any);
     } catch (error) {
       console.error('[MultiSourceVerification] Failed to store verification result:', error);
       // Don't throw - verification still succeeded even if storage failed
@@ -830,7 +831,7 @@ export class MultiSourceVerificationEngine {
         overallConfidenceScore: enhancedVerification.overallConfidenceScore
       })
       .from(enhancedVerification)
-      .where(gte(enhancedVerification.verificationTimestamp, since));
+      .where(gte(enhancedVerification.verifiedAt, since));
 
     const stats = {
       total: results.length,
@@ -858,11 +859,12 @@ export class MultiSourceVerificationEngine {
           stats.failed++;
           break;
         default:
-          if (r.overallConfidenceScore >= 30 && r.overallConfidenceScore < 50) {
+          const score = r.overallConfidenceScore ? parseFloat(r.overallConfidenceScore) : 0;
+          if (score >= 30 && score < 50) {
             stats.risky++;
           }
       }
-      totalConfidence += r.overallConfidenceScore;
+      totalConfidence += r.overallConfidenceScore ? parseFloat(r.overallConfidenceScore) : 0;
     });
 
     stats.averageConfidence = stats.total > 0 ? Math.round(totalConfidence / stats.total) : 0;
@@ -873,6 +875,3 @@ export class MultiSourceVerificationEngine {
 
 // Export singleton instance
 export const multiSourceVerificationEngine = new MultiSourceVerificationEngine();
-
-// Export types for use in other modules
-export type { VerificationSource, MultiSourceConfidence, VerificationDecision, VerificationConfig };

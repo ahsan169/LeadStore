@@ -403,7 +403,7 @@ export class BulkOperationsService {
     
     let topDiscountTier = "None";
     let maxCount = 0;
-    for (const [tier, count] of tierCounts.entries()) {
+    for (const [tier, count] of Array.from(tierCounts.entries())) {
       if (count > maxCount) {
         maxCount = count;
         topDiscountTier = tier;

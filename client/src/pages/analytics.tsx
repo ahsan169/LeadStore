@@ -368,15 +368,15 @@ export default function AnalyticsPage() {
 
   const { data: purchases } = useQuery({
     queryKey: ["/api/purchases"],
-  });
+  }) as { data: any };
   
   const { data: mlModelData } = useQuery({
     queryKey: ["/api/scoring/model"],
-  });
+  }) as { data: any };
   
   const { data: mlInsights } = useQuery({
     queryKey: ["/api/scoring/insights"],
-  });
+  }) as { data: any };
 
   const handleRefresh = async () => {
     setRefreshing(true);

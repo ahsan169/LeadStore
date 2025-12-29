@@ -1,5 +1,5 @@
 // Hunter.io Email Verification Service
-import axios from 'axios';
+const axios = require('axios') as any;
 
 export class HunterVerifier {
   private apiKey: string;

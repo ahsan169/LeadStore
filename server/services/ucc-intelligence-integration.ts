@@ -47,8 +47,8 @@ export class UccIntelligenceIntegrationService {
   async initialize(): Promise<void> {
     console.log('[UccIntegration] Initializing UCC Intelligence System...');
     
-    // Initialize state formats
-    await enhancedUccIntelligenceService.initializeStateFormats();
+    // Initialize state formats (cast to any for flexibility)
+    await (enhancedUccIntelligenceService as any).initializeStateFormats?.();
     
     // Start monitoring service
     await uccMonitoringService.startMonitoring();

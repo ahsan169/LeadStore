@@ -1,7 +1,9 @@
 import { db } from "../db";
 import { savedSearches, savedSearchMatches, leads } from "@shared/schema";
-import type { SavedSearch, SavedSearchMatch, Lead } from "@shared/schema";
+import type { SavedSearch, Lead } from "@shared/schema";
 import { eq, and, or, gte, lte, ilike, inArray, sql } from "drizzle-orm";
+
+type SavedSearchMatch = typeof savedSearchMatches.$inferSelect;
 
 export interface SearchCriteria {
   // Basic filters
@@ -102,7 +104,7 @@ export class SavedSearchService {
         eq(savedSearches.userId, userId)
       ));
 
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   /**

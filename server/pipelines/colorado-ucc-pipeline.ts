@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { leads, leadBatches, pipelineRuns } from "@shared/schema";
+import { leads, leadBatches } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 
 const SOCRATA_APP_TOKEN = process.env.SOCRATA_APP_TOKEN;

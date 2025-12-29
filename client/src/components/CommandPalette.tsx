@@ -119,7 +119,7 @@ export function CommandPalette() {
       });
 
       // Copy to clipboard
-      navigator.clipboard.writeText(response.apiKey);
+      navigator.clipboard.writeText((response as any).apiKey);
       setOpen(false);
     } catch (error) {
       toast({
@@ -157,7 +157,7 @@ export function CommandPalette() {
       
       // Download the file
       const link = document.createElement("a");
-      link.href = response.downloadUrl;
+      link.href = (response as any).downloadUrl;
       link.download = `analytics_${new Date().toISOString()}.csv`;
       link.click();
       
@@ -334,7 +334,7 @@ export function CommandPalette() {
     },
 
     // Admin Actions (if user is admin)
-    ...(user?.role === "admin"
+    ...((user as any)?.role === "admin"
       ? [
           {
             id: "upload-leads",

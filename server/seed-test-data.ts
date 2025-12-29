@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import { db } from './db';
 import { users, leadBatches, leads } from '@shared/schema';
 import type { InsertLead } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 // Helper function to generate realistic test MCA leads
 function generateTestLeads(count: number, qualityRange: { min: number; max: number }): InsertLead[] {
@@ -88,7 +89,7 @@ function generateTestLeads(count: number, qualityRange: { min: number; max: numb
     else if (qualityScore >= 60) tier = 'gold';
     else tier = 'gold'; // Default to gold for scores below 60
     
-    const lead: InsertLead = {
+    const lead = {
       batchId: 'test-batch-' + Date.now(), // Will be replaced with actual batch ID
       businessName: `${businessPrefix} ${industry} ${businessSuffix}`,
       ownerName: `${firstName} ${lastName}`,
@@ -110,7 +111,7 @@ function generateTestLeads(count: number, qualityRange: { min: number; max: numb
       sold: false
     };
     
-    testLeads.push(lead);
+    testLeads.push(lead as any);
   }
   
   return testLeads;
@@ -138,7 +139,7 @@ async function seedTestData() {
       if (error.message.includes('duplicate')) {
         console.log('Admin user already exists');
         // Get the existing admin user
-        const existingAdmin = await db.select().from(users).where((u: any) => u.username === 'admin').limit(1);
+        const existingAdmin = await db.select().from(users).where(eq(users.username, 'admin')).limit(1);
         var adminUserId = existingAdmin[0].id;
       } else {
         throw error;

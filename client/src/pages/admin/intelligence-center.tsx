@@ -57,7 +57,8 @@ import {
   Hash,
   Info,
   Award,
-  Gauge
+  Gauge,
+  Users
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import type { Lead } from "@shared/schema";
@@ -91,11 +92,7 @@ interface EnrichedLead extends Lead {
   missingFields: string[];
   enrichmentSystems: string[];
   dataAge: number;
-  verificationStatus: {
-    email: 'verified' | 'unverified' | 'invalid';
-    phone: 'verified' | 'unverified' | 'invalid';
-    address: 'verified' | 'unverified' | 'invalid';
-  };
+  verificationStatus: any;
 }
 
 interface IntelligenceInspectorData {
@@ -486,7 +483,7 @@ export default function IntelligenceCenter() {
     // Fetch detailed intelligence data for the lead
     try {
       const response = await apiRequest("GET", `/api/leads/${leadId}/intelligence`);
-      setSelectedLead(response);
+      setSelectedLead(response as any as IntelligenceInspectorData);
       setInspectorOpen(true);
     } catch (error) {
       toast({
@@ -540,7 +537,7 @@ export default function IntelligenceCenter() {
           </Badge>
           <Badge variant="outline" className="flex items-center gap-1">
             <Shield className="w-3 h-3" />
-            {systemStatus?.status || 'Online'}
+            {(systemStatus as any)?.status || 'Online'}
           </Badge>
           <Button
             variant="outline"
@@ -859,7 +856,7 @@ export default function IntelligenceCenter() {
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox 
-                      checked={leadsData?.leads.length > 0 && selectedLeads.size === leadsData?.leads.length}
+                      checked={(leadsData?.leads?.length ?? 0) > 0 && selectedLeads.size === (leadsData?.leads?.length ?? 0)}
                       onCheckedChange={handleSelectAll}
                       data-testid="checkbox-select-all"
                     />
@@ -923,9 +920,9 @@ export default function IntelligenceCenter() {
                           <div className="flex items-center gap-1">
                             <Gauge className="w-4 h-4 text-muted-foreground" />
                             <span className={cn("font-bold", 
-                              lead.masterEnrichmentScore >= 80 ? "text-green-600" :
-                              lead.masterEnrichmentScore >= 60 ? "text-blue-600" :
-                              lead.masterEnrichmentScore >= 40 ? "text-yellow-600" :
+                              (lead.masterEnrichmentScore ?? 0) >= 80 ? "text-green-600" :
+                              (lead.masterEnrichmentScore ?? 0) >= 60 ? "text-blue-600" :
+                              (lead.masterEnrichmentScore ?? 0) >= 40 ? "text-yellow-600" :
                               "text-red-600"
                             )}>
                               {lead.masterEnrichmentScore || 0}

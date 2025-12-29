@@ -32,28 +32,32 @@ export default function IntelligenceDashboard() {
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
 
   // Fetch intelligence overview
-  const { data: overview, isLoading: isLoadingOverview, refetch: refetchOverview } = useQuery({
+  const { data: overviewData, isLoading: isLoadingOverview, refetch: refetchOverview } = useQuery({
     queryKey: ['/api/admin/intelligence/overview'],
     refetchInterval: autoRefresh ? refreshInterval : false
   });
+  const overview = overviewData as any;
 
   // Fetch pipeline metrics
-  const { data: pipelineMetrics } = useQuery({
+  const { data: pipelineMetricsData } = useQuery({
     queryKey: ['/api/brain/metrics'],
     refetchInterval: autoRefresh ? refreshInterval : false
   });
+  const pipelineMetrics = pipelineMetricsData as any;
 
   // Fetch rule performance
-  const { data: rulePerformance } = useQuery({
+  const { data: rulePerformanceData } = useQuery({
     queryKey: ['/api/rules/performance'],
     refetchInterval: autoRefresh ? refreshInterval : false
   });
+  const rulePerformance = rulePerformanceData as any;
 
   // Fetch recent processing explanations
-  const { data: recentProcessing } = useQuery({
+  const { data: recentProcessingData } = useQuery({
     queryKey: ['/api/brain/recent'],
     refetchInterval: autoRefresh ? refreshInterval : false
   });
+  const recentProcessing = recentProcessingData as any;
 
   // Format tier usage data for pie chart
   const tierUsageData = overview?.tierUsage ? [

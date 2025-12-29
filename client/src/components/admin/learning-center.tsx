@@ -137,7 +137,7 @@ export default function LearningCenter() {
   });
 
   // Fetch learning stats
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<any>({
     queryKey: ['/api/admin/learning/stats'],
   });
 
@@ -147,7 +147,7 @@ export default function LearningCenter() {
       return apiRequest(`/api/admin/learning/feedback/${feedbackId}`, {
         method: 'POST',
         body: JSON.stringify({ action }),
-      });
+      } as any);
     },
     onSuccess: (data, variables) => {
       toast({ 
@@ -168,7 +168,7 @@ export default function LearningCenter() {
       return apiRequest('/api/admin/learning/improvements', {
         method: 'POST',
         body: JSON.stringify(improvement),
-      });
+      } as any);
     },
     onSuccess: () => {
       toast({ title: "Improvement proposal created" });
@@ -187,7 +187,7 @@ export default function LearningCenter() {
       return apiRequest(`/api/admin/learning/ab-tests/${testId}`, {
         method: 'POST',
         body: JSON.stringify({ action }),
-      });
+      } as any);
     },
     onSuccess: () => {
       toast({ title: "A/B test updated" });
@@ -203,7 +203,7 @@ export default function LearningCenter() {
     mutationFn: async () => {
       return apiRequest('/api/admin/learning/retrain', {
         method: 'POST',
-      });
+      } as any);
     },
     onSuccess: () => {
       toast({ title: "Model retraining initiated", description: "This may take several minutes" });

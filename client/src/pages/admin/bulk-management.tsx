@@ -20,27 +20,24 @@ export default function BulkManagementPage() {
   const [showApproveDialog, setShowApproveDialog] = useState(false);
 
   // Fetch bulk orders
-  const { data: orders = [], isLoading: ordersLoading } = useQuery({
+  const { data: orders = [], isLoading: ordersLoading } = useQuery<any[]>({
     queryKey: ['/api/admin/bulk/orders'],
   });
 
   // Fetch discount tiers
-  const { data: discounts = [], isLoading: discountsLoading } = useQuery({
+  const { data: discounts = [], isLoading: discountsLoading } = useQuery<any[]>({
     queryKey: ['/api/bulk/discounts'],
   });
 
   // Fetch bulk stats
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<any>({
     queryKey: ['/api/admin/bulk/stats'],
   });
 
   // Approve order mutation
   const approveOrderMutation = useMutation({
     mutationFn: async (data: { orderId: string; customPrice?: number }) => {
-      return apiRequest(`/api/admin/bulk/orders/${data.orderId}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({ customPrice: data.customPrice })
-      });
+      return apiRequest('POST', `/api/admin/bulk/orders/${data.orderId}/approve`, { customPrice: data.customPrice });
     },
     onSuccess: () => {
       toast({
@@ -64,10 +61,7 @@ export default function BulkManagementPage() {
   // Create discount tier mutation
   const createDiscountMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest('/api/admin/bulk/discounts', {
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
+      return apiRequest('POST', '/api/admin/bulk/discounts', data);
     },
     onSuccess: () => {
       toast({

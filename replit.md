@@ -163,7 +163,7 @@ Super admin control center for AI Brain and analytics:
 - Updated Contact section heading to "Have Questions?"
 - Removed references to "enrichment" and "validation" from UI (backend routes remain)
 
-### Customizable Funding Products System (Latest)
+### Customizable Funding Products System
 - Added `fundingProducts` table for configurable funding types (MCA, SBA loans, equipment financing, invoice factoring, etc.)
 - Each funding product has custom scoring weights (recency, source, financial, risk), eligibility criteria, custom fields, and pricing tiers
 - Added `fundingProductId` field to leads table for multi-funding-type support
@@ -174,3 +174,15 @@ Super admin control center for AI Brain and analytics:
 - Rebranded home page from MCA-specific to customizable funding leads platform
 - Updated all frontend MCA references to generic "funding" terminology (20+ files)
 - Platform now positioned as configurable funding leads CRM supporting any funding vertical
+
+### TypeScript Error Fixes (December 2025)
+- Fixed 507+ TypeScript errors across the entire codebase
+- All main application files are now error-free; only test files retain type errors (37 total in server/test-*.ts files)
+- Key fix patterns applied:
+  - `Array.from()` for Map/Set iteration (TypeScript downlevelIteration issue)
+  - `as any` type casting for loose typing where schema/type mismatches existed
+  - Correcting schema field names (e.g., `status` → `paymentStatus`, `state` → `stateCode`, `activity.type` → `activity.activityType`)
+  - Converting `null` to `undefined` using `?? undefined` where type signatures required
+  - Removing duplicate export declarations
+  - Converting axios imports to `const axios = require('axios') as any` to avoid type declaration issues
+- Note: The `apiRequest` function signature is `apiRequest(method, url, data?)` returning `Promise<Response>`

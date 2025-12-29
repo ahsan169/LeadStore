@@ -662,7 +662,7 @@ export class DataFusionEngine {
     let maxVotes = 0;
     let winner = values[0].value;
     
-    for (const [key, voteCount] of votes.entries()) {
+    for (const [key, voteCount] of Array.from(votes.entries())) {
       if (voteCount > maxVotes) {
         maxVotes = voteCount;
         winner = JSON.parse(key);

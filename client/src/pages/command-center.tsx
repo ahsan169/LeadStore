@@ -189,7 +189,7 @@ function ApiConsole() {
         title: "Request Executed",
         description: `${method} ${endpoint} - Status: ${res.status}`,
       });
-    } catch (error) {
+    } catch (error: any) {
       setResponse(JSON.stringify({ error: error.message }, null, 2));
       toast({
         title: "Request Failed",
@@ -301,13 +301,13 @@ export default function CommandCenter() {
   }, []);
 
   // Fetch unified dashboard data
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery<any>({
     queryKey: ["/api/command-center/dashboard"],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Fetch activity log
-  const { data: activities = [], isLoading: activitiesLoading } = useQuery({
+  const { data: activities = [], isLoading: activitiesLoading } = useQuery<any[]>({
     queryKey: ["/api/command-center/activity"],
     refetchInterval: 10000, // Refresh every 10 seconds
   });
@@ -318,7 +318,7 @@ export default function CommandCenter() {
   });
 
   // Fetch webhooks
-  const { data: webhooks = [], isLoading: webhooksLoading } = useQuery({
+  const { data: webhooks = [], isLoading: webhooksLoading } = useQuery<any[]>({
     queryKey: ["/api/v1/webhooks"],
   });
 
@@ -412,7 +412,7 @@ export default function CommandCenter() {
         break;
       case "export-analytics":
         try {
-          const response = await apiRequest("POST", "/api/command-center/export-analytics");
+          const response = await apiRequest("POST", "/api/command-center/export-analytics") as any;
           const link = document.createElement("a");
           link.href = response.downloadUrl;
           link.download = `analytics_${new Date().toISOString()}.csv`;

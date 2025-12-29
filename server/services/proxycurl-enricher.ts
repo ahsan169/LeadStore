@@ -1,5 +1,5 @@
 // Proxycurl LinkedIn & Professional Data Enrichment Service
-import axios from 'axios';
+const axios = require('axios') as any;
 
 export class ProxycurlEnricher {
   private apiKey: string;

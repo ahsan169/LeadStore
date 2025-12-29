@@ -44,6 +44,13 @@ interface EnrichmentStats {
     limit: number;
     resetIn: number;
   }>;
+  intelligence?: {
+    totalDecisions: number;
+    accuracy: number;
+    creditsSaved: number;
+    optimizationRate: number;
+    recentDecisions: any[];
+  };
 }
 
 interface EnrichmentJob {
@@ -79,25 +86,25 @@ export default function EnrichmentDashboard() {
   const [isPaused, setIsPaused] = useState(false);
 
   // Fetch enrichment statistics
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery<EnrichmentStats>({
     queryKey: ['/api/enrichment/stats'],
     refetchInterval: isPaused ? false : refreshInterval,
   });
 
   // Fetch enrichment queue items
-  const { data: queueItems, isLoading: queueLoading, refetch: refetchQueue } = useQuery({
+  const { data: queueItems, isLoading: queueLoading, refetch: refetchQueue } = useQuery<{ items: EnrichmentJob[] }>({
     queryKey: ['/api/enrichment/queue'],
     refetchInterval: isPaused ? false : refreshInterval,
   });
 
   // Fetch service health status
-  const { data: serviceHealth, isLoading: healthLoading, refetch: refetchHealth } = useQuery({
+  const { data: serviceHealth, isLoading: healthLoading, refetch: refetchHealth } = useQuery<{ services: ServiceHealth[] }>({
     queryKey: ['/api/enrichment/health'],
     refetchInterval: isPaused ? false : 30000, // Check health every 30 seconds
   });
 
   // Fetch historical metrics
-  const { data: historicalData, isLoading: historyLoading } = useQuery({
+  const { data: historicalData, isLoading: historyLoading } = useQuery<any>({
     queryKey: ['/api/enrichment/metrics/history'],
     refetchInterval: isPaused ? false : 60000, // Update history every minute
   });
@@ -105,7 +112,7 @@ export default function EnrichmentDashboard() {
   // Pause/Resume queue processing
   const pauseQueueMutation = useMutation({
     mutationFn: async (action: 'pause' | 'resume') => {
-      return apiRequest(`/api/enrichment/queue/${action}`, { method: 'POST' });
+      return apiRequest('POST', `/api/enrichment/queue/${action}`);
     },
     onSuccess: (_, action) => {
       toast({
@@ -126,15 +133,13 @@ export default function EnrichmentDashboard() {
   // Retry failed items
   const retryFailedMutation = useMutation({
     mutationFn: async (itemIds?: string[]) => {
-      return apiRequest('/api/enrichment/retry', {
-        method: 'POST',
-        body: JSON.stringify({ itemIds }),
-      });
+      const res = await apiRequest('POST', '/api/enrichment/retry', { itemIds });
+      return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       toast({
         title: "Retry Initiated",
-        description: `${data.retried} items added back to the queue.`,
+        description: `${data.retried || 0} items added back to the queue.`,
       });
       refetchQueue();
       refetchStats();
@@ -151,7 +156,7 @@ export default function EnrichmentDashboard() {
   // Clear dead letter queue
   const clearDeadLetterMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/enrichment/dead-letter/clear', { method: 'DELETE' });
+      return apiRequest('DELETE', '/api/enrichment/dead-letter/clear');
     },
     onSuccess: () => {
       toast({
@@ -464,7 +469,7 @@ export default function EnrichmentDashboard() {
                   {isPaused ? "Resume Processing" : "Pause Processing"}
                 </Button>
                 <Button 
-                  onClick={() => retryFailedMutation.mutate()}
+                  onClick={() => retryFailedMutation.mutate(undefined)}
                   variant="outline"
                   disabled={!stats?.queue.failed && !stats?.queue.deadLetter}
                   data-testid="button-retry-failed"

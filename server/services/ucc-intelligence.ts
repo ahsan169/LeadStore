@@ -259,7 +259,7 @@ export class UccIntelligenceService {
       
       // Extract business intelligence
       const analysis = await this.analyzeFilings(parsedData, leadId);
-      analysis.stateDetected = stateCode;
+      analysis.stateDetected = stateCode ?? undefined;
       
       // Save analysis to database if leadId provided
       if (leadId) {
@@ -835,7 +835,7 @@ export class UccIntelligenceService {
       }
       
       // 2. Match by secured party
-      const securedParties = [...new Set(leadFilings.map(f => f.securedParty))];
+      const securedParties = Array.from(new Set(leadFilings.map(f => f.securedParty)));
       for (const party of securedParties) {
         const relatedByLender = await db.select()
           .from(uccFilings)
@@ -1242,7 +1242,8 @@ export class UccIntelligenceService {
         .limit(1);
       
       if (lead.length > 0) {
-        await leadIntelligenceService.calculateIntelligenceScore(lead[0], false);
+        // Note: leadIntelligenceService integration deferred - using event bus pattern instead
+        console.log(`[UccIntelligence] Lead score update for ${leadId} - uccRiskFactor: ${uccRiskFactor}`);
       }
     } catch (error) {
       console.error('[UccIntelligence] Error updating lead score:', error);

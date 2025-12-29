@@ -159,7 +159,7 @@ async function parseCSVFile(buffer: Buffer, filename: string): Promise<{ rows: a
           headers 
         });
       },
-      error: (error) => {
+      error: (error: any) => {
         reject(error);
       }
     });
@@ -394,7 +394,7 @@ export function setupAdminUploadRoutes(app: Express) {
       const { batchId } = req.params;
       
       // Get batch status from storage
-      const batch = await storage.getLeadBatchById(batchId);
+      const batch = await storage.getLeadBatch(batchId);
       
       if (!batch) {
         return res.status(404).json({ error: "Batch not found" });
@@ -409,7 +409,7 @@ export function setupAdminUploadRoutes(app: Express) {
         totalLeads: batch.totalLeads,
         processedLeads: leads.length,
         filename: batch.filename,
-        uploadedAt: batch.createdAt,
+        uploadedAt: batch.uploadedAt,
         uploadedBy: batch.uploadedBy
       });
       

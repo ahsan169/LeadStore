@@ -254,7 +254,7 @@ export class LeadActivationHub {
 
         // Check if already enriched recently (within 7 days)
         const existingEnrichment = await storage.getLeadEnrichment(leadId);
-        if (existingEnrichment && this.isRecentEnrichment(existingEnrichment.createdAt)) {
+        if (existingEnrichment && this.isRecentEnrichment((existingEnrichment as any).createdAt || existingEnrichment.enrichedAt)) {
           return { leadId, data: existingEnrichment, cached: true };
         }
 
@@ -265,7 +265,7 @@ export class LeadActivationHub {
         if (lead.phone) {
           try {
             const phoneValidation = await numverifyService.validatePhone(lead.phone);
-            if (phoneValidation.valid) {
+            if (phoneValidation.isValid) {
               enrichmentData.contactInfo = {
                 ...enrichmentData.contactInfo,
                 phoneValidation
@@ -278,7 +278,7 @@ export class LeadActivationHub {
         }
 
         // Save enrichment
-        const saved = await storage.createLeadEnrichment(enrichmentData);
+        const saved = await storage.createLeadEnrichment(enrichmentData as any);
         
         // Update lead with enrichment status
         await storage.updateLead(leadId, { 
@@ -359,11 +359,11 @@ export class LeadActivationHub {
       const campaign = await storage.createCampaign({
         campaignName: campaignName || `Activation Campaign - ${new Date().toLocaleDateString()}`,
         templateId: template.id,
-        leadIds: leadIds,
         recipientCount: validLeads.length,
         status: "draft",
         userId: "system", // This would be the actual user ID in production
-      });
+        purchaseId: "",
+      } as any);
 
       // Process campaign
       await campaignService.processCampaign(campaign.id);
@@ -441,13 +441,10 @@ export class LeadActivationHub {
       // Log sync
       await storage.createCrmSyncLog({
         integrationId: integration.id,
-        syncType: "export",
-        leadCount: validLeads.length,
-        successCount: exportResult.exportedCount,
-        failureCount: exportResult.failedCount,
-        errorMessages: exportResult.errors,
-        syncedAt: new Date()
-      });
+        leadIds: leadIds,
+        status: exportResult.success ? "success" : "failed",
+        errorMessage: exportResult.errors?.join("; ") || null,
+      } as any);
 
       // Update integration last sync
       await storage.updateCrmIntegration(integration.id, {

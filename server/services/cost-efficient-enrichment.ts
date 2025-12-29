@@ -5,14 +5,18 @@ import {
   costThresholds,
   completenessThresholds 
 } from './tiered-enrichment-config';
-import { PerplexityEnricher } from './perplexity-enricher';
-import { OpenAIEnricher } from './openai-enricher';
+import { perplexityResearch } from './perplexity-research';
+import { OpenAIService } from './openai-service';
 import { HunterVerifier } from './hunter-verifier';
-import { NumverifyService } from './numverify-service';
+import { numverifyService } from '../numverify-service';
 import { ProxycurlEnricher } from './proxycurl-enricher';
 import { AbstractAPIEnricher } from './abstractapi-enricher';
 import { ClearbitEnricher } from './clearbit-enricher';
 import { PeopleDataLabsEnricher } from './peopledatalabs-enricher';
+
+const PerplexityEnricher = { instance: perplexityResearch } as any;
+const OpenAIEnricher = OpenAIService as any;
+const NumverifyService = { instance: numverifyService } as any;
 
 interface EnrichmentResult {
   data: Record<string, any>;

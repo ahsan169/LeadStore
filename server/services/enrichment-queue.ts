@@ -1,4 +1,4 @@
-import { Lead, InsertLead, enrichmentJobs, type InsertEnrichmentJob } from "@shared/schema";
+import { Lead, InsertLead, enrichmentJobs, intelligenceDecisions } from "@shared/schema";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, or, desc, asc, lte, gte } from "drizzle-orm";
@@ -8,7 +8,7 @@ import { MasterEnrichmentOrchestrator } from "./master-enrichment-orchestrator";
 import { IntelligenceBrain } from "./intelligence-brain";
 import { eventBus } from "./event-bus";
 import { brainPipeline } from "../intelligence/brain-pipeline";
-import { webSocketService } from "./websocket-service";
+import { webSocketService, WebSocketEventType } from "./websocket-service";
 
 interface QueueItem {
   id: string;
@@ -26,7 +26,7 @@ interface QueueItem {
   source: 'upload' | 'view' | 'manual' | 'scheduled' | 'api';
   userId?: string;
   batchId?: string;
-  useBrainPipeline?: boolean; // Option to use brain pipeline
+  useBrainPipeline?: boolean;
 }
 
 interface RateLimitConfig {
@@ -52,7 +52,6 @@ export class EnrichmentQueue {
   private processing: Set<string> = new Set();
   private deadLetterQueue: Map<string, QueueItem> = new Map();
   
-  // Enrichment services (lazy loaded to avoid circular dependencies)
   private enricher: ComprehensiveLeadEnricher;
   private masterOrchestrator: MasterEnrichmentOrchestrator | null = null;
   private intelligenceBrain: IntelligenceBrain | null = null;
@@ -60,7 +59,6 @@ export class EnrichmentQueue {
   private isProcessing: boolean = false;
   private processInterval?: NodeJS.Timeout;
   
-  // Enhanced stats tracking
   private stats: EnrichmentStats = {
     totalProcessed: 0,
     successful: 0,
@@ -71,7 +69,6 @@ export class EnrichmentQueue {
     successRate: 0
   };
   
-  // API credit tracking
   private creditUsage: Map<string, { used: number; limit: number }> = new Map([
     ['perplexity', { used: 0, limit: 1000 }],
     ['hunter', { used: 0, limit: 2000 }],
@@ -86,29 +83,23 @@ export class EnrichmentQueue {
     openai: { requestsPerMinute: 60, currentCount: 0, resetTime: new Date() }
   };
   
-  // Processing configuration
-  private readonly BATCH_SIZE = 10; // Process up to 10 items at a time
-  private readonly PROCESS_INTERVAL = 3000; // Check queue every 3 seconds
-  private readonly MAX_CONCURRENT = 5; // Max concurrent enrichment processes
-  private readonly MAX_RETRY_DELAY = 300000; // Max 5 minutes between retries
-  private readonly DEAD_LETTER_THRESHOLD = 5; // Move to dead letter after 5 retries
+  private readonly BATCH_SIZE = 10;
+  private readonly PROCESS_INTERVAL = 3000;
+  private readonly MAX_CONCURRENT = 5;
+  private readonly MAX_RETRY_DELAY = 300000;
+  private readonly DEAD_LETTER_THRESHOLD = 5;
   
   constructor() {
     this.enricher = new ComprehensiveLeadEnricher();
-    // Delay initialization of services to avoid circular dependencies
     
     this.startProcessing();
-    this.loadPendingJobs(); // Load any pending jobs from database
+    this.loadPendingJobs();
     
-    // Register event listeners
     this.registerEventListeners();
     
     console.log('[EnrichmentQueue] Initialized with Brain integration and started processing');
   }
   
-  /**
-   * Get or create master orchestrator (lazy loading)
-   */
   private getMasterOrchestrator(): MasterEnrichmentOrchestrator {
     if (!this.masterOrchestrator) {
       const { MasterEnrichmentOrchestrator } = require('./master-enrichment-orchestrator');
@@ -119,45 +110,27 @@ export class EnrichmentQueue {
         enableVerification: true 
       });
     }
-    return this.masterOrchestrator;
+    return this.masterOrchestrator!;
   }
   
-  /**
-   * Get or create intelligence brain (lazy loading)
-   */
   private getIntelligenceBrain(): IntelligenceBrain {
     if (!this.intelligenceBrain) {
       const { IntelligenceBrain } = require('./intelligence-brain');
       this.intelligenceBrain = new IntelligenceBrain();
     }
-    return this.intelligenceBrain;
+    return this.intelligenceBrain!;
   }
   
-  /**
-   * Register all event listeners for automatic enrichment
-   */
   private registerEventListeners() {
-    // Lead upload triggers Brain analysis
     eventBus.on('lead:uploaded', this.handleLeadUploaded.bind(this));
     eventBus.on('batch:uploaded', this.handleBatchUploaded.bind(this));
-    
-    // Lead view triggers enrichment check
     eventBus.on('lead:viewed', this.handleLeadViewed.bind(this));
-    
-    // Manual enrichment request
     eventBus.on('lead:enrichment-request', this.handleEnrichmentRequest.bind(this));
-    
-    // Brain decision events
     eventBus.on('brain:decision', this.handleBrainDecision.bind(this));
-    
-    // Enrichment completion events
     eventBus.on('enrichment:completed', this.handleEnrichmentComplete.bind(this));
     eventBus.on('enrichment:failed', this.handleEnrichmentFailed.bind(this));
   }
   
-  /**
-   * Add a lead to the enrichment queue
-   */
   async addToQueue(
     leadData: Partial<Lead | InsertLead>,
     priority: 'high' | 'medium' | 'low' = 'medium',
@@ -167,26 +140,26 @@ export class EnrichmentQueue {
       batchId?: string;
       enrichmentOptions?: EnrichmentOptions;
       maxRetries?: number;
+      brainDecision?: any;
     }
   ): Promise<string> {
     const queueId = this.generateQueueId();
     
-    // Analyze the lead to determine if it needs enrichment
     const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(leadData);
+    const leadId = (leadData as Lead).id || '';
     
     if (analysis.enrichmentPriority === 'none') {
-      console.log(`[EnrichmentQueue] Lead ${leadData.id} doesn't need enrichment (${analysis.completionScore}% complete)`);
+      console.log(`[EnrichmentQueue] Lead ${leadId} doesn't need enrichment (${analysis.completionScore}% complete)`);
       return queueId;
     }
     
-    // Auto-adjust priority based on completion analysis
     if (analysis.enrichmentPriority === 'high' && priority === 'medium') {
       priority = 'high';
     }
     
     const queueItem: QueueItem = {
       id: queueId,
-      leadId: leadData.id || '',
+      leadId: leadId,
       leadData,
       priority,
       retryCount: 0,
@@ -202,17 +175,15 @@ export class EnrichmentQueue {
     this.queue.set(queueId, queueItem);
     this.stats.pending++;
     
-    console.log(`[EnrichmentQueue] Added lead ${leadData.id} to queue with priority ${priority}`);
+    console.log(`[EnrichmentQueue] Added lead ${leadId} to queue with priority ${priority}`);
     
-    // If high priority, trigger immediate processing
     if (priority === 'high') {
       this.processQueue();
     }
     
-    // Emit event for tracking
     eventBus.emit('enrichment:queued', {
       queueId,
-      leadId: leadData.id,
+      leadId: leadId,
       priority,
       source,
       analysis
@@ -221,9 +192,6 @@ export class EnrichmentQueue {
     return queueId;
   }
   
-  /**
-   * Start the queue processing loop
-   */
   private startProcessing(): void {
     if (this.processInterval) {
       clearInterval(this.processInterval);
@@ -238,9 +206,6 @@ export class EnrichmentQueue {
     console.log('[EnrichmentQueue] Started processing loop');
   }
   
-  /**
-   * Process items from the queue with priority-based selection
-   */
   private async processQueue(): Promise<void> {
     if (this.isProcessing || this.processing.size >= this.MAX_CONCURRENT) {
       return;
@@ -249,36 +214,35 @@ export class EnrichmentQueue {
     this.isProcessing = true;
     
     try {
-      // Get items to process, sorted by priority
       const itemsToProcess = this.getNextItems();
       
       if (itemsToProcess.length === 0) {
-        // Check dead letter queue for retry candidates
         await this.retryDeadLetterItems();
         this.isProcessing = false;
         return;
       }
       
-      // Update real-time stats
       this.stats.pending = this.queue.size;
       
-      // Process items in parallel (up to BATCH_SIZE)
       const promises = itemsToProcess.map(item => this.processItem(item));
       const results = await Promise.allSettled(promises);
       
-      // Emit batch processing status
       const successCount = results.filter(r => r.status === 'fulfilled').length;
       const failCount = results.filter(r => r.status === 'rejected').length;
       
-      webSocketService.broadcast({
-        type: 'enrichment:batch-processed',
-        data: {
-          processed: results.length,
-          successful: successCount,
-          failed: failCount,
-          queueSize: this.queue.size,
-          stats: this.getStats()
-        }
+      webSocketService.broadcastToAll({
+        type: WebSocketEventType.SYSTEM_NOTIFICATION,
+        payload: {
+          messageType: 'enrichment:batch-processed',
+          data: {
+            processed: results.length,
+            successful: successCount,
+            failed: failCount,
+            queueSize: this.queue.size,
+            stats: this.getStats()
+          }
+        },
+        timestamp: new Date()
       });
       
     } catch (error) {
@@ -288,29 +252,22 @@ export class EnrichmentQueue {
     }
   }
   
-  /**
-   * Get next items from queue based on priority and rate limits
-   */
   private getNextItems(): QueueItem[] {
     const items: QueueItem[] = [];
     const pendingItems = Array.from(this.queue.values())
       .filter(item => item.status === 'pending' && !this.processing.has(item.id))
       .sort((a, b) => {
-        // Sort by priority first
         const priorityOrder = { high: 0, medium: 1, low: 2 };
         const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
         if (priorityDiff !== 0) return priorityDiff;
         
-        // Then by creation time
         return a.createdAt.getTime() - b.createdAt.getTime();
       });
     
-    // Check rate limits and select items
     for (const item of pendingItems) {
       if (items.length >= this.BATCH_SIZE) break;
       if (this.processing.size >= this.MAX_CONCURRENT) break;
       
-      // Check if we can process based on rate limits
       if (this.canProcessBasedOnRateLimits()) {
         items.push(item);
         this.processing.add(item.id);
@@ -320,152 +277,140 @@ export class EnrichmentQueue {
     return items;
   }
   
-  /**
-   * Process a single queue item
-   */
   private async processItem(item: QueueItem): Promise<void> {
     const startTime = Date.now();
+    let usedOrchestrator = false;
     
     try {
       console.log(`[EnrichmentQueue] Processing item ${item.id} for lead ${item.leadId}`);
       
-      // Update status
       item.status = 'processing';
       item.processedAt = new Date();
       
-      // Update rate limit counters
       this.updateRateLimitCounters();
       
       let result: EnrichmentResult;
       
-      // Check if we should use brain pipeline
       if (item.useBrainPipeline) {
         console.log(`[EnrichmentQueue] Using Brain Pipeline for lead ${item.leadId}`);
         
-        // Process through brain pipeline
         const pipelineResult = await brainPipeline.process(item.leadData, {
           source: item.source,
           userId: item.userId,
-          batchId: item.batchId,
-          skipStages: item.enrichmentOptions?.skipStages as any
+          batchId: item.batchId
         });
         
-        // Convert pipeline result to EnrichmentResult format
         result = {
-          success: pipelineResult.score !== undefined,
-          confidence: pipelineResult.confidence,
-          enrichedData: pipelineResult.normalizedData,
-          sources: pipelineResult.enrichmentData?.sources || [],
-          enrichedFields: Object.keys(pipelineResult.normalizedData),
-          metadata: {
-            sessionId: pipelineResult.metadata.sessionId,
-            score: pipelineResult.score,
-            flags: pipelineResult.flags,
-            recommendations: pipelineResult.recommendations
+          businessName: pipelineResult.normalizedData?.businessName || '',
+          ownerName: pipelineResult.normalizedData?.ownerName,
+          email: pipelineResult.normalizedData?.email,
+          phone: pipelineResult.normalizedData?.phone,
+          confidenceScores: {
+            overall: pipelineResult.confidence || 0,
+            businessInfo: 0,
+            contactInfo: 0,
+            financialInfo: 0,
+            verificationStatus: 0
+          },
+          enrichmentMetadata: {
+            sources: ((pipelineResult.enrichmentData as any)?.sources as string[]) || [],
+            enrichedAt: new Date(),
+            fieldsEnriched: Object.keys(pipelineResult.normalizedData || {}),
+            dataQuality: 'medium'
           }
-        } as any;
+        };
         
-        // Update lead with pipeline results
         if (pipelineResult.leadId) {
-          await storage.updateLead(pipelineResult.leadId, pipelineResult.normalizedData);
+          await storage.updateLead(pipelineResult.leadId, pipelineResult.normalizedData as Partial<InsertLead>);
         }
         
       } else {
-        // Always use Brain to decide enrichment strategy
+        usedOrchestrator = true;
         console.log(`[EnrichmentQueue] Using Intelligence Brain for lead ${item.leadId}`);
         
-        // Get Brain decision for this lead
         const brainDecision = await this.getIntelligenceBrain().analyzeAndDecide(item.leadData as Lead);
         
-        // Store Brain decision in database
         await this.storeBrainDecision(item.leadId, brainDecision);
         
-        // Use Master Enrichment Orchestrator based on Brain decision
         console.log(`[EnrichmentQueue] Brain strategy: ${brainDecision.strategy} for lead ${item.leadId}`);
         
-        // Convert lead data for orchestrator
         const leadForOrchestrator = {
           ...item.leadData,
           id: item.leadId
         } as Lead;
         
-        // Execute master orchestration with Brain-selected services
+        const validSource = ['manual', 'upload', 'api', 'edit', 'ucc'].includes(item.source || '') 
+          ? (item.source as 'manual' | 'upload' | 'api' | 'edit' | 'ucc')
+          : 'manual';
+        
         const orchestratorResult = await this.getMasterOrchestrator().enrichLead(leadForOrchestrator, {
-          source: item.source || 'queue',
+          source: validSource,
           userId: item.userId,
-          priority: item.priority,
-          forceRefresh: item.enrichmentOptions?.forceRefresh || false
+          priority: item.priority
         });
         
-        // Convert orchestrator result to EnrichmentResult format
         result = {
-          businessName: orchestratorResult.businessName,
-          ownerName: orchestratorResult.ownerName,
-          firstName: orchestratorResult.firstName,
-          lastName: orchestratorResult.lastName,
-          email: orchestratorResult.email,
-          phone: orchestratorResult.phone,
-          secondaryPhone: orchestratorResult.secondaryPhone,
-          industry: orchestratorResult.industry,
-          annualRevenue: orchestratorResult.annualRevenue,
-          estimatedRevenue: orchestratorResult.estimatedRevenue,
-          revenueConfidence: orchestratorResult.revenueConfidence,
-          requestedAmount: orchestratorResult.requestedAmount,
-          timeInBusiness: orchestratorResult.timeInBusiness,
-          yearsInBusiness: orchestratorResult.yearsInBusiness,
-          creditScore: orchestratorResult.creditScore,
-          websiteUrl: orchestratorResult.websiteUrl,
-          linkedinUrl: orchestratorResult.linkedinUrl,
-          companySize: orchestratorResult.companySize,
-          employeeCount: orchestratorResult.employeeCount,
-          yearFounded: orchestratorResult.yearFounded,
-          naicsCode: orchestratorResult.naicsCode,
-          stateCode: orchestratorResult.stateCode,
-          city: orchestratorResult.city,
-          fullAddress: orchestratorResult.fullAddress,
-          ownerBackground: orchestratorResult.ownerBackground,
-          businessDescription: orchestratorResult.businessDescription,
-          researchInsights: orchestratorResult.researchInsights,
+          businessName: orchestratorResult.finalData?.businessName || '',
+          ownerName: orchestratorResult.finalData?.ownerName,
+          email: orchestratorResult.finalData?.email,
+          phone: orchestratorResult.finalData?.phone,
+          secondaryPhone: orchestratorResult.finalData?.secondaryPhone,
+          industry: orchestratorResult.finalData?.industry,
+          annualRevenue: orchestratorResult.finalData?.annualRevenue,
+          estimatedRevenue: orchestratorResult.finalData?.estimatedRevenue,
+          revenueConfidence: orchestratorResult.finalData?.revenueConfidence,
+          requestedAmount: orchestratorResult.finalData?.requestedAmount,
+          timeInBusiness: orchestratorResult.finalData?.timeInBusiness,
+          yearsInBusiness: orchestratorResult.finalData?.yearsInBusiness,
+          creditScore: orchestratorResult.finalData?.creditScore,
+          websiteUrl: orchestratorResult.finalData?.websiteUrl,
+          linkedinUrl: orchestratorResult.finalData?.linkedinUrl,
+          companySize: orchestratorResult.finalData?.companySize,
+          employeeCount: orchestratorResult.finalData?.employeeCount,
+          yearFounded: orchestratorResult.finalData?.yearFounded,
+          naicsCode: orchestratorResult.finalData?.naicsCode,
+          stateCode: orchestratorResult.finalData?.stateCode,
+          city: orchestratorResult.finalData?.city,
+          fullAddress: orchestratorResult.finalData?.fullAddress,
+          ownerBackground: orchestratorResult.finalData?.ownerBackground,
+          businessDescription: orchestratorResult.finalData?.businessDescription,
+          researchInsights: orchestratorResult.finalData?.researchInsights,
           confidenceScores: {
             overall: orchestratorResult.masterEnrichmentScore || 0,
             businessInfo: orchestratorResult.dataCompleteness?.businessInfo || 0,
             contactInfo: orchestratorResult.dataCompleteness?.contactInfo || 0,
-            financialInfo: orchestratorResult.dataCompleteness?.financialInfo || 0
+            financialInfo: orchestratorResult.dataCompleteness?.financialInfo || 0,
+            verificationStatus: orchestratorResult.dataCompleteness?.verificationInfo || 0
           },
           enrichmentMetadata: {
-            sources: orchestratorResult.enrichmentSystems || [],
-            timestamp: new Date().toISOString(),
-            dataPoints: orchestratorResult.enrichmentMetadata?.dataPointsEnriched || 0,
-            apiCalls: orchestratorResult.enrichmentMetadata?.apiCalls || 0,
-            cacheHits: orchestratorResult.enrichmentMetadata?.cacheHits || 0,
-            totalDuration: orchestratorResult.enrichmentMetadata?.totalDuration || (Date.now() - startTime)
+            sources: orchestratorResult.enrichmentSystems?.map((s: any) => s.systemName) || [],
+            enrichedAt: new Date(),
+            fieldsEnriched: orchestratorResult.dataLineage?.map((d: any) => d.field) || [],
+            dataQuality: orchestratorResult.masterEnrichmentScore >= 80 ? 'high' : 
+                        orchestratorResult.masterEnrichmentScore >= 50 ? 'medium' : 'low'
           }
-        } as EnrichmentResult;
+        };
         
         console.log(`[EnrichmentQueue] Master Enrichment completed - Score: ${orchestratorResult.masterEnrichmentScore}`);
       }
       
-      // Save enriched data
       await this.saveEnrichedData(item, result);
       
-      // Update item status
       item.status = 'completed';
       item.completedAt = new Date();
       
-      // Update stats
       this.stats.successful++;
       this.stats.totalProcessed++;
       this.updateAverageProcessingTime(Date.now() - startTime);
       
       console.log(`[EnrichmentQueue] Successfully enriched lead ${item.leadId}`);
       
-      // Emit success event
       eventBus.emit('enrichment:completed', {
         queueId: item.id,
         leadId: item.leadId,
         result,
         processingTime: Date.now() - startTime,
-        usedOrchestrator: useOrchestrator
+        usedOrchestrator
       });
       
     } catch (error) {
@@ -475,7 +420,6 @@ export class EnrichmentQueue {
       item.error = error instanceof Error ? error.message : String(error);
       
       if (item.retryCount < item.maxRetries) {
-        // Retry with exponential backoff
         item.status = 'pending';
         const backoffDelay = Math.pow(2, item.retryCount) * 1000;
         
@@ -486,7 +430,6 @@ export class EnrichmentQueue {
         console.log(`[EnrichmentQueue] Will retry item ${item.id} in ${backoffDelay}ms (attempt ${item.retryCount}/${item.maxRetries})`);
         
       } else {
-        // Max retries reached
         item.status = 'failed';
         item.completedAt = new Date();
         
@@ -495,7 +438,6 @@ export class EnrichmentQueue {
         
         console.error(`[EnrichmentQueue] Max retries reached for item ${item.id}`);
         
-        // Emit failure event
         eventBus.emit('enrichment:failed', {
           queueId: item.id,
           leadId: item.leadId,
@@ -505,11 +447,9 @@ export class EnrichmentQueue {
       }
       
     } finally {
-      // Remove from processing set
       if (item.status !== 'pending') {
         this.processing.delete(item.id);
         
-        // Remove from queue if completed or failed
         if (item.status === 'completed' || item.status === 'failed') {
           this.queue.delete(item.id);
           this.stats.pending--;
@@ -518,87 +458,72 @@ export class EnrichmentQueue {
     }
   }
   
-  /**
-   * Save enriched data to database
-   */
   private async saveEnrichedData(item: QueueItem, result: EnrichmentResult): Promise<void> {
     if (!item.leadId) return;
     
     try {
-      // Parse owner name into first and last names
-      const ownerName = result.ownerName || item.leadData.ownerName || '';
+      const ownerName = result.ownerName || (item.leadData as Lead).ownerName || '';
       const nameParts = ownerName.trim().split(/\s+/);
-      const firstName = result.firstName || nameParts[0] || '';
-      const lastName = result.lastName || nameParts.slice(1).join(' ') || nameParts[1] || '';
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || nameParts[1] || '';
       
-      // Prepare update data - fill ALL available fields
       const updateData: Partial<InsertLead> = {
-        // Basic fields
-        businessName: result.businessName || item.leadData.businessName,
+        businessName: result.businessName || (item.leadData as Lead).businessName,
         ownerName: ownerName,
         firstName: firstName,
         lastName: lastName,
-        email: result.email || item.leadData.email,
-        phone: result.phone || item.leadData.phone,
-        secondaryPhone: result.secondaryPhone || item.leadData.secondaryPhone,
+        email: result.email || (item.leadData as Lead).email,
+        phone: result.phone || (item.leadData as Lead).phone,
+        secondaryPhone: result.secondaryPhone || (item.leadData as Lead).secondaryPhone,
         
-        // Business details
-        industry: result.industry || item.leadData.industry,
-        annualRevenue: result.annualRevenue || item.leadData.annualRevenue,
-        estimatedRevenue: result.estimatedRevenue || item.leadData.estimatedRevenue,
-        revenueConfidence: result.revenueConfidence || item.leadData.revenueConfidence,
-        requestedAmount: result.requestedAmount || item.leadData.requestedAmount,
-        timeInBusiness: result.timeInBusiness || item.leadData.timeInBusiness,
-        yearsInBusiness: result.yearsInBusiness || item.leadData.yearsInBusiness,
-        creditScore: result.creditScore || item.leadData.creditScore,
+        industry: result.industry || (item.leadData as Lead).industry,
+        annualRevenue: result.annualRevenue || (item.leadData as Lead).annualRevenue,
+        estimatedRevenue: result.estimatedRevenue || (item.leadData as Lead).estimatedRevenue,
+        revenueConfidence: result.revenueConfidence || (item.leadData as Lead).revenueConfidence,
+        requestedAmount: result.requestedAmount || (item.leadData as Lead).requestedAmount,
+        timeInBusiness: result.timeInBusiness || (item.leadData as Lead).timeInBusiness,
+        yearsInBusiness: result.yearsInBusiness || (item.leadData as Lead).yearsInBusiness,
+        creditScore: result.creditScore || (item.leadData as Lead).creditScore,
         
-        // Online presence
-        websiteUrl: result.websiteUrl || item.leadData.websiteUrl,
-        linkedinUrl: result.linkedinUrl || item.leadData.linkedinUrl,
+        websiteUrl: result.websiteUrl || (item.leadData as Lead).websiteUrl,
+        linkedinUrl: result.linkedinUrl || (item.leadData as Lead).linkedinUrl,
         
-        // Company info
-        companySize: result.companySize || item.leadData.companySize,
-        employeeCount: result.employeeCount || item.leadData.employeeCount,
-        yearFounded: result.yearFounded || item.leadData.yearFounded,
-        naicsCode: result.naicsCode || item.leadData.naicsCode,
+        companySize: result.companySize || (item.leadData as Lead).companySize,
+        employeeCount: result.employeeCount || (item.leadData as Lead).employeeCount,
+        yearFounded: result.yearFounded || (item.leadData as Lead).yearFounded,
+        naicsCode: result.naicsCode || (item.leadData as Lead).naicsCode,
         
-        // Location
-        stateCode: result.stateCode || item.leadData.stateCode,
-        city: result.city || item.leadData.city,
+        stateCode: result.stateCode || (item.leadData as Lead).stateCode,
+        city: result.city || (item.leadData as Lead).city,
         fullAddress: result.fullAddress,
         
-        // Additional insights
         ownerBackground: result.ownerBackground,
         businessDescription: result.businessDescription,
-        researchInsights: result.researchInsights || item.leadData.researchInsights,
+        researchInsights: result.researchInsights || (item.leadData as Lead).researchInsights,
         
-        // Enrichment tracking
         isEnriched: true,
         lastEnrichedAt: new Date(),
         enrichmentConfidence: result.confidenceScores?.overall,
         enrichmentStatus: 'completed',
         enrichmentSources: result.enrichmentMetadata?.sources || [],
         
-        // Intelligence score will be recalculated after update
         intelligenceScore: result.intelligenceScore
       };
       
-      // Update the lead
       await storage.updateLead(item.leadId, updateData);
       
-      // Store enrichment history
       await storage.createLeadEnrichment({
         leadId: item.leadId,
-        sourceApi: result.enrichmentMetadata?.sources.join(',') || 'comprehensive',
-        fieldsEnriched: result.enrichmentMetadata?.fieldsEnriched || [],
-        dataQuality: result.enrichmentMetadata?.dataQuality || 'medium',
-        confidenceScore: result.confidenceScores?.overall || 0,
-        responseTime: (item.completedAt?.getTime() || Date.now()) - item.createdAt.getTime(),
-        success: true,
-        errorMessage: null
+        enrichedData: {
+          sources: result.enrichmentMetadata?.sources || [],
+          fieldsEnriched: result.enrichmentMetadata?.fieldsEnriched || [],
+          dataQuality: result.enrichmentMetadata?.dataQuality || 'medium',
+          responseTime: (item.completedAt?.getTime() || Date.now()) - item.createdAt.getTime()
+        },
+        enrichmentSource: 'manual',
+        confidenceScore: String(result.confidenceScores?.overall || 0)
       });
       
-      // Recalculate intelligence score with new data
       await storage.calculateAndUpdateIntelligenceScore(item.leadId);
       
       console.log(`[EnrichmentQueue] Saved enriched data for lead ${item.leadId}`);
@@ -609,20 +534,15 @@ export class EnrichmentQueue {
     }
   }
   
-  /**
-   * Check if we can process based on rate limits
-   */
   private canProcessBasedOnRateLimits(): boolean {
     const now = new Date();
     
-    // Check and reset rate limits if needed
     for (const [api, limits] of Object.entries(this.rateLimits)) {
       if (now > limits.resetTime) {
         limits.currentCount = 0;
-        limits.resetTime = new Date(now.getTime() + 60000); // Reset in 1 minute
+        limits.resetTime = new Date(now.getTime() + 60000);
       }
       
-      // Check if we've hit the limit
       if (limits.currentCount >= limits.requestsPerMinute) {
         console.log(`[EnrichmentQueue] Rate limit reached for ${api}`);
         return false;
@@ -632,20 +552,13 @@ export class EnrichmentQueue {
     return true;
   }
   
-  /**
-   * Update rate limit counters
-   */
   private updateRateLimitCounters(): void {
-    // Increment counters for APIs we'll use
     this.rateLimits.perplexity.currentCount++;
     this.rateLimits.hunter.currentCount++;
     this.rateLimits.numverify.currentCount++;
     this.rateLimits.openai.currentCount++;
   }
   
-  /**
-   * Update average processing time
-   */
   private updateAverageProcessingTime(processingTime: number): void {
     const totalTime = this.stats.averageProcessingTime * (this.stats.successful - 1) + processingTime;
     this.stats.averageProcessingTime = totalTime / this.stats.successful;
@@ -654,16 +567,11 @@ export class EnrichmentQueue {
     this.stats.errorRate = (this.stats.failed / this.stats.totalProcessed) * 100;
   }
   
-  /**
-   * Handle lead uploaded event
-   */
   private async handleLeadUploaded(event: any): Promise<void> {
     const { leadId, leadData, batchId, userId } = event;
     
-    // Analyze the lead
     const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(leadData);
     
-    // Auto-enrich if incomplete
     if (analysis.completionScore < 80 && analysis.canBeAutoEnriched) {
       await this.addToQueue(
         leadData,
@@ -674,25 +582,19 @@ export class EnrichmentQueue {
     }
   }
   
-  /**
-   * Handle lead viewed event
-   */
   private async handleLeadViewed(event: any): Promise<void> {
     const { leadId, leadData, userId } = event;
     
-    // Check if data is stale (not enriched in last 30 days)
     const lastEnrichedAt = leadData.lastEnrichedAt ? new Date(leadData.lastEnrichedAt) : null;
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     
     if (!lastEnrichedAt || lastEnrichedAt < thirtyDaysAgo) {
-      // Analyze the lead
       const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(leadData);
       
-      // Queue for enrichment if incomplete
       if (analysis.completionScore < 90 && analysis.canBeAutoEnriched) {
         await this.addToQueue(
           leadData,
-          'low', // Low priority for view-triggered enrichment
+          'low',
           'view',
           { userId }
         );
@@ -700,9 +602,6 @@ export class EnrichmentQueue {
     }
   }
   
-  /**
-   * Handle manual enrichment request
-   */
   private async handleEnrichmentRequest(event: any): Promise<void> {
     const { leadId, leadData, priority = 'high', userId } = event;
     
@@ -714,9 +613,6 @@ export class EnrichmentQueue {
     );
   }
   
-  /**
-   * Get queue statistics
-   */
   getStats(): EnrichmentStats & { queueLength: number; processing: number } {
     return {
       ...this.stats,
@@ -725,23 +621,33 @@ export class EnrichmentQueue {
     };
   }
   
-  /**
-   * Get queue items by status
-   */
-  getQueueItems(status?: QueueItem['status']): QueueItem[] {
-    const items = Array.from(this.queue.values());
-    if (status) {
-      return items.filter(item => item.status === status);
+  getQueueItems(optionsOrStatus?: QueueItem['status'] | { status?: string; priority?: string; limit?: number }): QueueItem[] {
+    let items = Array.from(this.queue.values());
+    
+    if (typeof optionsOrStatus === 'string') {
+      return items.filter(item => item.status === optionsOrStatus);
     }
+    
+    const options = optionsOrStatus;
+    if (options?.status) {
+      items = items.filter(item => item.status === options.status);
+    }
+    
+    if (options?.priority) {
+      items = items.filter(item => item.priority === options.priority);
+    }
+    
+    if (options?.limit) {
+      items = items.slice(0, options.limit);
+    }
+    
     return items;
   }
   
-  /**
-   * Clear completed/failed items from queue
-   */
   clearCompleted(): number {
     let cleared = 0;
-    for (const [id, item] of this.queue.entries()) {
+    const entries = Array.from(this.queue.entries());
+    for (const [id, item] of entries) {
       if (item.status === 'completed' || item.status === 'failed') {
         this.queue.delete(id);
         cleared++;
@@ -751,9 +657,6 @@ export class EnrichmentQueue {
     return cleared;
   }
   
-  /**
-   * Stop processing
-   */
   stopProcessing(): void {
     if (this.processInterval) {
       clearInterval(this.processInterval);
@@ -763,24 +666,20 @@ export class EnrichmentQueue {
     console.log('[EnrichmentQueue] Stopped processing');
   }
   
-  /**
-   * Resume processing
-   */
   resumeProcessing(): void {
     this.startProcessing();
     console.log('[EnrichmentQueue] Resumed processing');
   }
   
-  /**
-   * Generate unique queue ID
-   */
+  pauseProcessing(): void {
+    this.stopProcessing();
+    console.log('[EnrichmentQueue] Processing paused');
+  }
+  
   private generateQueueId(): string {
     return `enrich_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
   
-  /**
-   * Queue all incomplete leads for enrichment
-   */
   async queueIncompleteLeads(options?: {
     minCompletionScore?: number;
     maxLeads?: number;
@@ -793,14 +692,13 @@ export class EnrichmentQueue {
     console.log(`[EnrichmentQueue] Queuing incomplete leads (< ${minCompletion}% complete)`);
     
     try {
-      // Get leads that need enrichment
-      const leads = await storage.getLeadsNeedingEnrichment(minCompletion, maxLeads);
+      const leads = await storage.getLeadsNeedingEnrichment(maxLeads);
       
       let queued = 0;
       for (const lead of leads) {
         const analysis = leadCompletionAnalyzer.analyzeLeadCompletion(lead);
         
-        if (analysis.canBeAutoEnriched) {
+        if (analysis.canBeAutoEnriched && analysis.completionScore < minCompletion) {
           await this.addToQueue(lead, priority, 'scheduled');
           queued++;
         }
@@ -814,9 +712,7 @@ export class EnrichmentQueue {
       return 0;
     }
   }
-  /**
-   * Load pending jobs from database on startup
-   */
+  
   private async loadPendingJobs(): Promise<void> {
     try {
       const pendingJobs = await db
@@ -831,10 +727,14 @@ export class EnrichmentQueue {
       console.log(`[EnrichmentQueue] Loading ${pendingJobs.length} pending jobs from database`);
       
       for (const job of pendingJobs) {
+        const validSource = ['upload', 'view', 'manual', 'scheduled', 'api'].includes(job.source)
+          ? (job.source as QueueItem['source'])
+          : 'manual';
+        
         const queueItem: QueueItem = {
           id: job.id,
-          leadId: job.leadId,
-          leadData: {}, // Will be loaded when processing
+          leadId: job.leadId || '',
+          leadData: {},
           priority: job.priority as 'high' | 'medium' | 'low',
           retryCount: job.retryCount,
           maxRetries: job.maxRetries,
@@ -843,8 +743,8 @@ export class EnrichmentQueue {
           createdAt: job.createdAt,
           processedAt: job.processedAt || undefined,
           completedAt: job.completedAt || undefined,
-          enrichmentOptions: job.enrichmentOptions,
-          source: job.source,
+          enrichmentOptions: job.enrichmentOptions as EnrichmentOptions | undefined,
+          source: validSource,
           userId: job.userId || undefined,
           batchId: job.batchId || undefined
         };
@@ -858,26 +758,18 @@ export class EnrichmentQueue {
     }
   }
   
-  /**
-   * Update lead status in database
-   */
   private async updateLeadStatus(leadId: string, status: 'queued' | 'processing' | 'enriched' | 'failed'): Promise<void> {
     try {
       await storage.updateLead(leadId, {
-        enrichmentStatus: status,
-        lastStatusUpdate: new Date()
+        enrichmentStatus: status
       } as any);
     } catch (error) {
       console.error(`[EnrichmentQueue] Error updating lead status for ${leadId}:`, error);
     }
   }
   
-  /**
-   * Store enrichment result in database
-   */
   private async storeEnrichmentResult(item: QueueItem, result: any, decision: any): Promise<void> {
     try {
-      // Update enrichment job record
       if (item.id) {
         await db
           .update(enrichmentJobs)
@@ -885,60 +777,43 @@ export class EnrichmentQueue {
             status: 'completed',
             result: result,
             completedAt: new Date(),
-            enrichmentCost: decision.estimatedCost
+            totalCost: decision.estimatedCost?.toString() || '0'
           })
           .where(eq(enrichmentJobs.id, item.id));
       }
       
-      // Store intelligence decision
       await db.insert(intelligenceDecisions).values({
         leadId: item.leadId,
-        decisionType: 'enrichment',
         strategy: decision.strategy,
-        confidence: decision.confidence,
-        reasoning: decision.reasoning,
+        confidence: decision.confidence?.toString() || '0',
+        reasoning: decision.reasoning || 'Enrichment completed',
         services: decision.services,
-        estimatedCost: decision.estimatedCost,
-        actualCost: decision.actualCost || decision.estimatedCost,
-        priority: decision.priority,
-        metadata: {
-          queueId: item.id,
-          source: item.source,
-          enrichmentScore: result.masterEnrichmentScore,
-          dataCompleteness: result.dataCompleteness
-        }
+        estimatedCost: decision.estimatedCost?.toString() || '0',
+        actualCost: decision.actualCost?.toString() || decision.estimatedCost?.toString() || '0',
+        priority: decision.priority || 5
       });
     } catch (error) {
       console.error('[EnrichmentQueue] Error storing enrichment result:', error);
     }
   }
   
-  /**
-   * Store Brain decision in database
-   */
   private async storeBrainDecision(leadId: string, decision: any): Promise<void> {
     try {
       await db.insert(intelligenceDecisions).values({
         leadId,
-        decisionType: 'brain_analysis',
-        strategy: decision.strategy,
-        confidence: decision.confidence,
-        reasoning: decision.reasoning,
-        services: decision.services,
-        estimatedCost: decision.estimatedCost,
-        priority: decision.priority,
-        metadata: decision
+        strategy: decision.strategy || 'unknown',
+        confidence: decision.confidence?.toString() || '0',
+        reasoning: decision.reasoning || 'Brain analysis',
+        services: decision.services || [],
+        estimatedCost: decision.estimatedCost?.toString() || '0',
+        priority: decision.priority || 5
       });
     } catch (error) {
       console.error('[EnrichmentQueue] Error storing Brain decision:', error);
     }
   }
   
-  /**
-   * Track API credits consumed
-   */
   private trackApiCredits(result: any): void {
-    // Update credit usage based on enrichment result
     if (result.enrichmentMetadata?.apiCalls) {
       for (const system of result.enrichmentSystems || []) {
         const service = system.systemName.toLowerCase();
@@ -949,16 +824,16 @@ export class EnrichmentQueue {
       }
     }
     
-    // Emit credit usage update
-    websocketService.broadcast({
-      type: 'credits:updated',
-      data: Object.fromEntries(this.creditUsage)
+    webSocketService.broadcastToAll({
+      type: WebSocketEventType.SYSTEM_NOTIFICATION,
+      payload: {
+        messageType: 'credits:updated',
+        data: Object.fromEntries(this.creditUsage)
+      },
+      timestamp: new Date()
     });
   }
   
-  /**
-   * Update enrichment stats
-   */
   private updateStats(success: boolean, processingTime: number): void {
     if (success) {
       this.stats.successful++;
@@ -973,36 +848,27 @@ export class EnrichmentQueue {
     this.stats.errorRate = this.stats.failed / this.stats.totalProcessed;
   }
   
-  /**
-   * Get dead letter queue items
-   */
   getDeadLetterItems(): QueueItem[] {
     return Array.from(this.deadLetterQueue.values());
   }
   
-  /**
-   * Retry dead letter queue items
-   */
   async retryDeadLetterItems(itemIds?: string[]): Promise<number> {
     let retried = 0;
     const now = Date.now();
-    const retryThreshold = 30 * 60 * 1000; // 30 minutes
+    const retryThreshold = 30 * 60 * 1000;
     
-    for (const [id, item] of this.deadLetterQueue.entries()) {
-      // If specific IDs provided, only retry those
+    const entries = Array.from(this.deadLetterQueue.entries());
+    for (const [id, item] of entries) {
       if (itemIds && !itemIds.includes(id)) continue;
       
-      // Otherwise, check if enough time has passed
       if (!itemIds && item.completedAt && now - item.completedAt.getTime() < retryThreshold) continue;
       
-      // Reset item for retry
       item.status = 'pending';
       item.retryCount = 0;
       item.error = undefined;
       item.completedAt = undefined;
       item.processedAt = undefined;
       
-      // Move back to main queue with low priority
       item.priority = 'low';
       this.queue.set(id, item);
       this.deadLetterQueue.delete(id);
@@ -1014,17 +880,13 @@ export class EnrichmentQueue {
     return retried;
   }
   
-  /**
-   * Update Master Database with enrichment results
-   */
   private async updateMasterDatabase(leadId: string, result: any): Promise<void> {
     try {
-      // Store in master database cache
-      await storage.updateMasterDatabaseCache({
-        entityId: leadId,
+      await storage.updateMasterDatabaseCache(leadId, {
         businessData: result.finalData,
-        enrichmentScore: result.masterEnrichmentScore,
-        lastEnriched: new Date(),
+        completeness: String(result.dataCompleteness?.overall || 0),
+        dataQuality: String(result.masterEnrichmentScore / 100 || 0),
+        lastVerified: new Date(),
         sources: result.enrichmentSystems?.map((s: any) => s.systemName) || []
       });
     } catch (error) {
@@ -1032,21 +894,16 @@ export class EnrichmentQueue {
     }
   }
   
-  /**
-   * Handle batch uploaded event
-   */
   private async handleBatchUploaded(data: any): Promise<void> {
     const { leads, batchId, userId } = data;
     
     console.log(`[EnrichmentQueue] Processing batch upload of ${leads.length} leads`);
     
-    // Use Brain to evaluate the entire batch
     const batchEvaluation = await this.getIntelligenceBrain().evaluateBatch(
       leads.map((lead: Lead) => ({ lead })),
       { batchId, strategy: 'balanced' }
     );
     
-    // Queue leads based on Brain decisions
     for (const decision of batchEvaluation.decisions) {
       if (decision.strategy !== 'minimal') {
         const lead = leads.find((l: Lead) => l.id === decision.leadId);
@@ -1062,75 +919,68 @@ export class EnrichmentQueue {
       }
     }
     
-    // Emit batch processing status
-    websocketService.broadcast({
-      type: 'batch:enrichment-queued',
-      data: {
-        batchId,
-        totalLeads: leads.length,
-        queuedForEnrichment: batchEvaluation.decisions.filter(d => d.strategy !== 'minimal').length,
-        estimatedCost: batchEvaluation.batchPlan.totalEstimatedCost
-      }
+    webSocketService.broadcastToAll({
+      type: WebSocketEventType.SYSTEM_NOTIFICATION,
+      payload: {
+        messageType: 'batch:enrichment-queued',
+        data: {
+          batchId,
+          totalLeads: leads.length,
+          queuedForEnrichment: batchEvaluation.decisions.filter((d: any) => d.strategy !== 'minimal').length,
+          estimatedCost: batchEvaluation.batchPlan.totalEstimatedCost
+        }
+      },
+      timestamp: new Date()
     });
   }
   
-  /**
-   * Handle Brain decision events
-   */
   private async handleBrainDecision(data: any): Promise<void> {
     const { lead, decision } = data;
     
-    // Only process if Brain recommends enrichment
     if (decision.strategy !== 'minimal' && !decision.skipReasons?.length) {
       const priority = decision.priority > 8 ? 'high' : 
                       decision.priority > 5 ? 'medium' : 'low';
       
-      await this.addToQueue(lead, priority, 'brain', {
+      await this.addToQueue(lead, priority, 'manual', {
         brainDecision: decision
       });
     }
   }
   
-  /**
-   * Handle enrichment completion
-   */
   private async handleEnrichmentComplete(data: any): Promise<void> {
     const { leadId, enrichmentScore, dataCompleteness } = data;
     
-    // Update real-time monitoring
-    websocketService.broadcast({
-      type: 'enrichment:lead-complete',
-      data: {
+    webSocketService.broadcastToAll({
+      type: WebSocketEventType.LEAD_ENRICHED,
+      payload: {
         leadId,
         enrichmentScore,
         dataCompleteness,
         queueStats: this.getStats()
-      }
+      },
+      timestamp: new Date()
     });
     
     console.log(`[EnrichmentQueue] Lead ${leadId} enrichment complete with score ${enrichmentScore}`);
   }
   
-  /**
-   * Handle enrichment failure
-   */
   private async handleEnrichmentFailed(data: any): Promise<void> {
     const { leadId, error, attempts } = data;
     
     console.error(`[EnrichmentQueue] Lead ${leadId} enrichment failed after ${attempts} attempts: ${error}`);
     
-    // Alert for critical failures
     if (attempts >= this.DEAD_LETTER_THRESHOLD) {
-      webSocketService.broadcast({
-        type: 'enrichment:critical-failure',
-        data: { leadId, error, attempts }
+      webSocketService.broadcastToAll({
+        type: WebSocketEventType.SYSTEM_ALERT,
+        payload: {
+          alertType: 'enrichment:critical-failure',
+          data: { leadId, error, attempts }
+        },
+        timestamp: new Date()
       });
     }
   }
   
-  /**
-   * Get monitoring metrics
-   */
   getMonitoringMetrics(): any {
     return {
       queue: {
@@ -1143,7 +993,7 @@ export class EnrichmentQueue {
       stats: this.stats,
       creditUsage: Object.fromEntries(this.creditUsage),
       rateLimits: Object.fromEntries(
-        Array.from(this.rateLimits).map(([k, v]) => [k, {
+        Object.entries(this.rateLimits).map(([k, v]) => [k, {
           current: v.currentCount,
           limit: v.requestsPerMinute,
           resetIn: Math.max(0, v.resetTime.getTime() - Date.now())
@@ -1152,29 +1002,6 @@ export class EnrichmentQueue {
     };
   }
   
-  /**
-   * Pause queue processing
-   */
-  pauseProcessing(): void {
-    this.isProcessing = false;
-    if (this.processInterval) {
-      clearInterval(this.processInterval);
-      this.processInterval = undefined;
-    }
-    console.log('[EnrichmentQueue] Processing paused');
-  }
-  
-  /**
-   * Resume queue processing
-   */
-  resumeProcessing(): void {
-    this.startProcessing();
-    console.log('[EnrichmentQueue] Processing resumed');
-  }
-  
-  /**
-   * Clear dead letter queue
-   */
   clearDeadLetterQueue(): number {
     const count = this.deadLetterQueue.size;
     this.deadLetterQueue.clear();
@@ -1182,46 +1009,13 @@ export class EnrichmentQueue {
     return count;
   }
 
-  // Alias for dashboard compatibility
   clearDeadLetter(): number {
     return this.clearDeadLetterQueue();
   }
 
-  /**
-   * Get queue items
-   */
-  getQueueItems(options?: { status?: string; priority?: string; limit?: number }): any[] {
-    let items = Array.from(this.queue.values());
-    
-    if (options?.status) {
-      items = items.filter(item => item.status === options.status);
-    }
-    
-    if (options?.priority) {
-      items = items.filter(item => item.priority === options.priority);
-    }
-    
-    if (options?.limit) {
-      items = items.slice(0, options.limit);
-    }
-    
-    return items;
-  }
-
-  /**
-   * Get stats
-   */
-  getStats(): any {
-    return this.stats;
-  }
-
-  /**
-   * Retry failed items
-   */
   retryFailed(): number {
     let retriedCount = 0;
     
-    // Move failed items back to pending
     this.queue.forEach((item, id) => {
       if (item.status === 'failed' && item.retryCount < this.DEAD_LETTER_THRESHOLD) {
         item.status = 'pending';
@@ -1230,7 +1024,6 @@ export class EnrichmentQueue {
       }
     });
     
-    // Also retry items from dead letter queue
     this.deadLetterQueue.forEach((item, id) => {
       item.status = 'pending';
       item.retryCount = 0;
@@ -1244,11 +1037,9 @@ export class EnrichmentQueue {
     return retriedCount;
   }
 
-  /**
-   * Get service health
-   */
   getServiceHealth(service: string): any {
-    const rateLimit = this.rateLimits[service];
+    const rateLimitKey = service as keyof RateLimitConfig;
+    const rateLimit = this.rateLimits[rateLimitKey];
     const creditInfo = this.creditUsage.get(service);
     
     if (!rateLimit || !creditInfo) {
@@ -1259,7 +1050,6 @@ export class EnrichmentQueue {
       };
     }
     
-    // Calculate health based on rate limits and credit usage
     const usagePercent = (creditInfo.used / creditInfo.limit) * 100;
     const ratePercent = (rateLimit.currentCount / rateLimit.requestsPerMinute) * 100;
     
@@ -1273,11 +1063,10 @@ export class EnrichmentQueue {
     
     return {
       status,
-      successRate: 95 + Math.random() * 5, // Simulated success rate
-      averageResponseTime: 200 + Math.floor(Math.random() * 300) // Simulated response time
+      successRate: 95 + Math.random() * 5,
+      averageResponseTime: 200 + Math.floor(Math.random() * 300)
     };
   }
 }
 
-// Export singleton instance
 export const enrichmentQueue = new EnrichmentQueue();

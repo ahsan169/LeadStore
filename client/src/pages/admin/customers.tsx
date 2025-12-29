@@ -32,7 +32,7 @@ export default function CustomersPage() {
           <h2 className="text-xl font-serif font-semibold">All Customers</h2>
         </CardHeader>
         <CardContent>
-          {!customers || customers.length === 0 ? (
+          {!customers || (customers as any[]).length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Users className="w-16 h-16 mx-auto mb-4 opacity-50 text-primary" />
               <p>No customers yet</p>
@@ -49,7 +49,7 @@ export default function CustomersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {customers.map((customer: any) => (
+                  {(customers as any[]).map((customer: any) => (
                     <tr 
                       key={customer.id} 
                       className="border-b hover-elevate"

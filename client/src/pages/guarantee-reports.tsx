@@ -59,7 +59,7 @@ export default function GuaranteeReportsPage() {
     poor_quality: "Poor Quality",
   };
 
-  const activePurchases = purchases?.filter((p: any) => {
+  const activePurchases = (purchases as any[])?.filter((p: any) => {
     const guaranteeExpiry = p.guaranteeExpiresAt
       ? new Date(p.guaranteeExpiresAt)
       : new Date(new Date(p.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000);
@@ -74,8 +74,8 @@ export default function GuaranteeReportsPage() {
     );
   }
 
-  const pendingReports = reports?.filter((r: any) => r.status === "pending") || [];
-  const resolvedReports = reports?.filter((r: any) => r.status !== "pending") || [];
+  const pendingReports = (reports as any[])?.filter((r: any) => r.status === "pending") || [];
+  const resolvedReports = (reports as any[])?.filter((r: any) => r.status !== "pending") || [];
 
   return (
     <div className="space-y-6 p-6">
@@ -102,7 +102,7 @@ export default function GuaranteeReportsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Reports</p>
-                  <p className="text-2xl font-bold">{stats.totalReports || 0}</p>
+                  <p className="text-2xl font-bold">{(stats as any).totalReports || 0}</p>
                 </div>
                 <FileText className="w-8 h-8 text-muted-foreground" />
               </div>
@@ -114,7 +114,7 @@ export default function GuaranteeReportsPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Approved</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {stats.approvedReports || 0}
+                    {(stats as any).approvedReports || 0}
                   </p>
                 </div>
                 <CheckCircle className="w-8 h-8 text-green-600" />
@@ -127,7 +127,7 @@ export default function GuaranteeReportsPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Pending</p>
                   <p className="text-2xl font-bold text-yellow-600">
-                    {stats.pendingReports || 0}
+                    {(stats as any).pendingReports || 0}
                   </p>
                 </div>
                 <Clock className="w-8 h-8 text-yellow-600" />
@@ -140,7 +140,7 @@ export default function GuaranteeReportsPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">Approval Rate</p>
                   <p className="text-2xl font-bold">
-                    {stats.approvalRate ? `${Math.round(stats.approvalRate)}%` : "0%"}
+                    {(stats as any).approvalRate ? `${Math.round((stats as any).approvalRate)}%` : "0%"}
                   </p>
                 </div>
                 <TrendingUp className="w-8 h-8 text-muted-foreground" />
@@ -237,7 +237,7 @@ export default function GuaranteeReportsPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {statusIcons[report.status]}
+                      {statusIcons[report.status as keyof typeof statusIcons]}
                       <h3 className="font-semibold">
                         {issueTypeLabels[report.issueType as keyof typeof issueTypeLabels]}
                       </h3>
@@ -282,7 +282,7 @@ export default function GuaranteeReportsPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {statusIcons[report.status]}
+                      {statusIcons[report.status as keyof typeof statusIcons]}
                       <h3 className="font-semibold">
                         {issueTypeLabels[report.issueType as keyof typeof issueTypeLabels]}
                       </h3>

@@ -181,7 +181,7 @@ export class FeedbackAnalyticsSystem {
           
           const pattern = patternMap.get(patternKey)!;
           pattern.frequency++;
-          pattern.confidence = Math.max(pattern.confidence, item.confidence || 0);
+          pattern.confidence = Math.max(pattern.confidence, Number(item.confidence) || 0);
           
           if (item.fieldName && !pattern.fields.includes(item.fieldName)) {
             pattern.fields.push(item.fieldName);
@@ -201,7 +201,7 @@ export class FeedbackAnalyticsSystem {
       });
       
       // Analyze trends
-      for (const pattern of patternMap.values()) {
+      for (const pattern of Array.from(patternMap.values())) {
         pattern.trend = await this.analyzeTrend(pattern);
       }
       
@@ -644,11 +644,11 @@ export class FeedbackAnalyticsSystem {
     startDate: Date,
     endDate: Date
   ): Promise<any> {
-    const feedback = await db.select({
+    const feedbackResult = await db.select({
       total: sql<number>`count(*)`,
     })
-    .from('feedback')
-    .where(between('feedback.createdAt', startDate, endDate));
+    .from(feedback)
+    .where(between(feedback.createdAt, startDate, endDate));
     
     const patterns = await db.select({
       count: sql<number>`count(*)`
@@ -671,7 +671,7 @@ export class FeedbackAnalyticsSystem {
     const accuracyImprovement = accuracyEnd - accuracyStart;
     
     return {
-      totalFeedback: Number(feedback[0]?.total || 0),
+      totalFeedback: Number(feedbackResult[0]?.total || 0),
       patternsDiscovered: Number(patterns[0]?.count || 0),
       improvementsImplemented: Number(improvements[0]?.count || 0),
       accuracyImprovement,

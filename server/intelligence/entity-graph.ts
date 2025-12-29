@@ -446,7 +446,7 @@ export class EntityGraphBuilder {
     }
     
     // Create relationships for entities at same address
-    for (const [address, groupEntities] of addressGroups) {
+    for (const [address, groupEntities] of Array.from(addressGroups)) {
       if (groupEntities.length > 1) {
         for (let i = 0; i < groupEntities.length; i++) {
           for (let j = i + 1; j < groupEntities.length; j++) {
@@ -482,7 +482,7 @@ export class EntityGraphBuilder {
     }
     
     // Create relationships for entities with same owner
-    for (const [owner, groupEntities] of ownerGroups) {
+    for (const [owner, groupEntities] of Array.from(ownerGroups)) {
       if (groupEntities.length > 1) {
         for (let i = 0; i < groupEntities.length; i++) {
           for (let j = i + 1; j < groupEntities.length; j++) {
@@ -526,7 +526,7 @@ export class EntityGraphBuilder {
     const visited = new Set<string>();
     const chains: Array<string[]> = [];
     
-    for (const nodeId of this.graph.nodes.keys()) {
+    for (const nodeId of Array.from(this.graph.nodes.keys())) {
       if (!visited.has(nodeId)) {
         const chain = this.findOwnershipChain(nodeId, visited);
         if (chain.length > 1) {
@@ -590,7 +590,7 @@ export class EntityGraphBuilder {
     // Detect hub entities (many connections)
     const connectionCounts = new Map<string, number>();
     
-    for (const [nodeId, connections] of this.graph.adjacencyList) {
+    for (const [nodeId, connections] of Array.from(this.graph.adjacencyList)) {
       const reverseConnections = this.graph.reverseAdjacencyList.get(nodeId) || new Set();
       const totalConnections = connections.size + reverseConnections.size;
       connectionCounts.set(nodeId, totalConnections);
@@ -604,7 +604,7 @@ export class EntityGraphBuilder {
     for (let i = 0; i < Math.min(hubThreshold, sortedCounts.length); i++) {
       const node = this.graph.nodes.get(sortedCounts[i][0]);
       if (node) {
-        node.metadata.isHub = true;
+        (node.metadata as any).isHub = true;
       }
     }
   }
@@ -633,7 +633,7 @@ export class EntityGraphBuilder {
     const visited = new Set<string>();
     const components: Array<Set<string>> = [];
     
-    for (const nodeId of this.graph.nodes.keys()) {
+    for (const nodeId of Array.from(this.graph.nodes.keys())) {
       if (!visited.has(nodeId)) {
         const component = new Set<string>();
         this.dfs(nodeId, visited, component);
@@ -654,7 +654,7 @@ export class EntityGraphBuilder {
     const neighbors = this.graph.adjacencyList.get(nodeId) || new Set();
     const reverseNeighbors = this.graph.reverseAdjacencyList.get(nodeId) || new Set();
     
-    for (const neighbor of [...neighbors, ...reverseNeighbors]) {
+    for (const neighbor of [...Array.from(neighbors), ...Array.from(reverseNeighbors)]) {
       if (!visited.has(neighbor)) {
         this.dfs(neighbor, visited, component);
       }
@@ -668,16 +668,16 @@ export class EntityGraphBuilder {
     const centrality = new Map<string, number>();
     
     // Degree centrality
-    for (const [nodeId, connections] of this.graph.adjacencyList) {
+    for (const [nodeId, connections] of Array.from(this.graph.adjacencyList)) {
       const reverseConnections = this.graph.reverseAdjacencyList.get(nodeId) || new Set();
       const degree = connections.size + reverseConnections.size;
       centrality.set(nodeId, degree);
     }
     
     // Normalize scores
-    const maxCentrality = Math.max(...centrality.values());
+    const maxCentrality = Math.max(...Array.from(centrality.values()));
     if (maxCentrality > 0) {
-      for (const [nodeId, score] of centrality) {
+      for (const [nodeId, score] of Array.from(centrality)) {
         centrality.set(nodeId, score / maxCentrality);
       }
     }
@@ -702,7 +702,7 @@ export class EntityGraphBuilder {
     
     // Find root nodes (no incoming parent edges)
     const rootNodes = new Set<string>();
-    for (const nodeId of this.graph.nodes.keys()) {
+    for (const nodeId of Array.from(this.graph.nodes.keys())) {
       const hasParent = Array.from(this.graph.edges.values()).some(
         edge => edge.target === nodeId && edge.type === RelationshipType.PARENT
       );
@@ -713,7 +713,7 @@ export class EntityGraphBuilder {
     }
     
     // BFS to assign levels
-    const queue = [...rootNodes];
+    const queue = [...Array.from(rootNodes)];
     while (queue.length > 0) {
       const current = queue.shift()!;
       const currentLevel = levels.get(current) || 0;
@@ -741,7 +741,7 @@ export class EntityGraphBuilder {
     const visited = new Set<string>();
     const recursionStack = new Set<string>();
     
-    for (const nodeId of this.graph.nodes.keys()) {
+    for (const nodeId of Array.from(this.graph.nodes.keys())) {
       if (!visited.has(nodeId)) {
         const path: string[] = [];
         this.findCycles(nodeId, visited, recursionStack, path, cycles);
@@ -767,7 +767,7 @@ export class EntityGraphBuilder {
     
     const neighbors = this.graph.adjacencyList.get(nodeId) || new Set();
     
-    for (const neighbor of neighbors) {
+    for (const neighbor of Array.from(neighbors)) {
       if (!visited.has(neighbor)) {
         this.findCycles(neighbor, visited, recursionStack, path, cycles);
       } else if (recursionStack.has(neighbor)) {
@@ -789,7 +789,7 @@ export class EntityGraphBuilder {
   private findOrphanNodes(): Set<string> {
     const orphans = new Set<string>();
     
-    for (const nodeId of this.graph.nodes.keys()) {
+    for (const nodeId of Array.from(this.graph.nodes.keys())) {
       const hasConnections = 
         (this.graph.adjacencyList.get(nodeId)?.size || 0) > 0 ||
         (this.graph.reverseAdjacencyList.get(nodeId)?.size || 0) > 0;
@@ -809,7 +809,7 @@ export class EntityGraphBuilder {
     const hubs = new Set<string>();
     const threshold = 5; // Nodes with more than 5 connections
     
-    for (const [nodeId, connections] of this.graph.adjacencyList) {
+    for (const [nodeId, connections] of Array.from(this.graph.adjacencyList)) {
       const reverseConnections = this.graph.reverseAdjacencyList.get(nodeId) || new Set();
       const totalConnections = connections.size + reverseConnections.size;
       
@@ -975,7 +975,7 @@ export class EntityGraphBuilder {
     } else {
       const neighbors = this.graph.adjacencyList.get(current) || new Set();
       
-      for (const neighbor of neighbors) {
+      for (const neighbor of Array.from(neighbors)) {
         if (!visited.has(neighbor)) {
           this.dfsAllPaths(neighbor, end, visited, currentPath, allPaths, remainingDepth - 1);
         }
@@ -1047,7 +1047,7 @@ export class EntityGraphBuilder {
   }
   
   private findEdge(source: string, target: string): RelationshipEdge | null {
-    for (const edge of this.graph.edges.values()) {
+    for (const edge of Array.from(this.graph.edges.values())) {
       if (edge.source === source && edge.target === target) {
         return edge;
       }

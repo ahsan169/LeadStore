@@ -210,15 +210,16 @@ export class MarketInsightsService {
       const cachedData = cached[0];
       
       // Reconstruct the result from cached data
+      const metadata = cachedData.analysisMetadata as any;
       return {
-        industryTrends: cachedData.analysisMetadata?.industryTrends || [],
+        industryTrends: metadata?.industryTrends || [],
         seasonalPatterns: cachedData.seasonalFactors as any || [],
         geographicHotspots: cachedData.geographicHotspots as any || [],
         marketForecasts: cachedData.forecastedDemand as any || [],
-        competitionAnalysis: cachedData.analysisMetadata?.competitionAnalysis || [],
-        overallMarketCondition: cachedData.analysisMetadata?.overallMarketCondition || 'neutral',
-        keyInsights: cachedData.analysisMetadata?.keyInsights || [],
-        recommendations: cachedData.analysisMetadata?.recommendations || [],
+        competitionAnalysis: metadata?.competitionAnalysis || [],
+        overallMarketCondition: metadata?.overallMarketCondition || 'neutral',
+        keyInsights: metadata?.keyInsights || [],
+        recommendations: metadata?.recommendations || [],
         calculatedAt: cachedData.calculatedAt
       };
     } catch (error) {
@@ -290,7 +291,7 @@ export class MarketInsightsService {
       });
     }
 
-    return trends.sort((a, b) => b.opportunityScore - a.opportunityScore);
+    return trends.sort((a, b) => b.demandIndex - a.demandIndex);
   }
 
   /**
@@ -309,7 +310,7 @@ export class MarketInsightsService {
           totalLeads: count(leads.id),
           soldLeads: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
           avgDealSize: sql<number>`AVG(CAST(NULLIF(${leads.requestedAmount}, '') AS INTEGER))`,
-          avgTimeToClose: avg(leadPerformance.timeToClose)
+          avgTimeToClose: avg((leadPerformance as any).timeToClose)
         })
         .from(leads)
         .leftJoin(leadPerformance, eq(leads.id, leadPerformance.leadId))
@@ -868,8 +869,8 @@ export class MarketInsightsService {
   private async estimateCompetitorCount(industry: string, region?: string): Promise<number> {
     // In real implementation, would use external data or more sophisticated analysis
     // For now, estimate based on lead volume
-    const leadCount = await db
-      .select({ count: count(leads.id) })
+    const leadCountResult = await db
+      .select({ cnt: count(leads.id) })
       .from(leads)
       .where(
         and(
@@ -878,13 +879,13 @@ export class MarketInsightsService {
         )
       );
     
-    const count = Number(leadCount[0]?.count || 0);
+    const totalCount = Number(leadCountResult[0]?.cnt || 0);
     
     // Rough estimation: more leads = more competitors
-    if (count < 10) return 2;
-    if (count < 25) return 5;
-    if (count < 50) return 10;
-    if (count < 100) return 20;
+    if (totalCount < 10) return 2;
+    if (totalCount < 25) return 5;
+    if (totalCount < 50) return 10;
+    if (totalCount < 100) return 20;
     return 30;
   }
 
@@ -894,7 +895,7 @@ export class MarketInsightsService {
   private async calculateMarketShare(industry: string, region?: string): Promise<number> {
     // Simplified: based on our lead volume vs estimated total market
     const ourLeads = await db
-      .select({ count: count(leads.id) })
+      .select({ cnt: count(leads.id) })
       .from(leads)
       .where(
         and(
@@ -904,7 +905,7 @@ export class MarketInsightsService {
         )
       );
     
-    const ourCount = Number(ourLeads[0]?.count || 0);
+    const ourCount = Number(ourLeads[0]?.cnt || 0);
     const estimatedMarketSize = ourCount * 10; // Assume we have 10% market share baseline
     
     return Math.min(100, Math.round((ourCount / estimatedMarketSize) * 100));

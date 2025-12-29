@@ -403,8 +403,8 @@ export class ExecutionPolicyManager {
     }
     
     // Apply industry multiplier if available
-    if (context.metadata?.industry) {
-      const multiplier = this.config.industryMultipliers?.[context.metadata.industry] || 1.0;
+    if ((context.metadata as any)?.industry) {
+      const multiplier = this.config.industryMultipliers?.[(context.metadata as any).industry] || 1.0;
       const adjustedCost = nextTierConfig.cost * multiplier;
       
       if (!this.budgetTracker.canSpend(adjustedCost, leadId)) {

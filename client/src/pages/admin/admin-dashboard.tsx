@@ -11,23 +11,23 @@ import type { AiInsight } from "@shared/schema";
 export default function AdminDashboardPage() {
   const { data: leadStats } = useQuery({
     queryKey: ["/api/leads/stats"],
-  });
+  }) as { data: any };
 
   const { data: purchases } = useQuery({
     queryKey: ["/api/purchases"],
-  });
+  }) as { data: any };
 
   const { data: customers } = useQuery({
     queryKey: ["/api/customers"],
-  });
+  }) as { data: any };
 
   const { data: batches } = useQuery({
     queryKey: ["/api/batches"],
-  });
+  }) as { data: any };
 
   const { data: freshnessStats } = useQuery({
     queryKey: ["/api/freshness/stats"],
-  });
+  }) as { data: any };
 
   const mostRecentBatchId = batches?.[0]?.id;
 
@@ -139,7 +139,7 @@ export default function AdminDashboardPage() {
                   <Progress 
                     value={leadStats?.total > 0 ? (item.value / leadStats.total) * 100 : 0} 
                     className="h-2"
-                    indicatorClassName={item.color}
+                    {...{ indicatorClassName: item.color } as any}
                   />
                 </div>
               ))}

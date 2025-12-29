@@ -256,7 +256,7 @@ export class PredictiveScoringEngine {
         timeToClose: {
           days: cachedData.timeToClosePrediction || 18,
           confidence: Number(cachedData.timeToCloseConfidence || 50),
-          factors: cachedData.factorsAnalyzed?.timeToClose || {},
+          factors: (cachedData.factorsAnalyzed as any)?.timeToClose || {},
           range: {
             optimistic: Math.round((cachedData.timeToClosePrediction || 18) * 0.7),
             realistic: cachedData.timeToClosePrediction || 18,
@@ -267,20 +267,20 @@ export class PredictiveScoringEngine {
           amount: Number(cachedData.dealSizePrediction || 30000),
           confidence: Number(cachedData.dealSizeConfidence || 50),
           range: cachedData.dealSizeRange as any || { min: 21000, median: 30000, max: 42000 },
-          factors: cachedData.factorsAnalyzed?.dealSize || {}
+          factors: (cachedData.factorsAnalyzed as any)?.dealSize || {}
         },
         successProbability: {
           probability: Number(cachedData.successProbability || 0.15),
           fundingLikelihood: Number(cachedData.fundingLikelihood || 0.15),
           defaultRisk: Number(cachedData.defaultRisk || 0.1),
-          factors: cachedData.factorsAnalyzed?.successProbability || {}
+          factors: (cachedData.factorsAnalyzed as any)?.successProbability || {}
         },
         roi: {
           expectedROI: Number(cachedData.expectedROI || 10),
           riskAdjustedROI: Number(cachedData.riskAdjustedROI || 5),
           paybackPeriod: cachedData.paybackPeriod || 90,
           breakEvenPoint: Math.round((cachedData.paybackPeriod || 90) * 1.2),
-          factors: cachedData.factorsAnalyzed?.roi || {}
+          factors: (cachedData.factorsAnalyzed as any)?.roi || {}
         },
         lifecycleStage: {
           currentStage: cachedData.lifecycleStage as any || 'awareness',
@@ -342,7 +342,7 @@ export class PredictiveScoringEngine {
     const industryBase = this.INDUSTRY_CLOSING_TIMES[lead.industry?.toLowerCase() || 'default'];
     
     // Urgency factor
-    const urgencyMultiplier = this.getUrgencyMultiplier(lead.urgencyLevel);
+    const urgencyMultiplier = this.getUrgencyMultiplier(lead.urgencyLevel ?? undefined);
     
     // Credit score factor (better credit = faster approval)
     const creditScore = parseInt(lead.creditScore || '650');
@@ -1080,7 +1080,7 @@ export class PredictiveScoringEngine {
       .select({
         totalLeads: count(leads.id),
         successfulLeads: sql<number>`COUNT(CASE WHEN ${leads.sold} = true THEN 1 END)`,
-        avgTimeToClose: avg(leadPerformance.timeToClose)
+        avgTimeToClose: sql<number>`AVG(EXTRACT(DAY FROM (${leadPerformance.closedAt} - ${leadPerformance.createdAt})))`
       })
       .from(leads)
       .leftJoin(leadPerformance, eq(leads.id, leadPerformance.leadId))
@@ -1318,7 +1318,7 @@ export class PredictiveScoringEngine {
     
     // Pre-fetch market insights for all unique combinations
     console.log(`[PredictiveScoring] Pre-fetching market insights for ${leadGroups.size} unique segments`);
-    for (const [key] of leadGroups) {
+    for (const [key] of Array.from(leadGroups)) {
       const [industry, region] = key.split(':');
       await this.getCachedMarketInsights(industry, region);
     }

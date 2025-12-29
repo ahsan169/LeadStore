@@ -142,7 +142,7 @@ export class EnrichmentCacheService {
     const result = new Map<string, any>();
     const prefix = `lead:${leadId}:`;
     
-    for (const [key, entry] of this.cache.entries()) {
+    for (const [key, entry] of Array.from(this.cache.entries())) {
       if (key.startsWith(prefix)) {
         const dataType = key.substring(prefix.length);
         if (new Date() <= entry.expiresAt) {
@@ -161,7 +161,7 @@ export class EnrichmentCacheService {
     const prefix = `lead:${leadId}:`;
     const keysToDelete: string[] = [];
     
-    for (const key of this.cache.keys()) {
+    for (const key of Array.from(this.cache.keys())) {
       if (key.startsWith(prefix)) {
         keysToDelete.push(key);
       }
@@ -178,7 +178,7 @@ export class EnrichmentCacheService {
     let totalAge = 0;
     let validEntries = 0;
     
-    for (const entry of this.cache.values()) {
+    for (const entry of Array.from(this.cache.values())) {
       if (new Date() <= entry.expiresAt) {
         totalAge += now - entry.timestamp.getTime();
         validEntries++;
@@ -237,7 +237,7 @@ export class EnrichmentCacheService {
       const now = new Date();
       const keysToDelete: string[] = [];
       
-      for (const [key, entry] of this.cache.entries()) {
+      for (const [key, entry] of Array.from(this.cache.entries())) {
         if (now > entry.expiresAt) {
           keysToDelete.push(key);
         }
@@ -282,7 +282,7 @@ export class EnrichmentCacheService {
   exportCache(): string {
     const exportData: any[] = [];
     
-    for (const [key, entry] of this.cache.entries()) {
+    for (const [key, entry] of Array.from(this.cache.entries())) {
       exportData.push({
         key,
         ...entry,

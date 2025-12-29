@@ -141,6 +141,10 @@ export default function ManageLeadsPage() {
               onGenerateInsights={() => generateInsightsMutation.mutate(batch.id)}
               isGenerating={generateInsightsMutation.isPending}
               onAnalyzeLead={handleAnalyzeLead}
+              onLeadClick={(lead) => {
+                setSelectedLead(lead);
+                setShowLeadDetailModal(true);
+              }}
             />
           ))}
         </div>
@@ -230,31 +234,20 @@ export default function ManageLeadsPage() {
 
       {/* Lead Detail Modal */}
       <LeadDetailModal
-        lead={selectedLead}
+        lead={selectedLead as any}
         isOpen={showLeadDetailModal}
         onClose={() => {
           setShowLeadDetailModal(false);
           setSelectedLead(null);
         }}
-        onEnrich={async (lead) => {
-          // Trigger enrichment for the lead
-          try {
-            const response = await apiRequest("POST", `/api/enrichment/analyze/${lead.id}`);
-            const result = await response.json();
-            toast({
-              title: "Enrichment Started",
-              description: `Lead enrichment queued for ${lead.businessName}`,
-            });
-            queryClient.invalidateQueries({ queryKey: ["/api/leads/batch", lead.batchId] });
-          } catch (error) {
-            toast({
-              title: "Enrichment Failed",
-              description: "Failed to start enrichment process",
-              variant: "destructive",
-            });
-          }
+        onPurchase={async (lead: any) => {
+          // Handle purchase
+          toast({
+            title: "Purchase Initiated",
+            description: `Lead purchase started for ${lead.businessName}`,
+          });
         }}
-        onExport={async (lead, format) => {
+        onExport={async (lead: any, format: any) => {
           // Handle export
           toast({
             title: "Export Started",
@@ -273,6 +266,7 @@ interface BatchCardProps {
   onGenerateInsights: () => void;
   isGenerating: boolean;
   onAnalyzeLead: (lead: Lead) => void;
+  onLeadClick: (lead: Lead) => void;
 }
 
 function BatchCard({
@@ -282,6 +276,7 @@ function BatchCard({
   onGenerateInsights,
   isGenerating,
   onAnalyzeLead,
+  onLeadClick,
 }: BatchCardProps) {
   const { data: insights, isLoading: insightsLoading } = useQuery<AiInsight>({
     queryKey: ["/api/insights/batch", batch.id],
@@ -410,10 +405,7 @@ function BatchCard({
                         <tr 
                           key={lead.id} 
                           className="border-b hover:bg-muted/50 cursor-pointer"
-                          onClick={() => {
-                            setSelectedLead(lead);
-                            setShowLeadDetailModal(true);
-                          }}
+                          onClick={() => onLeadClick(lead)}
                         >
                           <td className="py-3 px-3">
                             <div>

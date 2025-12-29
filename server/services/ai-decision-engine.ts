@@ -211,7 +211,7 @@ export class AIDecisionEngine {
         // Queue for enrichment based on priority
         if (strategy.priority === 'high') {
           // Use intelligent orchestrator for high-priority leads
-          await this.masterOrchestrator.processLead(lead, {
+          await (this.masterOrchestrator as any).processLead(lead, {
             services: strategy.services,
             priority: 'high',
             estimatedCost: strategy.estimatedCost
@@ -221,13 +221,13 @@ export class AIDecisionEngine {
           await enrichmentQueue.addToQueue({
             leadId: strategy.leadId,
             businessName: strategy.businessName,
-            priority: strategy.priority === 'medium' ? 5 : 3,
+            priority: strategy.priority === 'medium' ? '5' : '3',
             services: strategy.services,
             metadata: {
               reasoning: strategy.reasoning,
               expectedQualityGain: strategy.expectedQualityGain
             }
-          });
+          } as any);
         }
         
         results.queued++;
@@ -283,8 +283,8 @@ export class AIDecisionEngine {
     if (!lead.yearFounded) gaps.push('Missing founding year');
     
     // Check verification status
-    if (!lead.emailVerified) gaps.push('Email not verified');
-    if (!lead.phoneVerified) gaps.push('Phone not verified');
+    if (!(lead as any).emailVerified) gaps.push('Email not verified');
+    if (!(lead as any).phoneVerified) gaps.push('Phone not verified');
     
     // Check enrichment data
     if (!lead.websiteUrl) gaps.push('Missing website');
@@ -319,7 +319,7 @@ export class AIDecisionEngine {
         Format as JSON: { confidence: number, reasoning: string, suggestions: string[] }
       `;
       
-      const analysis = await openAIService.generateStructuredResponse(prompt, {
+      const analysis = await (openAIService as any).generateStructuredResponse(prompt, {
         confidence: 0.7,
         reasoning: "Lead has good potential but needs contact verification and revenue data.",
         suggestions: ["Verify email and phone", "Enrich company data", "Add UCC filing information"]
@@ -355,7 +355,7 @@ export class AIDecisionEngine {
     }
     
     // High priority for California MCA leads
-    if (lead.stateCode === 'CA' && lead.mcaQualityScore && lead.mcaQualityScore > 70) {
+    if (lead.stateCode === 'CA' && (lead as any).mcaQualityScore && (lead as any).mcaQualityScore > 70) {
       return 'high';
     }
     
@@ -380,8 +380,8 @@ export class AIDecisionEngine {
     };
     
     // Phase 1: Critical verification
-    if (!lead.emailVerified) plan.phase1.push('email-verification');
-    if (!lead.phoneVerified) plan.phase1.push('phone-verification');
+    if (!(lead as any).emailVerified) plan.phase1.push('email-verification');
+    if (!(lead as any).phoneVerified) plan.phase1.push('phone-verification');
     
     // Phase 2: Enhancement based on priority
     if (priority === 'high' || priority === 'medium') {

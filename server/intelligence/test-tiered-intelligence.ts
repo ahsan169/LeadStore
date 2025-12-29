@@ -50,11 +50,11 @@ async function testTier0Processing() {
       maxCost: 0.001,
       maxLatency: 100
     }
-  });
+  } as any);
   
   console.log('Result:', {
-    output: result.output,
-    tier: result.tierUsed,
+    output: (result as any).output,
+    tier: (result as any).tierUsed,
     confidence: result.confidence,
     cost: result.cost,
     latency: result.latency
@@ -112,13 +112,13 @@ async function testEmbeddingsSimilarity() {
   
   console.log('Generating embeddings...');
   const [emb1, emb2, emb3] = await Promise.all([
-    embeddingsService.getEmbedding(text1),
-    embeddingsService.getEmbedding(text2),
-    embeddingsService.getEmbedding(text3)
+    (embeddingsService as any).getEmbedding(text1),
+    (embeddingsService as any).getEmbedding(text2),
+    (embeddingsService as any).getEmbedding(text3)
   ]);
   
-  const similarity12 = embeddingsService.calculateSimilarity(emb1, emb2);
-  const similarity13 = embeddingsService.calculateSimilarity(emb1, emb3);
+  const similarity12 = (embeddingsService as any).calculateSimilarity(emb1, emb2);
+  const similarity13 = (embeddingsService as any).calculateSimilarity(emb1, emb3);
   
   console.log('Similarity Results:');
   console.log(`  "${text1}" vs "${text2}": ${(similarity12 * 100).toFixed(2)}%`);
@@ -163,7 +163,7 @@ async function testCostTracking() {
   console.log('\n🧪 Testing Cost Tracking...');
   
   // Get current metrics
-  const metrics = tieredIntelligence.getMetrics();
+  const metrics = tieredIntelligence.getMetrics() as any;
   
   console.log('Current Tier Metrics:');
   console.log('  Tier 0:', metrics.tierStats['0']);
@@ -178,12 +178,12 @@ async function testCostTracking() {
 async function testPolicyEnforcement() {
   console.log('\n🧪 Testing Policy Enforcement...');
   
-  const policy = executionPolicy.getStatistics();
+  const policy = executionPolicy.getStatistics() as any;
   
   console.log('Policy Configuration:');
   console.log('  Budget Status:', policy.budgetStatus);
-  console.log('  Daily Budget Used:', `$${policy.dailyBudgetUsed.toFixed(4)}`);
-  console.log('  Daily Budget Remaining:', `$${policy.dailyBudgetRemaining.toFixed(4)}`);
+  console.log('  Daily Budget Used:', `$${(policy.dailyBudgetUsed || 0).toFixed(4)}`);
+  console.log('  Daily Budget Remaining:', `$${(policy.dailyBudgetRemaining || 0).toFixed(4)}`);
   console.log('  Can Use Tier 1:', policy.canUseTier1);
   console.log('  Can Use Tier 2:', policy.canUseTier2);
   
@@ -197,10 +197,10 @@ async function testPolicyEnforcement() {
       maxCost: testBudget,
       maxLatency: 100
     }
-  });
+  } as any);
   
   console.log('\nBudget-Constrained Result:', {
-    tier: result.tierUsed,
+    tier: (result as any).tierUsed,
     cost: result.cost,
     confidence: result.confidence
   });

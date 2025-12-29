@@ -275,7 +275,7 @@ class NumverifyService {
     return {
       ...validation,
       enrichedAt: new Date().toISOString(),
-      dataSource: this.apiKey ? 'numverify' : 'basic',
+      dataSource: this.getApiKey() ? 'numverify' : 'basic',
       qualityIndicators: {
         hasCarrier: !!validation.carrier,
         hasLocation: !!validation.location,

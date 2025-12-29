@@ -182,7 +182,7 @@ export class EnrichmentRateLimiter {
    */
   private startQueueProcessors(): void {
     setInterval(() => {
-      for (const [service, queue] of this.queues.entries()) {
+      for (const [service, queue] of Array.from(this.queues.entries())) {
         if (!this.processing.get(service) && queue.length > 0) {
           this.processQueue(service);
         }
@@ -270,7 +270,7 @@ export class EnrichmentRateLimiter {
   getAllStats(): ServiceUsageStats[] {
     const allStats: ServiceUsageStats[] = [];
     
-    for (const service of this.limits.keys()) {
+    for (const service of Array.from(this.limits.keys())) {
       const stats = this.getServiceStats(service);
       if (stats) allStats.push(stats);
     }

@@ -78,7 +78,7 @@ export default function PurchaseFlowPage() {
     onSuccess: (response) => {
       toast({
         title: "Purchase Successful!",
-        description: `You've successfully purchased ${response.leadCount} leads.`,
+        description: `You've successfully purchased ${(response as any).leadCount} leads.`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/purchases"] });
       setLocation('/purchases');

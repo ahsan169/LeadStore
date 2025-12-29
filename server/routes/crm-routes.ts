@@ -511,8 +511,8 @@ router.post("/api/crm/call-logs", requireAuth, async (req, res) => {
         activityType: "call",
         title: `${callLog.direction === 'outbound' ? 'Outbound' : 'Inbound'} call - ${callLog.outcome}`,
         description: callLog.notes || "",
-        outcome: callLog.outcome,
-        direction: callLog.direction,
+        outcome: callLog.outcome as "connected" | "voicemail" | "no_answer" | "busy" | "wrong_number" | undefined,
+        direction: callLog.direction as "outbound" | "inbound" | undefined,
         duration: callLog.duration,
       });
       
@@ -568,7 +568,7 @@ router.post("/api/crm/emails", requireAuth, async (req, res) => {
         userId: req.user!.id,
         activityType: "email_sent",
         title: `Email sent: ${email.subject}`,
-        description: email.content?.substring(0, 200) || "",
+        description: email.body?.substring(0, 200) || "",
       });
       
       await storage.updateLead(email.leadId, {

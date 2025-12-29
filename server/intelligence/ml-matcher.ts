@@ -260,8 +260,8 @@ export class MLMatcher {
       
       // City and state matching
       features.addressCityMatch = entity1.city === entity2.city ? 1 : 0;
-      features.addressStateMatch = entity1.state === entity2.state ? 1 : 0;
-      features.addressZipMatch = entity1.zipCode === entity2.zipCode ? 1 : 0;
+      features.addressStateMatch = entity1.stateCode === entity2.stateCode ? 1 : 0;
+      features.addressZipMatch = (entity1 as any).zipCode === (entity2 as any).zipCode ? 1 : 0;
     }
     
     // Business features
@@ -424,7 +424,7 @@ export class MLMatcher {
     const gradients = new Map<string, number>();
     
     // Initialize gradients
-    for (const key of this.featureWeights.keys()) {
+    for (const key of Array.from(this.featureWeights.keys())) {
       gradients.set(key, 0);
     }
     
@@ -440,7 +440,7 @@ export class MLMatcher {
     }
     
     // Apply gradients with learning rate
-    for (const [featureName, gradient] of gradients) {
+    for (const [featureName, gradient] of Array.from(gradients.entries())) {
       const currentWeight = this.featureWeights.get(featureName) || 0;
       const avgGradient = gradient / this.trainingData.length;
       const newWeight = currentWeight + this.config.learningRate * avgGradient;
@@ -615,7 +615,7 @@ export class MLMatcher {
     let bestVariant: ABTestVariant | null = null;
     let bestScore = -1;
     
-    for (const variant of this.abTestVariants.values()) {
+    for (const variant of Array.from(this.abTestVariants.values())) {
       if (variant.sampleCount < 100) continue; // Need minimum samples
       
       const score = variant.metrics.f1Score || 0;

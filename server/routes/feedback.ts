@@ -53,7 +53,7 @@ router.post('/submit', async (req, res) => {
       ...validatedData,
       feedbackType: validatedData.feedbackType as FeedbackType,
       operatorId,
-    };
+    } as any;
     
     // Submit feedback
     const result = await feedbackCollectionSystem.submitFeedback(submission);
@@ -236,7 +236,7 @@ router.get('/patterns', async (req, res) => {
     }
     
     if (minConfidence) {
-      whereConditions.push(gte(learnedPatterns.confidence, parseFloat(minConfidence as string)));
+      whereConditions.push(gte(learnedPatterns.confidence, parseFloat(minConfidence as string) as any));
     }
     
     const patterns = await db.select()
@@ -399,9 +399,10 @@ router.get('/impact/:id', async (req, res) => {
     const fb = feedbackItem[0];
     
     // Calculate impact
+    const affectedLeadsArray = fb.affectedLeads as any as string[] | undefined;
     const impact = {
       directImpact: {
-        leadsAffected: fb.affectedLeads?.length || 1,
+        leadsAffected: affectedLeadsArray?.length || 1,
         fieldsChanged: fb.fieldName ? 1 : 0,
         confidence: fb.confidence,
       },
@@ -439,19 +440,19 @@ router.get('/impact/:id', async (req, res) => {
     impact.indirectImpact.similarFeedback = Number(similar[0]?.count || 0);
     
     // Estimate potential impact
-    if (fb.affectedLeads && fb.affectedLeads.length > 0) {
+    if (affectedLeadsArray && affectedLeadsArray.length > 0) {
       // Find similar leads
       const totalLeads = await db.select({
         count: sql<number>`count(*)`
       })
       .from(leads);
       
-      const ratio = fb.affectedLeads.length / Number(totalLeads[0]?.count || 1);
+      const ratio = affectedLeadsArray.length / Number(totalLeads[0]?.count || 1);
       impact.potentialImpact.estimatedLeadsAffected = Math.round(ratio * Number(totalLeads[0]?.count || 0));
     }
     
-    impact.potentialImpact.estimatedAccuracyImprovement = (fb.confidence / 100) * 10; // Rough estimate
-    impact.potentialImpact.estimatedTimeReduction = fb.affectedLeads?.length || 0 * 2; // Seconds saved per lead
+    impact.potentialImpact.estimatedAccuracyImprovement = (Number(fb.confidence) / 100) * 10; // Rough estimate
+    impact.potentialImpact.estimatedTimeReduction = (affectedLeadsArray?.length || 0) * 2; // Seconds saved per lead
     
     res.json({
       feedback: fb,

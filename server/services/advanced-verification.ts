@@ -72,7 +72,7 @@ export class AdvancedVerificationService {
     if (data.email) {
       promises.push(
         this.verifyEmail(data.email)
-          .then(result => results.push(result))
+          .then(result => { results.push(result); })
           .catch(err => console.error('[AdvancedVerification] Email verification error:', err))
       );
     }
@@ -80,7 +80,7 @@ export class AdvancedVerificationService {
     if (data.phone) {
       promises.push(
         this.verifyPhone(data.phone)
-          .then(result => results.push(result))
+          .then(result => { results.push(result); })
           .catch(err => console.error('[AdvancedVerification] Phone verification error:', err))
       );
     }
@@ -88,7 +88,7 @@ export class AdvancedVerificationService {
     if (data.website) {
       promises.push(
         this.verifyDomain(data.website)
-          .then(result => results.push(result))
+          .then(result => { results.push(result); })
           .catch(err => console.error('[AdvancedVerification] Domain verification error:', err))
       );
     }
@@ -96,7 +96,7 @@ export class AdvancedVerificationService {
     if (data.linkedin || data.twitter) {
       promises.push(
         this.verifySocialMedia({ linkedin: data.linkedin, twitter: data.twitter })
-          .then(result => results.push(result))
+          .then(result => { results.push(result); })
           .catch(err => console.error('[AdvancedVerification] Social media verification error:', err))
       );
     }
@@ -104,7 +104,7 @@ export class AdvancedVerificationService {
     if (data.address && data.city && data.state) {
       promises.push(
         this.verifyAddress({ address: data.address, city: data.city, state: data.state, zipCode: data.zipCode })
-          .then(result => results.push(result))
+          .then(result => { results.push(result); })
           .catch(err => console.error('[AdvancedVerification] Address verification error:', err))
       );
     }

@@ -33,6 +33,7 @@ export interface EmbeddingResult {
   cached: boolean;
   cacheKey?: string;
   timestamp: Date;
+  metadata?: any;
 }
 
 /**
@@ -167,7 +168,9 @@ class EmbeddingsCache {
     if (this.memoryCache.size >= this.maxMemoryItems) {
       // Remove oldest item (LRU)
       const firstKey = this.memoryCache.keys().next().value;
-      this.memoryCache.delete(firstKey);
+      if (firstKey) {
+        this.memoryCache.delete(firstKey);
+      }
     }
     
     this.memoryCache.set(key, result);
@@ -405,7 +408,7 @@ export class EmbeddingsService {
           matches.push({
             id: row.id,
             text: row.text,
-            value: row.metadata?.value || row.text,
+            value: (row.metadata as any)?.value || row.text,
             similarity,
             metadata: row.metadata
           });
@@ -543,7 +546,7 @@ export class EmbeddingsService {
    */
   getStats() {
     return {
-      cacheSize: this.cache.memoryCache?.size || 0,
+      cacheSize: (this.cache as any).memoryCache?.size || 0,
       requestCount: this.requestCount,
       resetTime: new Date(this.resetTime)
     };

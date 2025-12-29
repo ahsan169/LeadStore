@@ -335,7 +335,7 @@ export class BulkDataIngestionService extends EventEmitter {
       
       // Parse the data
       const parser = this.parsers.get(job.source.id) || this.parsers.get('csv');
-      const parsedRecords = parser(rawData);
+      const parsedRecords = parser!(rawData);
       
       // Store in staging table
       await this.storeInStaging(parsedRecords, job);
@@ -497,7 +497,7 @@ export class BulkDataIngestionService extends EventEmitter {
           ContentType: 'application/json'
         });
         
-        await s3Client.send(command);
+        await s3Client!.send(command);
         console.log(`[BulkIngestion] Raw data stored in S3: ${filename}`);
         storageType = 'S3';
       } catch (s3Error: any) {
@@ -582,7 +582,7 @@ export class BulkDataIngestionService extends EventEmitter {
         processed: false
       }));
       
-      await db.insert(stagingLeads).values(stagingRecords);
+      await db.insert(stagingLeads).values(stagingRecords as any);
     }
     
     console.log(`[BulkIngestion] Stored ${records.length} records in staging table`);
@@ -604,7 +604,7 @@ export class BulkDataIngestionService extends EventEmitter {
       }
     }
     
-    return [...new Set(phones)]; // Remove duplicates
+    return Array.from(new Set(phones)); // Remove duplicates
   }
   
   /**
@@ -624,7 +624,7 @@ export class BulkDataIngestionService extends EventEmitter {
       }
     }
     
-    return [...new Set(emails.map(e => e.toLowerCase()))];
+    return Array.from(new Set(emails.map(e => e.toLowerCase())));
   }
   
   /**
@@ -637,7 +637,7 @@ export class BulkDataIngestionService extends EventEmitter {
     
     for (const field of domainFields) {
       if (item[field]) {
-        const matches = String(item[field]).matchAll(domainRegex);
+        const matches = Array.from(String(item[field]).matchAll(domainRegex));
         for (const match of matches) {
           domains.push(match[1]);
         }
@@ -653,7 +653,7 @@ export class BulkDataIngestionService extends EventEmitter {
       }
     }
     
-    return [...new Set(domains.map(d => d.toLowerCase()))];
+    return Array.from(new Set(domains.map(d => d.toLowerCase())));
   }
   
   /**

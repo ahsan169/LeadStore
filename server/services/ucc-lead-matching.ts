@@ -152,7 +152,7 @@ export class UccLeadMatchingService {
     });
     
     // Calculate overall confidence and filter by threshold
-    for (const [leadId, match] of allMatches.entries()) {
+    for (const [matchLeadId, match] of Array.from(allMatches.entries())) {
       const overallConfidence = this.calculateOverallConfidence(match.matches);
       if (overallConfidence >= minConfidence) {
         // Check for common lenders if UCC data available
@@ -571,7 +571,7 @@ export class UccLeadMatchingService {
     if (leadFilings.length === 0) return results;
     
     // Find other leads with same lenders
-    const lenders = [...new Set(leadFilings.map(f => f.securedParty))];
+    const lenders = Array.from(new Set(leadFilings.map(f => f.securedParty)));
     
     const relatedFilings = await db.select()
       .from(uccFilings)
@@ -768,7 +768,7 @@ export class UccLeadMatchingService {
     }
     
     // Remove duplicates and filter valid variations
-    return [...new Set(variations)].filter(v => v.length > 2);
+    return Array.from(new Set(variations)).filter(v => v.length > 2);
   }
 
   /**
@@ -1256,20 +1256,19 @@ export class UccLeadMatchingService {
       for (const match of matchedLeads) {
         for (const relationship of match.relationships) {
           await db.insert(uccRelationships).values({
-            leadId1: leadId,
-            leadId2: match.lead.id,
+            leadIdA: leadId,
+            leadIdB: match.lead.id,
             relationshipType: relationship.type,
-            confidence: relationship.confidence / 100, // Convert to 0-1
-            metadata: {
-              strength: relationship.strength,
+            confidenceScore: String(relationship.confidence),
+            relationshipStrength: String(relationship.strength),
+            matchingCriteria: {
               bidirectional: relationship.bidirectional,
               evidence: relationship.evidence,
               riskTransmission: relationship.riskTransmission,
               matchTypes: match.matches.map(m => m.type),
               overallConfidence: match.overallConfidence
-            },
-            discoveredAt: new Date()
-          }).onConflictDoNothing();
+            }
+          } as any).onConflictDoNothing();
         }
       }
     } catch (error) {

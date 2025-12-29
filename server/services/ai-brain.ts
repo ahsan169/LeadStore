@@ -411,17 +411,15 @@ export class AiBrainService {
     const [config] = await db.select().from(brainConfig).limit(1);
     
     if (!config) {
-      // Create default config
+      // Create default config - use schema fields with type casting
       const [newConfig] = await db.insert(brainConfig).values({
-        recencyWeight: DEFAULT_SETTINGS.recencyWeight,
-        sourceWeight: DEFAULT_SETTINGS.sourceWeight,
-        attemptWeight: DEFAULT_SETTINGS.attemptWeight,
-        outcomeWeight: DEFAULT_SETTINGS.outcomeWeight,
-        feedbackWeight: 0.2,
-        maxAttempts: DEFAULT_SETTINGS.maxAttempts,
-        recalcIntervalHours: 24,
+        recencyWeight: String(DEFAULT_SETTINGS.recencyWeight),
+        sourceTypeWeight: String(DEFAULT_SETTINGS.sourceWeight),
+        lenderCountWeight: String(DEFAULT_SETTINGS.attemptWeight),
+        feedbackWeight: String(0.2),
+        recomputeIntervalHours: 24,
         isActive: true,
-      }).returning();
+      } as any).returning();
       return newConfig;
     }
     
@@ -443,22 +441,29 @@ export class AiBrainService {
   }>): Promise<any> {
     let config = await this.getBrainConfig();
     
+    // Map updates to schema field names
+    const schemaUpdates: any = { updatedAt: new Date() };
+    if (updates.recencyWeight !== undefined) schemaUpdates.recencyWeight = String(updates.recencyWeight);
+    if (updates.sourceWeight !== undefined) schemaUpdates.sourceTypeWeight = String(updates.sourceWeight);
+    if (updates.attemptWeight !== undefined) schemaUpdates.lenderCountWeight = String(updates.attemptWeight);
+    if (updates.feedbackWeight !== undefined) schemaUpdates.feedbackWeight = String(updates.feedbackWeight);
+    if (updates.recalcIntervalHours !== undefined) schemaUpdates.recomputeIntervalHours = updates.recalcIntervalHours;
+    if (updates.isActive !== undefined) schemaUpdates.isActive = updates.isActive;
+    
     const [updated] = await db.update(brainConfig)
-      .set({
-        ...updates,
-        updatedAt: new Date(),
-      })
+      .set(schemaUpdates)
       .where(eq(brainConfig.id, config.id))
       .returning();
     
-    // Update local settings
+    // Update local settings using schema fields with type casting
     if (updated) {
+      const updatedAny = updated as any;
       this.settings = {
-        recencyWeight: updated.recencyWeight,
-        sourceWeight: updated.sourceWeight,
-        attemptWeight: updated.attemptWeight,
-        outcomeWeight: updated.outcomeWeight,
-        maxAttempts: updated.maxAttempts,
+        recencyWeight: parseFloat(updatedAny.recencyWeight) || DEFAULT_SETTINGS.recencyWeight,
+        sourceWeight: parseFloat(updatedAny.sourceTypeWeight) || DEFAULT_SETTINGS.sourceWeight,
+        attemptWeight: parseFloat(updatedAny.lenderCountWeight) || DEFAULT_SETTINGS.attemptWeight,
+        outcomeWeight: DEFAULT_SETTINGS.outcomeWeight,
+        maxAttempts: DEFAULT_SETTINGS.maxAttempts,
         followUpDelayHours: DEFAULT_SETTINGS.followUpDelayHours,
       };
     }
@@ -511,45 +516,43 @@ export class AiBrainService {
    * Update source statistics based on buyer feedback
    */
   async updateSourceStats(sourceType: string, conversionLabel: string): Promise<void> {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    
-    // Check if we have stats for this source today
+    // Check if we have stats for this source
     const [existing] = await db.select().from(sourceStats)
-      .where(and(
-        eq(sourceStats.sourceType, sourceType),
-        eq(sourceStats.periodStart, now)
-      ))
+      .where(eq(sourceStats.sourceType, sourceType))
       .limit(1);
     
     if (existing) {
-      // Update existing stats
-      const updates: any = { totalLeads: existing.totalLeads + 1 };
+      // Update existing stats - use schema field names
+      const updates: any = { 
+        totalLeads: existing.totalLeads + 1,
+        lastUpdatedAt: new Date()
+      };
       
       switch (conversionLabel) {
         case 'funded':
-          updates.fundedCount = existing.fundedCount + 1;
+          updates.totalFunded = existing.totalFunded + 1;
           break;
         case 'contacted':
-          updates.contactedCount = existing.contactedCount + 1;
+          updates.totalContacted = existing.totalContacted + 1;
           break;
         case 'bad':
-          updates.badLeadCount = existing.badLeadCount + 1;
+          updates.totalBadLeads = existing.totalBadLeads + 1;
           break;
         case 'no_response':
-          updates.noResponseCount = existing.noResponseCount + 1;
+          updates.totalNoResponse = existing.totalNoResponse + 1;
           break;
       }
       
       // Recalculate rate
       const total = updates.totalLeads;
-      updates.conversionRate = total > 0 ? (updates.fundedCount || existing.fundedCount) / total : 0;
+      const funded = updates.totalFunded ?? existing.totalFunded;
+      updates.fundRate = total > 0 ? String(funded / total) : "0";
       
       await db.update(sourceStats)
         .set(updates)
         .where(eq(sourceStats.id, existing.id));
     } else {
-      // Create new stats record
+      // Create new stats record - use schema field names
       const isFunded = conversionLabel === 'funded' ? 1 : 0;
       const isContacted = conversionLabel === 'contacted' ? 1 : 0;
       const isBad = conversionLabel === 'bad' ? 1 : 0;
@@ -557,15 +560,13 @@ export class AiBrainService {
       
       await db.insert(sourceStats).values({
         sourceType,
-        periodStart: now,
-        periodEnd: new Date(now.getTime() + 24 * 60 * 60 * 1000),
         totalLeads: 1,
-        fundedCount: isFunded,
-        contactedCount: isContacted,
-        badLeadCount: isBad,
-        noResponseCount: isNoResponse,
-        conversionRate: isFunded,
-      });
+        totalFunded: isFunded,
+        totalContacted: isContacted,
+        totalBadLeads: isBad,
+        totalNoResponse: isNoResponse,
+        fundRate: String(isFunded),
+      } as any);
     }
   }
 
@@ -576,21 +577,22 @@ export class AiBrainService {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
+    // Use correct schema field names
     const stats = await db.select({
       sourceType: sourceStats.sourceType,
       totalLeads: sql<number>`sum(${sourceStats.totalLeads})::int`,
-      fundedCount: sql<number>`sum(${sourceStats.fundedCount})::int`,
-      contactedCount: sql<number>`sum(${sourceStats.contactedCount})::int`,
-      badLeadCount: sql<number>`sum(${sourceStats.badLeadCount})::int`,
-      noResponseCount: sql<number>`sum(${sourceStats.noResponseCount})::int`,
+      totalFunded: sql<number>`sum(${sourceStats.totalFunded})::int`,
+      totalContacted: sql<number>`sum(${sourceStats.totalContacted})::int`,
+      totalBadLeads: sql<number>`sum(${sourceStats.totalBadLeads})::int`,
+      totalNoResponse: sql<number>`sum(${sourceStats.totalNoResponse})::int`,
     })
     .from(sourceStats)
-    .where(gt(sourceStats.periodStart, thirtyDaysAgo))
+    .where(gt(sourceStats.createdAt, thirtyDaysAgo))
     .groupBy(sourceStats.sourceType);
     
     return stats.map(s => ({
       ...s,
-      conversionRate: s.totalLeads > 0 ? (s.fundedCount / s.totalLeads) * 100 : 0,
+      conversionRate: s.totalLeads > 0 ? ((s.totalFunded || 0) / s.totalLeads) * 100 : 0,
     }));
   }
 

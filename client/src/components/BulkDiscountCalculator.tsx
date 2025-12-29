@@ -29,7 +29,7 @@ export function BulkDiscountCalculator({ onProceedToPurchase }: BulkDiscountCalc
   const [isCalculating, setIsCalculating] = useState(false);
 
   // Fetch discount tiers
-  const { data: discountTiers } = useQuery({
+  const { data: discountTiers } = useQuery<any[]>({
     queryKey: ['/api/bulk/discounts']
   });
 
@@ -38,11 +38,8 @@ export function BulkDiscountCalculator({ onProceedToPurchase }: BulkDiscountCalc
     const calculatePrice = async () => {
       setIsCalculating(true);
       try {
-        const response = await apiRequest('/api/bulk/calculate-discount', {
-          method: 'POST',
-          body: JSON.stringify({ quantity })
-        });
-        setPriceCalculation(response);
+        const response = await apiRequest('POST', '/api/bulk/calculate-discount', { quantity });
+        setPriceCalculation(response as any);
       } catch (error) {
         console.error('Failed to calculate price:', error);
       } finally {
@@ -165,7 +162,7 @@ export function BulkDiscountCalculator({ onProceedToPurchase }: BulkDiscountCalc
                 <span className="text-sm text-muted-foreground">
                   Discount ({priceCalculation.discountPercentage}%)
                 </span>
-                <Badge variant="success" className="bg-green-500/10 text-green-600 border-green-200">
+                <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-200">
                   -{formatCurrency(priceCalculation.discountAmount)}
                 </Badge>
               </div>

@@ -149,10 +149,7 @@ export default function CampaignTools() {
   // Create template mutation
   const createTemplateMutation = useMutation({
     mutationFn: (data: CreateTemplateForm) =>
-      apiRequest("/api/templates", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("POST", "/api/templates", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       setShowTemplateDialog(false);
@@ -174,10 +171,7 @@ export default function CampaignTools() {
   // Create campaign mutation
   const createCampaignMutation = useMutation({
     mutationFn: (data: CreateCampaignForm) =>
-      apiRequest("/api/campaigns/create", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("POST", "/api/campaigns/create", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns/stats"] });
@@ -200,10 +194,7 @@ export default function CampaignTools() {
   // Preview campaign mutation
   const previewCampaignMutation = useMutation({
     mutationFn: (data: { templateId: string; purchaseId: string }) =>
-      apiRequest("/api/campaigns/preview", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
+      apiRequest("POST", "/api/campaigns/preview", data),
     onSuccess: (data) => {
       setCampaignPreview(data);
       setShowPreviewDialog(true);
@@ -220,9 +211,7 @@ export default function CampaignTools() {
   // Send campaign mutation
   const sendCampaignMutation = useMutation({
     mutationFn: (campaignId: string) =>
-      apiRequest(`/api/campaigns/${campaignId}/send`, {
-        method: "POST",
-      }),
+      apiRequest("POST", `/api/campaigns/${campaignId}/send`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns/stats"] });
@@ -491,11 +480,11 @@ export default function CampaignTools() {
                     <p className="text-sm text-muted-foreground line-clamp-3">
                       {template.content}
                     </p>
-                    {template.variables && template.variables.length > 0 && (
+                    {Array.isArray(template.variables) && template.variables.length > 0 && (
                       <div className="mt-4">
                         <p className="text-xs font-medium mb-2">Variables used:</p>
                         <div className="flex flex-wrap gap-1">
-                          {template.variables.map((variable) => (
+                          {(template.variables as string[]).map((variable: string) => (
                             <Badge key={variable} variant="outline" className="text-xs">
                               {`{{${variable}}}`}
                             </Badge>
@@ -812,7 +801,7 @@ export default function CampaignTools() {
                       <SelectContent>
                         {purchases?.map((purchase) => (
                           <SelectItem key={purchase.id} value={purchase.id}>
-                            {purchase.tier} - {purchase.leadCount} leads ({new Date(purchase.purchaseDate).toLocaleDateString()})
+                            {purchase.tier} - {purchase.leadCount} leads ({new Date(purchase.purchasedAt).toLocaleDateString()})
                           </SelectItem>
                         ))}
                       </SelectContent>

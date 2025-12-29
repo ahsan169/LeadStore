@@ -287,7 +287,7 @@ export class DuplicateDetector {
     const clusters: DuplicateCluster[] = [];
     const entityMap = new Map(entities.map(e => [e.id, e]));
 
-    for (const [groupId, entityIds] of groups) {
+    for (const [groupId, entityIds] of Array.from(groups.entries())) {
       // Limit cluster size
       if (entityIds.size > this.config.maxClusterSize) {
         console.warn(`Cluster ${groupId} exceeds max size (${entityIds.size}), splitting...`);
@@ -359,12 +359,12 @@ export class DuplicateDetector {
     
     while (remaining.size > 0) {
       const subCluster = new Set<string>();
-      const seed = remaining.values().next().value;
+      const seed = remaining.values().next().value as string;
       subCluster.add(seed);
       remaining.delete(seed);
       
       // Add closely related entities up to max size
-      for (const entityId of remaining) {
+      for (const entityId of Array.from(remaining)) {
         if (subCluster.size >= this.config.maxClusterSize) break;
         
         // Check if entity is closely related to cluster
@@ -634,7 +634,7 @@ export class DuplicateDetector {
             .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())[0];
           
           if (mostRecent) {
-            merged[conflict.field as keyof Lead] = mostRecent[conflict.field as keyof Lead];
+            (merged as any)[conflict.field] = mostRecent[conflict.field as keyof Lead];
           }
           break;
         
@@ -688,7 +688,7 @@ export class DuplicateDetector {
     let maxCount = 0;
     let dominantType = 'composite';
     
-    for (const [type, count] of typeCounts) {
+    for (const [type, count] of Array.from(typeCounts.entries())) {
       if (count > maxCount) {
         maxCount = count;
         dominantType = type;
@@ -742,7 +742,7 @@ export class DuplicateDetector {
    */
   async getDetectionStats(): Promise<DetectionStats> {
     // Query database for statistics
-    const [stats] = await db.execute(sql`
+    const result = await db.execute(sql`
       SELECT 
         COUNT(DISTINCT entity1_id) + COUNT(DISTINCT entity2_id) as total_checked,
         COUNT(*) as duplicates_found,
@@ -751,14 +751,15 @@ export class DuplicateDetector {
         AVG(match_confidence) as avg_confidence
       FROM ${entityMatches}
       WHERE created_at >= NOW() - INTERVAL '24 HOURS'
-    `);
+    `) as any;
+    const stats = result.rows?.[0] || result[0] || {};
 
     return {
-      totalChecked: Number(stats.total_checked) || 0,
-      duplicatesFound: Number(stats.duplicates_found) || 0,
+      totalChecked: Number((stats as any).total_checked) || 0,
+      duplicatesFound: Number((stats as any).duplicates_found) || 0,
       clustersFormed: 0, // Would need separate tracking
-      autoMerged: Number(stats.auto_merged) || 0,
-      pendingReview: Number(stats.pending_review) || 0,
+      autoMerged: Number((stats as any).auto_merged) || 0,
+      pendingReview: Number((stats as any).pending_review) || 0,
       processingTime: 0, // Would need separate tracking
       confidenceDistribution: {
         certain: 0,

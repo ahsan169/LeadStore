@@ -264,7 +264,7 @@ export class DataCompletenessAnalyzer {
     const leadValue = this.assessLeadValue(lead, qualityMetrics, enrichmentPlan);
     
     const report: AnalysisReport = {
-      leadId: lead.id,
+      leadId: (lead as any).id,
       timestamp: new Date(),
       qualityMetrics,
       fieldAnalyses,
@@ -441,7 +441,7 @@ export class DataCompletenessAnalyzer {
     const confidenceLevel = this.calculatePlanConfidence(lead, recommendedServices);
     
     return {
-      leadId: lead.id,
+      leadId: (lead as any).id,
       priority,
       recommendedServices,
       totalEstimatedCost,
@@ -465,7 +465,7 @@ export class DataCompletenessAnalyzer {
     const missingFields = fieldAnalyses.filter(f => !f.hasValue && f.canBeEnriched);
     
     // Phone validation - highest priority if phone exists but not verified
-    if (lead.phone && !lead.phoneVerified) {
+    if (lead.phone && !(lead as any).phoneVerified) {
       services.push({
         service: 'numverify',
         targetFields: ['phoneVerified', 'phoneType'],
@@ -613,7 +613,7 @@ export class DataCompletenessAnalyzer {
     
     // Use validators from ontology if available
     const canonicalField = this.getCanonicalFieldName(fieldName);
-    const validator = FIELD_VALIDATORS[canonicalField as CanonicalField];
+    const validator = (FIELD_VALIDATORS as any)[canonicalField];
     
     if (validator) {
       try {
@@ -720,8 +720,8 @@ export class DataCompletenessAnalyzer {
     let confidence = 50; // Base confidence
     
     // Increase confidence if field is verified
-    if (fieldName === 'email' && lead.emailVerified) confidence += 40;
-    if (fieldName === 'phone' && lead.phoneVerified) confidence += 40;
+    if (fieldName === 'email' && (lead as any).emailVerified) confidence += 40;
+    if (fieldName === 'phone' && (lead as any).phoneVerified) confidence += 40;
     
     // Increase confidence based on enrichment source
     if (lead.enrichmentSources) {
@@ -759,7 +759,7 @@ export class DataCompletenessAnalyzer {
   ): number {
     // Base freshness on when lead was uploaded and last enriched
     const now = Date.now();
-    const uploadedAt = lead.uploadedAt ? new Date(lead.uploadedAt).getTime() : now;
+    const uploadedAt = (lead as any).uploadedAt ? new Date((lead as any).uploadedAt).getTime() : now;
     const lastEnrichedAt = lead.lastEnrichedAt ? new Date(lead.lastEnrichedAt).getTime() : uploadedAt;
     
     // Calculate days since last update
@@ -1257,7 +1257,7 @@ export class DataCompletenessAnalyzer {
     }
     
     // Convert to report format
-    for (const [field, stats] of fieldStats.entries()) {
+    for (const [field, stats] of Array.from(fieldStats.entries())) {
       report[field] = {
         filled: stats.filled,
         valid: stats.valid,

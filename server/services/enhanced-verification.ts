@@ -661,7 +661,7 @@ export class EnhancedVerificationService {
       cachedUntil: cached.cachedUntil || new Date(),
       recommendations: this.generateRecommendations(
         cached.confidenceBreakdown as any,
-        cached.verificationStatus,
+        cached.verificationStatus as any,
         {} as Lead // We don't have lead data here, but recommendations will still work
       )
     };
@@ -722,7 +722,7 @@ export class EnhancedVerificationService {
       
       const v = verification[0];
       return {
-        status: v.verificationStatus,
+        status: v.verificationStatus as any,
         lastVerified: v.verifiedAt,
         confidenceScore: parseFloat(v.overallConfidenceScore || '0'),
         nextVerification: v.cachedUntil,

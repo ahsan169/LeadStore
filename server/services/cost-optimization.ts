@@ -499,7 +499,7 @@ export class CostOptimizationService {
     const suggestions: string[] = [];
     
     // Analyze service usage patterns
-    for (const [service, cost] of this.serviceCosts) {
+    for (const [service, cost] of Array.from(this.serviceCosts.entries())) {
       // Suggest dropping low-efficiency services
       if (cost.efficiency < 0.5 && cost.currentUsage > 10) {
         suggestions.push(`Consider reducing usage of ${service} (efficiency: ${(cost.efficiency * 100).toFixed(1)}%)`);
@@ -562,7 +562,7 @@ export class CostOptimizationService {
     this.currentMonthlySpend = 0;
     
     // Reset service counters
-    for (const service of this.serviceCosts.values()) {
+    for (const service of Array.from(this.serviceCosts.values())) {
       service.currentUsage = 0;
       service.remainingCredits = service.monthlyLimit || 0;
     }

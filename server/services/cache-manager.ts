@@ -190,7 +190,7 @@ export class CacheManager {
       return;
     }
     
-    const config = this.serviceCacheConfig[service] || {
+    const config = (this.serviceCacheConfig as any)[service] || {
       ttl: this.cacheTiers.standard,
       maxSize: 1000,
       strategy: 'LRU' as const
@@ -452,13 +452,13 @@ export class CacheManager {
       ttl?: number;
     }
   ): T {
-    const ttl = options?.ttl || this.serviceCacheConfig[service]?.ttl || this.cacheTiers.standard;
+    const ttl = options?.ttl || (this.serviceCacheConfig as any)[service]?.ttl || this.cacheTiers.standard;
     
     return memoizee(fn, {
       promise: true,
       maxAge: ttl,
       preFetch: 0.8, // Refresh when 80% of TTL has passed
-      normalizer: options?.keyGenerator || ((...args) => JSON.stringify(args))
+      normalizer: (options?.keyGenerator || ((...args: any[]) => JSON.stringify(args))) as any
     }) as T;
   }
 }

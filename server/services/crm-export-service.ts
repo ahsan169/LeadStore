@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { leads, purchases } from "@shared/schema";
 import type { Lead, Purchase } from "@shared/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import Papa from "papaparse";
 
 export interface ExportOptions {

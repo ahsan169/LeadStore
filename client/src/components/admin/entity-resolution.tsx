@@ -85,17 +85,14 @@ export default function EntityResolution() {
   });
 
   // Fetch resolution stats
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<{ totalEntities?: number; avgMatchQuality?: number }>({
     queryKey: ['/api/admin/entity-resolution/stats'],
   });
 
   // Merge entities mutation
   const mergeMutation = useMutation({
     mutationFn: async ({ entityIds, masterId }: { entityIds: string[]; masterId?: string }) => {
-      return apiRequest('/api/admin/entity-resolution/merge', {
-        method: 'POST',
-        body: JSON.stringify({ entityIds, masterId }),
-      });
+      return apiRequest('POST', '/api/admin/entity-resolution/merge', { entityIds, masterId });
     },
     onSuccess: () => {
       toast({ title: "Entities merged successfully" });
@@ -111,9 +108,7 @@ export default function EntityResolution() {
   // Unmerge entities mutation
   const unmergeMutation = useMutation({
     mutationFn: async (mergeId: string) => {
-      return apiRequest(`/api/admin/entity-resolution/unmerge/${mergeId}`, {
-        method: 'POST',
-      });
+      return apiRequest('POST', `/api/admin/entity-resolution/unmerge/${mergeId}`);
     },
     onSuccess: () => {
       toast({ title: "Entities unmerged successfully" });
@@ -127,16 +122,14 @@ export default function EntityResolution() {
   // Bulk resolution mutation
   const bulkResolveMutation = useMutation({
     mutationFn: async (action: 'merge_all' | 'ignore_all') => {
-      return apiRequest('/api/admin/entity-resolution/bulk', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          action,
-          threshold: confidenceThreshold,
-          groupIds: duplicates?.filter(g => g.confidence >= 90).map(g => g.id)
-        }),
+      const response = await apiRequest('POST', '/api/admin/entity-resolution/bulk', { 
+        action,
+        threshold: confidenceThreshold,
+        groupIds: duplicates?.filter(g => g.confidence >= 90).map(g => g.id)
       });
+      return response.json();
     },
-    onSuccess: (data, action) => {
+    onSuccess: (data: any, action) => {
       toast({ 
         title: action === 'merge_all' ? "Bulk merge completed" : "Duplicates ignored",
         description: `Processed ${data.processed} groups`

@@ -72,7 +72,7 @@ export function BulkPurchaseDialog({
             criteria,
             ...customQuoteData
           })
-        });
+        } as any);
       } else {
         return apiRequest('/api/bulk/create-order', {
           method: 'POST',
@@ -80,10 +80,11 @@ export function BulkPurchaseDialog({
             quantity,
             criteria
           })
-        });
+        } as any);
       }
     },
-    onSuccess: async (data) => {
+    onSuccess: async (response) => {
+      const data = response as any;
       if (isCustomQuote) {
         toast({
           title: "Custom Quote Requested",
@@ -96,9 +97,7 @@ export function BulkPurchaseDialog({
         if (stripe && data.clientSecret) {
           const { error } = await stripe.confirmCardPayment(data.clientSecret, {
             payment_method: {
-              card: {
-                // This would be handled by Stripe Elements
-              }
+              card: {} as any
             }
           });
 
@@ -109,7 +108,7 @@ export function BulkPurchaseDialog({
               body: JSON.stringify({
                 paymentIntentId: data.paymentIntentId
               })
-            });
+            } as any);
 
             toast({
               title: "Purchase Successful!",

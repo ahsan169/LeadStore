@@ -167,13 +167,13 @@ export class MasterEnrichmentOrchestrator {
     
     console.log(`[MasterEnrichment] Starting orchestrated enrichment ${enrichmentId} for lead:`, {
       businessName: leadData.businessName,
-      leadId: leadData.id,
+      leadId: (leadData as any).id,
       source: options.source
     });
     
     // Initialize result structure
     const result: MasterEnrichmentResult = {
-      leadId: leadData.id,
+      leadId: (leadData as any).id,
       finalData: leadData as EnrichmentResult,
       masterEnrichmentScore: 0,
       dataCompleteness: {
@@ -241,7 +241,7 @@ export class MasterEnrichmentOrchestrator {
       
       // Emit enrichment complete event
       eventBus.emit('master:enrichment-complete', {
-        leadId: leadData.id,
+        leadId: (leadData as any).id,
         enrichmentId,
         score: result.masterEnrichmentScore,
         completeness: result.dataCompleteness.overall
@@ -328,8 +328,8 @@ export class MasterEnrichmentOrchestrator {
           
           if (leadData.businessName) {
             try {
-              const filings = await storage.findUccFilingsByBusinessName(leadData.businessName);
-              uccFilings = filings.map(f => ({
+              const filings = await (storage as any).findUccFilingsByBusinessName(leadData.businessName);
+              uccFilings = filings.map((f: any) => ({
                 securedParty: f.securedParty || '',
                 filingDate: new Date(f.filingDate)
               }));
@@ -356,10 +356,10 @@ export class MasterEnrichmentOrchestrator {
     }
     
     // Lead Intelligence scoring
-    if (this.config.enableLeadIntelligence && leadData.id) {
+    if (this.config.enableLeadIntelligence && (leadData as any).id) {
       parallelTasks.push(
         this.runWithTracking('LeadIntelligence', async () => {
-          return await this.leadIntelligenceService.calculateIntelligenceScore(leadData.id);
+          return await this.leadIntelligenceService.calculateIntelligenceScore((leadData as any).id);
         })
       );
     }
@@ -371,7 +371,7 @@ export class MasterEnrichmentOrchestrator {
           if (leadData.email) {
             return await hunterService.verifyEmail(leadData.email);
           } else if (leadData.businessName) {
-            return await hunterService.findEmailByDomain(
+            return await (hunterService as any).findEmailByDomain(
               this.extractDomainFromBusinessName(leadData.businessName),
               leadData.ownerName
             );
@@ -384,7 +384,7 @@ export class MasterEnrichmentOrchestrator {
     if (this.config.enableVerification && leadData.phone) {
       parallelTasks.push(
         this.runWithTracking('NumverifyVerification', async () => {
-          return await numverifyService.verifyPhoneNumber(leadData.phone);
+          return await (numverifyService as any).verifyPhoneNumber(leadData.phone);
         })
       );
     }
@@ -393,7 +393,7 @@ export class MasterEnrichmentOrchestrator {
     if (this.config.enablePerplexityResearch && leadData.businessName) {
       parallelTasks.push(
         this.runWithTracking('PerplexityResearch', async () => {
-          return await perplexityResearch.researchBusiness({
+          return await (perplexityResearch as any).researchBusiness({
             businessName: leadData.businessName!,
             ownerName: leadData.ownerName,
             location: leadData.stateCode,
@@ -673,18 +673,19 @@ export class MasterEnrichmentOrchestrator {
         lastEnrichedAt: new Date()
       };
       
-      if (result.finalData.mcaScore !== undefined) {
-        updateData.mcaScore = result.finalData.mcaScore;
-        updateData.mcaQualityTier = result.finalData.mcaQualityTier;
-        updateData.hasBank = result.finalData.hasBank;
-        updateData.hasEquipment = result.finalData.hasEquipment;
-        updateData.hasIRS = result.finalData.hasIRS;
-        updateData.hasSBA = result.finalData.hasSBA;
-        updateData.mcaSector = result.finalData.mcaSector;
-        updateData.whyGoodForMCA = result.finalData.whyGoodForMCA;
-        updateData.mcaInsights = result.finalData.mcaInsights ? JSON.stringify(result.finalData.mcaInsights) : null;
-        updateData.isGovernmentEntity = result.finalData.isGovernmentEntity;
-        updateData.mcaRecencyScore = result.finalData.mcaRecencyScore;
+      const finalDataAny = result.finalData as any;
+      if (finalDataAny.mcaScore !== undefined) {
+        updateData.mcaScore = finalDataAny.mcaScore;
+        updateData.mcaQualityTier = finalDataAny.mcaQualityTier;
+        updateData.hasBank = finalDataAny.hasBank;
+        updateData.hasEquipment = finalDataAny.hasEquipment;
+        updateData.hasIRS = finalDataAny.hasIRS;
+        updateData.hasSBA = finalDataAny.hasSBA;
+        updateData.mcaSector = finalDataAny.mcaSector;
+        updateData.whyGoodForMCA = finalDataAny.whyGoodForMCA;
+        updateData.mcaInsights = finalDataAny.mcaInsights ? JSON.stringify(finalDataAny.mcaInsights) : null;
+        updateData.isGovernmentEntity = finalDataAny.isGovernmentEntity;
+        updateData.mcaRecencyScore = finalDataAny.mcaRecencyScore;
         updateData.lastMCAEnrichmentAt = new Date();
       }
       
@@ -694,12 +695,11 @@ export class MasterEnrichmentOrchestrator {
       // Save enrichment metadata
       await storage.createLeadEnrichment({
         leadId: result.leadId,
-        enrichmentType: 'master_orchestration',
-        enrichmentData: result.finalData,
-        confidence: result.masterEnrichmentScore / 100,
-        source: result.enrichmentSystems.map(s => s.systemName).join(', '),
+        enrichedData: result.finalData as any,
+        confidenceScore: String(result.masterEnrichmentScore / 100),
+        enrichmentSource: 'manual' as const,
         enrichedAt: new Date()
-      });
+      } as any);
       
       console.log(`[MasterEnrichment] Saved enrichment results for lead ${result.leadId}`);
     } catch (error) {
@@ -789,13 +789,13 @@ export class MasterEnrichmentOrchestrator {
   }
   
   private async checkCache(leadData: Partial<Lead | InsertLead>): Promise<MasterEnrichmentResult | null> {
-    const cacheKey = `master_enrichment:${leadData.id || leadData.businessName}`;
-    return await cacheManager.get(cacheKey);
+    const cacheKey = `master_enrichment:${(leadData as any).id || leadData.businessName}`;
+    return await (cacheManager as any).get(cacheKey);
   }
   
   private async cacheResult(leadData: Partial<Lead | InsertLead>, result: MasterEnrichmentResult): Promise<void> {
-    const cacheKey = `master_enrichment:${leadData.id || leadData.businessName}`;
-    await cacheManager.set(cacheKey, result, this.config.cacheTTL);
+    const cacheKey = `master_enrichment:${(leadData as any).id || leadData.businessName}`;
+    await (cacheManager as any).set(cacheKey, result, this.config.cacheTTL);
   }
   
   private async validateEnrichmentResult(result: MasterEnrichmentResult): Promise<void> {
@@ -852,7 +852,7 @@ export class MasterEnrichmentOrchestrator {
   
   private async searchForOwner(businessName: string): Promise<any> {
     try {
-      const result = await perplexityResearch.researchBusiness({
+      const result = await (perplexityResearch as any).researchBusiness({
         businessName,
         specificQuestions: ['Who is the owner or CEO of this business? Provide their full name.']
       });
@@ -881,7 +881,7 @@ export class MasterEnrichmentOrchestrator {
   
   private async searchForOtherBusinesses(ownerName: string): Promise<any> {
     try {
-      const result = await perplexityResearch.researchBusiness({
+      const result = await (perplexityResearch as any).researchBusiness({
         ownerName,
         specificQuestions: ['What other businesses does this person own or operate?']
       });
@@ -895,7 +895,7 @@ export class MasterEnrichmentOrchestrator {
   private async searchForUccFilings(businessName: string, stateCode?: string): Promise<any> {
     try {
       // Search for UCC filings in database
-      const filings = await storage.findUccFilingsByBusinessName(businessName);
+      const filings = await (storage as any).findUccFilingsByBusinessName(businessName);
       if (filings.length > 0) {
         return {
           uccNumber: filings[0].fileNumber,
@@ -975,7 +975,7 @@ export class MasterEnrichmentOrchestrator {
     eventBus.on('ucc:filing-uploaded', async (data) => {
       console.log('[MasterEnrichment] Received ucc:filing-uploaded event');
       // Find and enrich matching leads
-      const matches = await storage.findLeadsByBusinessName(data.filing.debtorName);
+      const matches = await (storage as any).findLeadsByBusinessName(data.filing.debtorName);
       for (const lead of matches) {
         await this.enrichLead(lead, { source: 'ucc', priority: 'high' });
       }

@@ -1,5 +1,5 @@
 // AbstractAPI Company Enrichment Service
-import axios from 'axios';
+const axios = require('axios') as any;
 
 export class AbstractAPIEnricher {
   private apiKey: string;

@@ -219,7 +219,7 @@ export class LeadDeduplicationService extends EventEmitter {
     let bestMatch: { id: string; score: number; type: string } | null = null;
     
     for (const candidate of candidates) {
-      for (const [strategyName, strategy] of this.dedupeStrategies) {
+      for (const [strategyName, strategy] of Array.from(this.dedupeStrategies)) {
         const score = strategy.execute(leadData, candidate) * strategy.weight;
         
         if (score > 0.6 && (!bestMatch || score > bestMatch.score)) {
@@ -559,7 +559,7 @@ export class LeadDeduplicationService extends EventEmitter {
       phones.push(...leadData.phones);
     }
     
-    return [...new Set(phones.filter(Boolean))];
+    return Array.from(new Set(phones.filter(Boolean)));
   }
   
   /**
@@ -573,7 +573,7 @@ export class LeadDeduplicationService extends EventEmitter {
       emails.push(...leadData.emails);
     }
     
-    return [...new Set(emails.filter(Boolean))];
+    return Array.from(new Set(emails.filter(Boolean)));
   }
   
   /**
@@ -602,7 +602,7 @@ export class LeadDeduplicationService extends EventEmitter {
       }
     }
     
-    return [...new Set(domains.filter(Boolean))];
+    return Array.from(new Set(domains.filter(Boolean)));
   }
   
   /**
@@ -635,7 +635,7 @@ export class LeadDeduplicationService extends EventEmitter {
       }
     }
     
-    return [...new Set(aliases.filter(Boolean))];
+    return Array.from(new Set(aliases.filter(Boolean)));
   }
   
   /**
@@ -689,11 +689,11 @@ export class LeadDeduplicationService extends EventEmitter {
       id: canonical1.id,
       ownerName: canonical1.ownerName || canonical2.ownerName,
       legalName: canonical1.legalName || canonical2.legalName,
-      aliases: [...new Set([...canonical1.aliases, ...canonical2.aliases])],
+      aliases: Array.from(new Set([...canonical1.aliases, ...canonical2.aliases])),
       address: this.mergeAddresses(canonical1.address, canonical2.address),
-      phones: [...new Set([...canonical1.phones, ...canonical2.phones])],
-      emails: [...new Set([...canonical1.emails, ...canonical2.emails])],
-      domains: [...new Set([...canonical1.domains, ...canonical2.domains])],
+      phones: Array.from(new Set([...canonical1.phones, ...canonical2.phones])),
+      emails: Array.from(new Set([...canonical1.emails, ...canonical2.emails])),
+      domains: Array.from(new Set([...canonical1.domains, ...canonical2.domains])),
       sources: [...canonical1.sources, ...canonical2.sources],
       confidenceScores: {
         overall: Math.max(canonical1.confidenceScores.overall, canonical2.confidenceScores.overall),

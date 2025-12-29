@@ -34,10 +34,7 @@ export class UccDataHelperService {
         .select()
         .from(uccFilings)
         .where(
-          or(
-            ilike(uccFilings.debtorName, `%${businessName}%`),
-            ilike(uccFilings.debtorBusinessName, `%${businessName}%`)
-          )
+          ilike(uccFilings.debtorName, `%${businessName}%`)
         )
         .orderBy(desc(uccFilings.filingDate));
       
@@ -113,11 +110,11 @@ export class UccDataHelperService {
         .from(uccRelationships)
         .where(
           or(
-            eq(uccRelationships.leadId, leadId),
-            eq(uccRelationships.relatedLeadId, leadId)
+            eq(uccRelationships.leadIdA, leadId),
+            eq(uccRelationships.leadIdB, leadId)
           )
         )
-        .orderBy(desc(uccRelationships.strength));
+        .orderBy(desc(uccRelationships.relationshipStrength));
       
       return relationships;
     } catch (error) {
@@ -161,8 +158,8 @@ export class UccDataHelperService {
     
     // Determine risk indicator
     let riskIndicator: 'low' | 'moderate' | 'high' | 'critical' = 'low';
-    if (intelligence?.businessIntelligence?.riskLevel) {
-      riskIndicator = intelligence.businessIntelligence.riskLevel as any;
+    if (intelligence?.riskLevel) {
+      riskIndicator = intelligence.riskLevel as any;
     } else if (uniqueLenders.size >= 3 && recentFilings.length >= 3) {
       riskIndicator = 'high';
     } else if (recentFilings.length >= 2) {
@@ -204,15 +201,15 @@ export class UccDataHelperService {
       const recentFilings = await db
         .select({
           leadId: uccFilings.leadId,
-          businessName: uccFilings.debtorBusinessName,
+          businessName: uccFilings.debtorName,
           filingCount: sql<number>`count(*)`,
           lastFilingDate: sql<Date>`max(${uccFilings.filingDate})`
         })
         .from(uccFilings)
         .where(gte(uccFilings.filingDate, cutoffDate))
-        .groupBy(uccFilings.leadId, uccFilings.debtorBusinessName);
+        .groupBy(uccFilings.leadId, uccFilings.debtorName);
       
-      return recentFilings;
+      return recentFilings as any;
     } catch (error) {
       console.error('[UccDataHelper] Error fetching recent UCC activity:', error);
       return [];

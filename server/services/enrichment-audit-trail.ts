@@ -809,11 +809,3 @@ export class EnrichmentAuditTrail {
 
 // Export singleton instance
 export const enrichmentAuditTrail = new EnrichmentAuditTrail();
-
-// Export types
-export type {
-  AuditLogEntry,
-  AuditQueryOptions,
-  AuditStatistics,
-  ComplianceReport
-};

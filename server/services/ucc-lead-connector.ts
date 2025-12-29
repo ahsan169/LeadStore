@@ -39,10 +39,10 @@ export class UccLeadConnector {
     const filing: InsertUccFiling = {
       debtorName: uccData.debtor_name || uccData.businessName || '',
       securedParty: uccData.secured_parties || '',
-      filingDate: this.parseDate(uccData.filing_date) || new Date(),
+      filingDate: (this.parseDate(uccData.filing_date) || new Date()).toISOString(),
       fileNumber: uccData.ucc_number || uccData.file_number || '',
       collateralDescription: uccData.collateral_description || uccData.notes || '',
-      loanAmount: this.parseLoanAmount(uccData.loan_amount || uccData.suggested_price),
+      loanAmount: this.parseLoanAmount(uccData.loan_amount || uccData.suggested_price) ?? undefined,
       filingType: uccData.filing_type || uccData.amend_type || 'original',
       jurisdiction: uccData.state || uccData.jurisdiction || ''
     };
@@ -64,7 +64,7 @@ export class UccLeadConnector {
     console.log(`[UccLeadConnector] Processed UCC filing. Found ${matches.length} matches, enriched ${enrichments.length} leads`);
     
     return {
-      filing: createdFiling,
+      filing: createdFiling as any,
       matches,
       enrichments
     };

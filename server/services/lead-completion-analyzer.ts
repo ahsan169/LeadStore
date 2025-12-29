@@ -151,7 +151,7 @@ export class LeadCompletionAnalyzer {
     const canBeAutoEnriched = this.canAutoEnrich(lead, enrichmentStrategies);
     
     const analysis: CompletionAnalysis = {
-      leadId: lead.id,
+      leadId: (lead as any).id,
       completionScore,
       dataQualityScore,
       missingFields,
@@ -165,7 +165,7 @@ export class LeadCompletionAnalyzer {
     };
     
     const duration = Date.now() - startTime;
-    console.log(`[LeadCompletionAnalyzer] Analysis completed in ${duration}ms for lead ${lead.id || 'new'}`);
+    console.log(`[LeadCompletionAnalyzer] Analysis completed in ${duration}ms for lead ${(lead as any).id || 'new'}`);
     
     return analysis;
   }

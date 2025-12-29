@@ -237,10 +237,9 @@ async function seed() {
     try {
       const lead = await storage.createLead({
         ...leadData,
-        tcpaCompliant: true,
         createdAt: new Date(),
         leadAge: Math.floor(Math.random() * 30), // 0-30 days old
-      });
+      } as any);
       console.log(`✓ Created MCA lead: ${lead.businessName} (Score: ${lead.qualityScore})`);
     } catch (error) {
       console.log(`Failed to create lead for ${leadData.businessName}:`, error);
@@ -283,7 +282,7 @@ async function seed() {
 
   for (const planData of subscriptionPlans) {
     try {
-      const plan = await storage.createSubscriptionPlan(planData);
+      const plan = await storage.createSubscriptionPlan(planData as any);
       console.log(`✓ Created subscription plan: ${plan.name}`);
     } catch (error) {
       console.log(`Failed to create subscription plan ${planData.name}:`, error);
@@ -323,7 +322,7 @@ async function seed() {
 
   for (const strategyData of pricingStrategies) {
     try {
-      const strategy = await storage.createPricingStrategy(strategyData);
+      const strategy = await storage.createPricingStrategy(strategyData as any);
       console.log(`✓ Created pricing strategy: ${strategy.name}`);
     } catch (error) {
       console.log(`Failed to create pricing strategy ${strategyData.name}:`, error);

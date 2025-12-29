@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { Lead, CrmIntegration, CampaignTemplate, LeadActivationHistory } from "@shared/schema";
+import { Lead, CrmIntegration, CampaignTemplate, leadActivationHistory } from "@shared/schema";
+
+type LeadActivationHistory = typeof leadActivationHistory.$inferSelect;
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -93,11 +95,7 @@ export default function LeadActivation() {
   // Activate leads mutation
   const activateLeadsMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest("/api/lead-activation/activate", {
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: { "Content-Type": "application/json" }
-      });
+      return apiRequest("POST", "/api/lead-activation/activate", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
@@ -122,11 +120,7 @@ export default function LeadActivation() {
   // Execute quick action mutation
   const executeQuickActionMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest("/api/lead-activation/quick-action", {
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: { "Content-Type": "application/json" }
-      });
+      return apiRequest("POST", "/api/lead-activation/quick-action", data);
     },
     onMutate: () => {
       setIsProcessing(true);
@@ -139,8 +133,8 @@ export default function LeadActivation() {
       queryClient.invalidateQueries({ queryKey: ["/api/lead-activation/history"] });
       
       // Update activation steps with results
-      if (data.steps) {
-        setActivationSteps(data.steps);
+      if ((data as any).steps) {
+        setActivationSteps((data as any).steps);
       }
       
       toast({
@@ -173,11 +167,7 @@ export default function LeadActivation() {
   // Preview activation mutation
   const previewActivationMutation = useMutation({
     mutationFn: async (data: any) => {
-      return apiRequest("/api/lead-activation/preview", {
-        method: "POST",
-        body: JSON.stringify(data),
-        headers: { "Content-Type": "application/json" }
-      });
+      return apiRequest("POST", "/api/lead-activation/preview", data);
     },
     onSuccess: (data) => {
       console.log("Preview data:", data);
@@ -574,7 +564,7 @@ export default function LeadActivation() {
                         <SelectItem value="none">No template</SelectItem>
                         {campaignTemplates.map((template) => (
                           <SelectItem key={template.id} value={template.id}>
-                            {template.name}
+                            {template.templateName}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -604,7 +594,7 @@ export default function LeadActivation() {
                         <SelectItem value="none">No CRM export</SelectItem>
                         {crmIntegrations.map((crm) => (
                           <SelectItem key={crm.id} value={crm.id}>
-                            {crm.name} ({crm.provider})
+                            {crm.crmType}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -714,22 +704,22 @@ export default function LeadActivation() {
                   <Card key={entry.id}>
                     <CardContent className="pt-4">
                       <div className="flex items-start justify-between mb-2">
-                        <Badge variant={entry.status === 'completed' ? 'default' : 'destructive'}>
-                          {entry.status}
+                        <Badge variant={entry.overallStatus === 'completed' ? 'default' : 'destructive'}>
+                          {entry.overallStatus}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                           {new Date(entry.createdAt).toLocaleString()}
                         </span>
                       </div>
                       <p className="text-sm font-medium mb-1">
-                        {entry.actionType === 'quick_action' ? 'Quick Action' : 'Custom Activation'}
+                        {entry.quickActionId ? 'Quick Action' : 'Custom Activation'}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Lead: {entry.leadId}
+                        Leads: {entry.leadIds.length}
                       </p>
-                      {entry.result && (
+                      {(entry.enrichmentResults as any) && (
                         <div className="mt-2 p-2 bg-accent rounded text-xs">
-                          <pre>{JSON.stringify(entry.result, null, 2)}</pre>
+                          <pre>{JSON.stringify(entry.enrichmentResults as any, null, 2)}</pre>
                         </div>
                       )}
                     </CardContent>

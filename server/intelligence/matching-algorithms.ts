@@ -136,8 +136,8 @@ export function calculateNGramSimilarity(str1: string, str2: string, n: number =
   const ngrams1 = getNGrams(str1);
   const ngrams2 = getNGrams(str2);
   
-  const intersection = new Set([...ngrams1].filter(x => ngrams2.has(x)));
-  const union = new Set([...ngrams1, ...ngrams2]);
+  const intersection = new Set(Array.from(ngrams1).filter(x => ngrams2.has(x)));
+  const union = new Set([...Array.from(ngrams1), ...Array.from(ngrams2)]);
   
   return union.size > 0 ? intersection.size / union.size : 0;
 }
@@ -185,8 +185,8 @@ export function calculateTokenSimilarity(str1: string, str2: string): number {
   const set1 = new Set(tokens1);
   const set2 = new Set(tokens2);
   
-  const intersection = new Set([...set1].filter(x => set2.has(x)));
-  const union = new Set([...set1, ...set2]);
+  const intersection = new Set(Array.from(set1).filter(x => set2.has(x)));
+  const union = new Set([...Array.from(set1), ...Array.from(set2)]);
   
   // Jaccard similarity
   const jaccard = union.size > 0 ? intersection.size / union.size : 0;

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { db } from '../db';
-import { leads, purchases, users, enrichmentCosts, dataEvidence } from '@shared/schema';
+import { leads, purchases, users, enrichmentCosts } from '@shared/schema';
 import { eq, and, inArray, gte, lte, sql } from 'drizzle-orm';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -13,7 +13,7 @@ import { waterfallEnrichmentOrchestrator } from './waterfall-enrichment-orchestr
 
 // Initialize Stripe
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2025-09-30.clover' as any,
 });
 
 export interface ExportTier {
@@ -387,20 +387,8 @@ export class BulkExportService extends EventEmitter {
     console.log(`[BulkExport] Adding evidence to ${leadData.length} leads`);
     
     for (const lead of leadData) {
-      // Fetch evidence from database
-      const evidence = await db
-        .select()
-        .from(dataEvidence)
-        .where(eq(dataEvidence.leadId, lead.id));
-      
-      lead.evidence = evidence.map(e => ({
-        source: e.source,
-        field: e.field,
-        value: e.value,
-        confidence: e.confidence,
-        timestamp: e.timestamp,
-        metadata: e.metadata
-      }));
+      // Add evidence from lead's existing enrichment data
+      lead.evidence = lead.enrichmentSources || [];
     }
   }
   
@@ -621,14 +609,14 @@ export class BulkExportService extends EventEmitter {
         .from(users)
         .where(eq(users.id, userId));
       
-      if (!user?.stripeCustomerId) {
+      if (!(user as any)?.stripeCustomerId) {
         console.warn(`[BulkExport] No Stripe customer ID for user ${userId}`);
         return;
       }
       
       // Find subscription with metered price
       const subscriptions = await stripe.subscriptions.list({
-        customer: user.stripeCustomerId,
+        customer: (user as any).stripeCustomerId,
         status: 'active'
       });
       
@@ -648,7 +636,7 @@ export class BulkExportService extends EventEmitter {
       }
       
       // Report usage
-      await stripe.subscriptionItems.createUsageRecord(meteredItem.id, {
+      await (stripe.subscriptionItems as any).createUsageRecord(meteredItem.id, {
         quantity: leadCount,
         timestamp: Math.floor(Date.now() / 1000),
         action: 'increment',
@@ -702,7 +690,7 @@ export class BulkExportService extends EventEmitter {
   private async processPendingJobs() {
     const now = new Date();
     
-    for (const [jobId, job] of this.exportQueue) {
+    for (const [jobId, job] of Array.from(this.exportQueue.entries())) {
       if (job.status === 'pending') {
         const elapsed = (now.getTime() - job.createdAt.getTime()) / 1000 / 60;
         
@@ -740,14 +728,14 @@ export class BulkExportService extends EventEmitter {
       return null;
     }
     
-    if (new Date() > new Date(downloadInfo.expiresAt)) {
-      enrichmentCache.delete(cacheKey);
+    if (new Date() > new Date((downloadInfo as any).expiresAt)) {
+      (enrichmentCache as any).delete?.(cacheKey);
       return null;
     }
     
     return {
-      filePath: downloadInfo.filePath,
-      filename: path.basename(downloadInfo.filePath)
+      filePath: (downloadInfo as any).filePath,
+      filename: path.basename((downloadInfo as any).filePath)
     };
   }
   

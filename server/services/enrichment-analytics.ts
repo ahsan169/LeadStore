@@ -929,13 +929,3 @@ export class EnrichmentAnalytics {
 
 // Export singleton instance
 export const enrichmentAnalytics = new EnrichmentAnalytics();
-
-// Export types
-export type {
-  EnrichmentMetrics,
-  ServiceMetrics,
-  EnrichmentTrend,
-  QualityMetrics,
-  CostAnalytics,
-  PerformanceInsights
-};

@@ -313,7 +313,7 @@ export function setupEnhancedEnrichmentRoutes(app: Express) {
    */
   app.post("/api/admin/enrichment/enrich-lead/:id", requireAuth, requireAdmin, async (req, res) => {
     try {
-      const leadId = parseInt(req.params.id);
+      const leadId = req.params.id;
       const lead = await storage.getLead(leadId);
       
       if (!lead) {
@@ -325,22 +325,25 @@ export function setupEnhancedEnrichmentRoutes(app: Express) {
 
       // 1. Aggregate public data
       let publicData = null;
-      if (lead.companyName) {
-        publicData = await publicDataAggregator.aggregateCompanyData(lead.companyName);
+      if (lead.businessName) {
+        publicData = await publicDataAggregator.aggregateCompanyData(lead.businessName);
       }
 
       // 2. Verify contact information
       const verification = await advancedVerification.verifyLead({
         email: lead.email || undefined,
         phone: lead.phone || undefined,
-        website: lead.website || undefined,
-        companyName: lead.companyName || undefined
+        website: lead.websiteUrl || undefined,
+        companyName: lead.businessName || undefined
       });
 
       // 3. Calculate enhanced score
+      const revenueValue = lead.annualRevenue 
+        ? parseInt(lead.annualRevenue) 
+        : (publicData?.revenue ? parseInt(publicData.revenue) : undefined);
       const score = await enhancedLeadScoring.calculateEnhancedScore({
         industry: lead.industry || publicData?.industry,
-        revenue: lead.annualRevenue || (publicData?.revenue ? parseInt(publicData.revenue) : undefined),
+        revenue: revenueValue,
         emailVerified: verification.email?.isValid,
         phoneVerified: verification.phone?.isValid,
         domainVerified: verification.domain?.isValid,
@@ -350,14 +353,14 @@ export function setupEnhancedEnrichmentRoutes(app: Express) {
       // 4. Update lead with enriched data
       await storage.updateLead(leadId, {
         industry: lead.industry || publicData?.industry,
-        website: lead.website || publicData?.website,
+        websiteUrl: lead.websiteUrl || publicData?.website,
         phone: lead.phone || publicData?.phone,
         email: lead.email || publicData?.email,
         qualityScore: score.totalScore,
-        leadIntelligenceScore: score.totalScore,
+        intelligenceScore: score.totalScore,
         verificationStatus: verification.overallStatus === 'high_confidence' ? 'verified' : 
                             verification.overallStatus === 'medium_confidence' ? 'partial' : 'pending'
-      });
+      } as any);
 
       res.json({
         success: true,

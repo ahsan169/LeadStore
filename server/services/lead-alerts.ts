@@ -100,7 +100,7 @@ export class LeadAlertService {
       // Update last triggered timestamp
       await storage.updateLeadAlert(alert.id, {
         lastTriggeredAt: new Date(),
-      });
+      } as any);
       
       // Send notifications
       await this.sendNotifications(alert, alertHistory, matchedLeads);

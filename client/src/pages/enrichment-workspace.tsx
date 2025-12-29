@@ -9,10 +9,8 @@ import { toast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Brain, Upload, Zap, TrendingUp, CheckCircle, AlertCircle, Loader2, Search, ChevronRight, Activity, Database, Clock, DollarSign } from "lucide-react";
 import { LeadDetailModal } from "@/components/LeadDetailModal";
-import type { Lead } from "@/../../shared/schema";
-
 export default function EnrichmentWorkspace() {
-  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedLead, setSelectedLead] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showDetailModal, setShowDetailModal] = useState(false);
 
@@ -70,7 +68,7 @@ export default function EnrichmentWorkspace() {
     },
   });
 
-  const filteredLeads = leads?.filter((lead: Lead) => 
+  const filteredLeads = (leads as any[])?.filter((lead: any) => 
     !searchQuery || 
     lead.businessName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     lead.ownerName?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -117,7 +115,7 @@ export default function EnrichmentWorkspace() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalEnriched || 0}</div>
+            <div className="text-2xl font-bold">{(stats as any)?.totalEnriched || 0}</div>
             <p className="text-xs text-muted-foreground">Leads completed</p>
           </CardContent>
         </Card>
@@ -130,7 +128,7 @@ export default function EnrichmentWorkspace() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.inQueue || 0}</div>
+            <div className="text-2xl font-bold">{(stats as any)?.inQueue || 0}</div>
             <p className="text-xs text-muted-foreground">Being processed</p>
           </CardContent>
         </Card>
@@ -143,7 +141,7 @@ export default function EnrichmentWorkspace() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.successRate || 0}%</div>
+            <div className="text-2xl font-bold">{(stats as any)?.successRate || 0}%</div>
             <p className="text-xs text-muted-foreground">Enrichment success</p>
           </CardContent>
         </Card>
@@ -156,7 +154,7 @@ export default function EnrichmentWorkspace() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats?.costSaved?.toFixed(2) || "0.00"}</div>
+            <div className="text-2xl font-bold">${(stats as any)?.costSaved?.toFixed(2) || "0.00"}</div>
             <p className="text-xs text-muted-foreground">Via smart caching</p>
           </CardContent>
         </Card>
@@ -275,14 +273,14 @@ export default function EnrichmentWorkspace() {
               <CardDescription>Real-time view of enrichment operations</CardDescription>
             </CardHeader>
             <CardContent>
-              {recentJobs?.filter((job: any) => job.status === "processing")?.length === 0 ? (
+              {(recentJobs as any[])?.filter((job: any) => job.status === "processing")?.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>No active enrichment jobs</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {recentJobs?.filter((job: any) => job.status === "processing").map((job: any) => (
+                  {(recentJobs as any[])?.filter((job: any) => job.status === "processing").map((job: any) => (
                     <div key={job.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className={`w-2 h-2 rounded-full animate-pulse ${getStatusColor(job.status)}`} />
@@ -313,14 +311,14 @@ export default function EnrichmentWorkspace() {
               <CardDescription>Recently completed enrichment jobs</CardDescription>
             </CardHeader>
             <CardContent>
-              {recentJobs?.filter((job: any) => job.status === "completed" || job.status === "failed")?.length === 0 ? (
+              {(recentJobs as any[])?.filter((job: any) => job.status === "completed" || job.status === "failed")?.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>No enrichment history yet</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {recentJobs?.filter((job: any) => job.status === "completed" || job.status === "failed").map((job: any) => (
+                  {(recentJobs as any[])?.filter((job: any) => job.status === "completed" || job.status === "failed").map((job: any) => (
                     <div key={job.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className={`w-2 h-2 rounded-full ${getStatusColor(job.status)}`} />
@@ -356,10 +354,7 @@ export default function EnrichmentWorkspace() {
           setShowDetailModal(false);
           setSelectedLead(null);
         }}
-        onEnrich={async (lead) => {
-          enrichMutation.mutate(lead.id);
-        }}
-        onExport={async (lead, format) => {
+        onExport={async (lead: any, format: any) => {
           toast({
             title: "Export Started",
             description: `Exporting lead as ${format}`,

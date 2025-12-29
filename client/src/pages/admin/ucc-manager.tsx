@@ -467,7 +467,7 @@ export default function UccManager() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {statsLoading ? '...' : (uccStats?.totalFilings || 0)}
+                  {statsLoading ? '...' : ((uccStats as any)?.totalFilings || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   All UCC filings processed
@@ -481,7 +481,7 @@ export default function UccManager() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {statsLoading ? '...' : (uccStats?.recentFilings || 0)}
+                  {statsLoading ? '...' : ((uccStats as any)?.recentFilings || 0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   Last 6 months
@@ -496,8 +496,8 @@ export default function UccManager() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {statsLoading ? '...' : 
-                    uccStats?.totalFilings > 0 
-                      ? `${Math.round((uccStats?.matchedFilings / uccStats?.totalFilings) * 100 || 0)}%`
+                    (uccStats as any)?.totalFilings > 0 
+                      ? `${Math.round(((uccStats as any)?.matchedFilings / (uccStats as any)?.totalFilings) * 100 || 0)}%`
                       : '0%'
                   }
                 </div>
@@ -514,8 +514,8 @@ export default function UccManager() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {statsLoading ? '...' : 
-                    uccStats?.totalFilings > 0 
-                      ? `${Math.round((uccStats?.enrichedLeads / uccStats?.totalFilings) * 100 || 0)}%`
+                    (uccStats as any)?.totalFilings > 0 
+                      ? `${Math.round(((uccStats as any)?.enrichedLeads / (uccStats as any)?.totalFilings) * 100 || 0)}%`
                       : '0%'
                   }
                 </div>
@@ -526,17 +526,17 @@ export default function UccManager() {
             </Card>
           </div>
 
-          {uccStats?.filingsByType && Object.keys(uccStats.filingsByType).length > 0 && (
+          {(uccStats as any)?.filingsByType && Object.keys((uccStats as any).filingsByType).length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Filing Types Distribution</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(uccStats.filingsByType).map(([type, count]) => (
+                  {Object.entries((uccStats as any).filingsByType).map(([type, count]) => (
                     <div key={type} className="flex items-center justify-between">
                       <span className="text-sm capitalize">{type}</span>
-                      <Badge variant="outline">{count}</Badge>
+                      <Badge variant="outline">{count as any}</Badge>
                     </div>
                   ))}
                 </div>

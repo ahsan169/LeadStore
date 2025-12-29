@@ -22,12 +22,12 @@ export default function SimplifiedAdminPage() {
   // Fetch dashboard stats
   const { data: stats } = useQuery({
     queryKey: ['/api/analytics/dashboard'],
-  });
+  }) as { data: any };
 
   // Fetch validation stats
   const { data: validationStats } = useQuery({
     queryKey: ['/api/validation/stats'],
-  });
+  }) as { data: any };
 
 
   // Handle file upload

@@ -237,7 +237,7 @@ export class MasterDatabaseService {
       const normalized = this.normalizeString(query.businessName);
       const entities = this.nameIndex.get(normalized) || new Set();
       
-      for (const entityId of entities) {
+      for (const entityId of Array.from(entities)) {
         const entity = this.database.get(entityId);
         if (entity) {
           // Check if not already in results
@@ -253,7 +253,7 @@ export class MasterDatabaseService {
       const normalizedPhone = this.normalizePhone(query.phone);
       const entities = this.phoneIndex.get(normalizedPhone) || new Set();
       
-      for (const entityId of entities) {
+      for (const entityId of Array.from(entities)) {
         const entity = this.database.get(entityId);
         if (entity) {
           results.push(this.createSearchResult(entity, query));
@@ -266,7 +266,7 @@ export class MasterDatabaseService {
       const normalizedEmail = query.email.toLowerCase();
       const entities = this.emailIndex.get(normalizedEmail) || new Set();
       
-      for (const entityId of entities) {
+      for (const entityId of Array.from(entities)) {
         const entity = this.database.get(entityId);
         if (entity) {
           results.push(this.createSearchResult(entity, query));
@@ -278,7 +278,7 @@ export class MasterDatabaseService {
     if (query.uccNumber && results.length === 0) {
       const entities = this.uccIndex.get(query.uccNumber) || new Set();
       
-      for (const entityId of entities) {
+      for (const entityId of Array.from(entities)) {
         const entity = this.database.get(entityId);
         if (entity) {
           results.push(this.createSearchResult(entity, query));
@@ -439,13 +439,13 @@ export class MasterDatabaseService {
   private async findExistingEntity(entity: BusinessEntity): Promise<BusinessEntity | null> {
     // Try to find by various identifiers
     if (entity.taxId) {
-      for (const [, existing] of this.database) {
+      for (const [, existing] of Array.from(this.database)) {
         if (existing.taxId === entity.taxId) return existing;
       }
     }
     
     if (entity.dunsNumber) {
-      for (const [, existing] of this.database) {
+      for (const [, existing] of Array.from(this.database)) {
         if (existing.dunsNumber === entity.dunsNumber) return existing;
       }
     }
@@ -455,7 +455,7 @@ export class MasterDatabaseService {
       const normalized = this.normalizeString(entity.businessName);
       const candidates = this.nameIndex.get(normalized) || new Set();
       
-      for (const candidateId of candidates) {
+      for (const candidateId of Array.from(candidates)) {
         const candidate = this.database.get(candidateId);
         if (candidate && candidate.state === entity.state) {
           // Additional verification
@@ -515,13 +515,13 @@ export class MasterDatabaseService {
       if (newValue !== undefined && newValue !== null) {
         if (Array.isArray(newValue) && Array.isArray(existingValue)) {
           // Merge arrays without duplicates
-          merged[key as keyof BusinessEntity] = this.mergeArrays(existingValue, newValue) as any;
+          (merged as any)[key] = this.mergeArrays(existingValue, newValue);
         } else if (typeof newValue === 'object' && typeof existingValue === 'object') {
           // Merge objects
-          merged[key as keyof BusinessEntity] = { ...existingValue, ...newValue } as any;
+          (merged as any)[key] = { ...existingValue, ...newValue };
         } else if (!existingValue || (typeof newValue === 'string' && newValue.length > 0)) {
           // Replace empty or missing values
-          merged[key as keyof BusinessEntity] = newValue as any;
+          (merged as any)[key] = newValue;
         }
       }
     });
@@ -959,7 +959,7 @@ export class MasterDatabaseService {
     const now = new Date();
     const staleThreshold = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days
     
-    for (const [, entity] of this.database) {
+    for (const [, entity] of Array.from(this.database)) {
       if (entity.dataQuality.lastVerified < staleThreshold) {
         // Add to crawl queue for refresh
         this.addCrawlTask({
@@ -1012,7 +1012,7 @@ export class MasterDatabaseService {
     const industries = new Map<string, number>();
     const states = new Map<string, number>();
     
-    for (const [, entity] of this.database) {
+    for (const [, entity] of Array.from(this.database)) {
       completenessScores.push(entity.dataQuality.completeness);
       
       if (entity.industry) {

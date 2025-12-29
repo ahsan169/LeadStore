@@ -116,7 +116,7 @@ export class LeadDiscoveryEngine {
     const results: DiscoveryResult[] = [];
 
     // Run each enabled source
-    for (const [key, source] of this.sources) {
+    for (const [key, source] of Array.from(this.sources.entries())) {
       if (!source.enabled) continue;
 
       try {
@@ -214,8 +214,8 @@ export class LeadDiscoveryEngine {
     for (const filing of recentFilings) {
       try {
         // Check if company already exists
-        const existingLeads = await storage.searchLeads({ companyName: filing.companyName });
-        if (existingLeads.length > 0) {
+        const existingLeads = await (storage as any).searchLeads({ companyName: filing.companyName });
+        if (existingLeads && existingLeads.length > 0) {
           console.log(`[LeadDiscovery] Company already exists: ${filing.companyName}`);
           continue;
         }
@@ -317,19 +317,17 @@ export class LeadDiscoveryEngine {
 
       // Create the lead
       const lead: InsertLead = {
-        companyName: data.companyName,
+        businessName: data.companyName,
+        ownerName: data.companyName,
         website: data.website,
-        phone: data.phone,
-        email: data.email,
+        phone: data.phone || '',
+        email: data.email || '',
         industry: data.industry,
-        annualRevenue: data.revenue,
-        status: 'available',
+        annualRevenue: data.revenue ? String(data.revenue) : undefined,
         qualityScore: scoring.totalScore,
         source: `Auto-discovered: ${data.discoverySource}`,
-        notes: `Automatically discovered from ${data.discoverySource}. Scoring grade: ${scoring.grade}`,
-        leadIntelligenceScore: scoring.totalScore,
         verificationStatus: 'pending'
-      };
+      } as any;
 
       await storage.createLead(lead);
       

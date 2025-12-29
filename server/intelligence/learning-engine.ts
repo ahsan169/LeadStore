@@ -11,7 +11,7 @@ import { Feedback, LearnedPattern, ImprovementSuggestion, AbTest } from '@shared
 import { eventBus } from '../services/event-bus';
 import { FIELD_SYNONYMS, CanonicalField, fieldMapper } from './ontology';
 import { rulesEngine, RuleType, Rule, RuleAction } from './rules-engine';
-import { entityResolutionEngine } from './entity-resolution';
+import { EntityResolutionEngine } from './entity-resolution';
 import { feedbackCollectionSystem } from './feedback-system';
 
 /**
@@ -429,15 +429,15 @@ export class LearningEngine {
       const [storedPattern] = await db.insert(learnedPatterns).values({
         patternType: pattern.type,
         patternCategory: this.getPatternCategory(pattern),
-        patternValue: pattern.pattern,
+        patternValue: pattern.pattern as any,
         description: `Auto-generated from ${pattern.occurrences} feedback occurrences`,
-        examples: pattern.evidence.slice(0, 5),
-        confidence: pattern.confidence,
-        occurrences: pattern.occurrences,
+        examples: pattern.evidence.slice(0, 5) as any,
+        confidence: String(pattern.confidence) as any,
+        occurrences: pattern.occurrences as any,
         sourceType: 'feedback',
-        sourceFeedbackIds: pattern.evidence,
+        sourceFeedbackIds: pattern.evidence as any,
         status: pattern.confidence >= ConfidenceThreshold.AUTO_APPLY ? 'active' : 'testing',
-      }).returning();
+      } as any).returning();
       
       // Create improvement suggestion if confidence not high enough for auto-apply
       if (pattern.confidence < ConfidenceThreshold.AUTO_APPLY) {
@@ -452,10 +452,10 @@ export class LearningEngine {
             patternId: storedPattern.id,
             pattern: pattern.pattern,
             feedbackIds: pattern.evidence,
-          },
+          } as any,
           status: 'pending',
           priority: pattern.impact > 50 ? 'high' : 'medium',
-        });
+        } as any);
       }
       
       return storedPattern.id;
@@ -479,7 +479,7 @@ export class LearningEngine {
         field: p.field,
         operator: '==',
         value: p.from,
-      },
+      } as any,
       actions: [{
         type: 'set_field',
         field: p.field,
@@ -503,7 +503,7 @@ export class LearningEngine {
       condition: {
         field: p.field,
         operator: 'is_not_null',
-      },
+      } as any,
       actions: [{
         type: 'transform',
         field: p.field,
@@ -528,7 +528,7 @@ export class LearningEngine {
         field: p.field,
         operator: '==',
         value: p.from,
-      },
+      } as any,
       actions: [{
         type: 'set_field',
         field: p.field,
@@ -594,14 +594,14 @@ export class LearningEngine {
           term: original,
           canonicalTerm: corrected,
           field: feedbackItem.fieldName,
-        },
+        } as any,
         description: `Synonym: "${original}" → "${corrected}"`,
-        confidence: similarity * 100,
-        occurrences: 1,
+        confidence: String(similarity * 100) as any,
+        occurrences: 1 as any,
         sourceType: 'feedback',
-        sourceFeedbackIds: [feedbackItem.id],
+        sourceFeedbackIds: [feedbackItem.id] as any,
         status: 'discovered',
-      });
+      } as any);
     }
   }
 
@@ -631,14 +631,14 @@ export class LearningEngine {
           name1: entity1.businessName,
           name2: entity2.businessName,
           matchType: 'alias',
-        },
+        } as any,
         description: `Entity alias: "${entity1.businessName}" = "${entity2.businessName}"`,
-        confidence: context.confidence || 75,
-        occurrences: 1,
+        confidence: String(context.confidence || 75) as any,
+        occurrences: 1 as any,
         sourceType: 'feedback',
-        sourceFeedbackIds: [feedbackItem.id],
+        sourceFeedbackIds: [feedbackItem.id] as any,
         status: 'discovered',
-      });
+      } as any);
     }
   }
 
@@ -684,14 +684,14 @@ export class LearningEngine {
           await db.insert(learnedPatterns).values({
             patternType: PatternType.THRESHOLD_ADJUSTMENT,
             patternCategory: 'entity_resolution',
-            patternValue: adjustment,
+            patternValue: adjustment as any,
             description: `Threshold adjustment for entity resolution`,
-            confidence: adjustment.confidence,
-            occurrences: 1,
+            confidence: String(adjustment.confidence) as any,
+            occurrences: 1 as any,
             sourceType: 'feedback',
-            sourceFeedbackIds: [feedbackItem.id],
+            sourceFeedbackIds: [feedbackItem.id] as any,
             status: 'discovered',
-          });
+          } as any);
         }
       }
     }
@@ -726,14 +726,14 @@ export class LearningEngine {
           await db.insert(learnedPatterns).values({
             patternType: PatternType.SCORE_WEIGHT,
             patternCategory: 'scoring',
-            patternValue: adjustment,
+            patternValue: adjustment as any,
             description: `Weight adjustment for ${factor}`,
-            confidence: adjustment.confidence,
-            occurrences: 1,
+            confidence: String(adjustment.confidence) as any,
+            occurrences: 1 as any,
             sourceType: 'feedback',
-            sourceFeedbackIds: [feedbackItem.id],
+            sourceFeedbackIds: [feedbackItem.id] as any,
             status: 'discovered',
-          });
+          } as any);
         }
       }
     }
@@ -750,14 +750,14 @@ export class LearningEngine {
         testName: config.name,
         testDescription: config.description,
         testType: config.type,
-        variantA: config.variantA,
-        variantB: config.variantB,
+        variantA: config.variantA as any,
+        variantB: config.variantB as any,
         sampleSize: config.sampleSize,
         confidenceLevel: config.confidenceLevel || 0.95,
         minimumDetectableEffect: config.minimumDetectableEffect || 0.05,
         status: 'running',
         startedAt: new Date(),
-      }).returning();
+      } as any).returning();
       
       // Cache active test
       this.activeTests.set(test.id, test);
@@ -798,8 +798,8 @@ export class LearningEngine {
       
       // Update metrics
       const variantMetrics = variant === 'a' ? 
-        currentTest.variantAMetrics || { successes: 0, failures: 0 } :
-        currentTest.variantBMetrics || { successes: 0, failures: 0 };
+        (currentTest.variantAMetrics as any) || { successes: 0, failures: 0 } :
+        (currentTest.variantBMetrics as any) || { successes: 0, failures: 0 };
       
       if (success) {
         variantMetrics.successes++;
@@ -816,11 +816,13 @@ export class LearningEngine {
         .where(eq(abTests.id, testId));
       
       // Check if test is complete
+      const aMetrics = currentTest.variantAMetrics as any;
+      const bMetrics = currentTest.variantBMetrics as any;
       const totalSamples = 
-        (currentTest.variantAMetrics?.successes || 0) +
-        (currentTest.variantAMetrics?.failures || 0) +
-        (currentTest.variantBMetrics?.successes || 0) +
-        (currentTest.variantBMetrics?.failures || 0);
+        (aMetrics?.successes || 0) +
+        (aMetrics?.failures || 0) +
+        (bMetrics?.successes || 0) +
+        (bMetrics?.failures || 0);
       
       if (totalSamples >= currentTest.sampleSize) {
         await this.completeABTest(testId);
@@ -878,7 +880,7 @@ export class LearningEngine {
           status: 'completed',
           endedAt: new Date(),
           winner,
-          statisticalSignificance: pValue,
+          statisticalSignificance: String(pValue) as any,
           decision: winner === 'b' ? 'adopt_b' : winner === 'a' ? 'keep_a' : 'no_difference',
         })
         .where(eq(abTests.id, testId));

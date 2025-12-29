@@ -34,7 +34,7 @@ export default function PurchasesPage() {
   });
 
   const { data: syncLogs } = useQuery({
-    queryKey: selectedPurchase ? [`/api/purchases/${selectedPurchase.id}/sync-logs`] : null,
+    queryKey: selectedPurchase ? [`/api/purchases/${selectedPurchase.id}/sync-logs`] : ['sync-logs-placeholder'],
     enabled: !!selectedPurchase
   });
 
@@ -87,7 +87,7 @@ export default function PurchasesPage() {
     },
   });
 
-  const activeIntegrations = integrations?.filter((i: any) => i.isActive) || [];
+  const activeIntegrations = (integrations as any[] | undefined)?.filter((i: any) => i.isActive) || [];
 
   const handleExportClick = (purchase: any) => {
     setSelectedPurchase(purchase);
@@ -160,7 +160,7 @@ export default function PurchasesPage() {
 
       <div className="divider-elegant" />
 
-      {!purchases || purchases.length === 0 ? (
+      {!purchases || (purchases as any[]).length === 0 ? (
         <Card className="card-kingdom animate-scale-in">
           <CardContent className="py-16 text-center">
             <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-primary/10 flex items-center justify-center">
@@ -181,8 +181,8 @@ export default function PurchasesPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {purchases.map((purchase: any, index: number) => {
-            const purchaseSyncLogs = syncLogs?.filter((log: any) => log.purchaseId === purchase.id) || [];
+          {(purchases as any[]).map((purchase: any, index: number) => {
+            const purchaseSyncLogs = (syncLogs as any[] | undefined)?.filter((log: any) => log.purchaseId === purchase.id) || [];
             const lastSync = purchaseSyncLogs[0];
             
             return (

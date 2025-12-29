@@ -52,7 +52,7 @@ export default function APIConfiguration() {
   });
 
   // Fetch cost estimates
-  const { data: costEstimates } = useQuery({
+  const { data: costEstimates } = useQuery<{ fixed?: number; variable?: number; total?: number; breakdown?: Record<string, number> }>({
     queryKey: ['/api/enrichment/cost-estimates'],
     enabled: !!serviceStatus
   });
@@ -60,10 +60,7 @@ export default function APIConfiguration() {
   // Save API keys mutation
   const saveKeysMutation = useMutation({
     mutationFn: async (keys: Record<string, string>) => {
-      return apiRequest('/api/admin/api-keys', {
-        method: 'POST',
-        body: JSON.stringify(keys)
-      });
+      return apiRequest('POST', '/api/admin/api-keys', keys);
     },
     onSuccess: () => {
       toast({
@@ -84,10 +81,7 @@ export default function APIConfiguration() {
   // Toggle service mutation
   const toggleServiceMutation = useMutation({
     mutationFn: async ({ service, enabled }: { service: string; enabled: boolean }) => {
-      return apiRequest(`/api/enrichment/services/${service}/toggle`, {
-        method: 'POST',
-        body: JSON.stringify({ enabled })
-      });
+      return apiRequest('POST', `/api/enrichment/services/${service}/toggle`, { enabled });
     },
     onSuccess: () => {
       refetchStatus();

@@ -92,7 +92,7 @@ export default function CostMonitoringDashboard() {
     errorMetrics,
     efficiency,
     recommendations,
-  } = dashboardData || {};
+  } = (dashboardData || {}) as any;
   
   // Prepare chart data
   const costTrendData = costMetrics?.costTrend || [];

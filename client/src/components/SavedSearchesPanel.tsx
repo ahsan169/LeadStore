@@ -67,12 +67,12 @@ export function SavedSearchesPanel() {
   });
 
   // Fetch saved searches
-  const { data: savedSearches = [], isLoading } = useQuery({
+  const { data: savedSearches = [], isLoading } = useQuery<SavedSearch[]>({
     queryKey: ["/api/saved-searches"],
   });
 
   // Fetch notification summary
-  const { data: notifications } = useQuery({
+  const { data: notifications } = useQuery<{ totalNewMatches: number }>({
     queryKey: ["/api/saved-searches/notifications"],
     refetchInterval: 60000, // Refresh every minute
   });

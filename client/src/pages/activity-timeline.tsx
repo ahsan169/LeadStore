@@ -207,11 +207,11 @@ export default function ActivityTimelinePage() {
       events.push({
         id: `activity-${activity.id}`,
         type: "activity",
-        title: activity.type,
+        title: activity.activityType,
         description: activity.description,
         timestamp: activity.createdAt,
-        icon: getActivityIcon(activity.type),
-        color: getActivityColor(activity.type),
+        icon: getActivityIcon(activity.activityType),
+        color: getActivityColor(activity.activityType),
         metadata: { activityId: activity.id, outcome: activity.outcome },
       });
     });
@@ -222,7 +222,7 @@ export default function ActivityTimelinePage() {
         type: "call",
         title: `${call.direction === "inbound" ? "Incoming" : "Outgoing"} call`,
         description: call.notes,
-        timestamp: call.startTime,
+        timestamp: call.startedAt ?? call.createdAt,
         icon: PhoneCall,
         color: "text-blue-500 bg-blue-500/10",
         metadata: { 
@@ -501,14 +501,14 @@ export default function ActivityTimelinePage() {
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                                       <span className="font-serif font-medium capitalize">{event.title}</span>
-                                      {event.metadata?.outcome && (
+                                      {(event.metadata as any)?.outcome && (
                                         <Badge className="badge-gold text-xs">
-                                          {event.metadata.outcome as string}
+                                          {(event.metadata as any).outcome as string}
                                         </Badge>
                                       )}
-                                      {event.metadata?.duration && (
+                                      {(event.metadata as any)?.duration && (
                                         <Badge className="badge-emerald text-xs">
-                                          {event.metadata.duration as number}min
+                                          {(event.metadata as any).duration as number}min
                                         </Badge>
                                       )}
                                     </div>

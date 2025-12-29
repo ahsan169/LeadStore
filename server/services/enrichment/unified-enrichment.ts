@@ -288,7 +288,7 @@ export class UnifiedEnrichmentService extends EventEmitter {
   }> {
     const statuses = [];
     
-    for (const [name, config] of this.dataSources.entries()) {
+    for (const [name, config] of Array.from(this.dataSources.entries())) {
       const stats = rateLimiter.getServiceStats(name);
       statuses.push({
         name,
@@ -509,7 +509,7 @@ export class UnifiedEnrichmentService extends EventEmitter {
       const revenue = parseInt(lead.annualRevenue);
       const industry = lead.industry;
       
-      const avgRevPerEmployee = this.getIndustryRevenuePerEmployee(industry);
+      const avgRevPerEmployee = this.getIndustryRevenuePerEmployee(industry as any);
       predictions.estimatedEmployees = Math.round(revenue / avgRevPerEmployee);
       predictions.employeesConfidence = "predicted";
     }

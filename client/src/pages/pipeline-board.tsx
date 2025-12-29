@@ -340,7 +340,7 @@ export default function PipelineBoardPage() {
                   <div className="flex items-center gap-2">
                     <div
                       className="w-3 h-3 rounded-full ring-2 ring-offset-1 ring-offset-background"
-                      style={{ backgroundColor: stage.color || "#3b82f6", ringColor: stage.color || "#3b82f6" }}
+                      style={{ backgroundColor: stage.color || "#3b82f6" } as any}
                     ></div>
                     <h3 className="font-serif font-semibold">{stage.name}</h3>
                   </div>
@@ -409,10 +409,10 @@ export default function PipelineBoardPage() {
                             </span>
                           )}
                         </div>
-                        {lead.lastContactDate && (
+                        {lead.lastContactedAt && (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground pt-1 border-t border-border/50">
                             <Calendar className="w-3 h-3" />
-                            Last contact: {formatDate(lead.lastContactDate)}
+                            Last contact: {formatDate(lead.lastContactedAt)}
                           </div>
                         )}
                       </CardContent>
@@ -555,7 +555,7 @@ export default function PipelineBoardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Address:</span>
-                        <span>{selectedLead.address || "N/A"}</span>
+                        <span>{selectedLead.fullAddress || "N/A"}</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -578,7 +578,7 @@ export default function PipelineBoardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Revenue:</span>
-                        <span>{formatCurrency(selectedLead.revenue)}</span>
+                        <span>{formatCurrency(selectedLead.annualRevenue)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Employees:</span>
@@ -607,8 +607,8 @@ export default function PipelineBoardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-24">Status:</span>
-                        <Badge className={selectedLead.status === "available" ? "badge-emerald" : "badge-royal"}>
-                          {selectedLead.status}
+                        <Badge className={selectedLead.leadStatus === "new" ? "badge-emerald" : "badge-royal"}>
+                          {selectedLead.leadStatus || "N/A"}
                         </Badge>
                       </div>
                     </CardContent>
@@ -736,7 +736,7 @@ export default function PipelineBoardPage() {
                             <div key={activity.id} className="flex items-start gap-3 text-sm">
                               <div className="w-2 h-2 rounded-full bg-primary mt-1.5 ring-4 ring-primary/20"></div>
                               <div>
-                                <p className="font-medium">{activity.type}: {activity.description}</p>
+                                <p className="font-medium">{activity.activityType}: {activity.description}</p>
                                 <p className="text-xs text-muted-foreground">{formatDate(activity.createdAt)}</p>
                               </div>
                             </div>

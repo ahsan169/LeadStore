@@ -242,7 +242,7 @@ class RevenueDiscoveryService {
 
       // 3. If Perplexity found employee count but not revenue, estimate
       if (research.employeeCount) {
-        return this.estimateFromEmployeeCount(research.employeeCount, lead.industry);
+        return this.estimateFromEmployeeCount(research.employeeCount, lead.industry as any);
       }
     } catch (error) {
       console.error('Error in Perplexity research:', error);
@@ -250,7 +250,7 @@ class RevenueDiscoveryService {
 
     // 4. Fallback to industry average
     if (lead.industry) {
-      return this.estimateFromIndustry(lead.industry, lead.timeInBusiness);
+      return this.estimateFromIndustry(lead.industry, lead.timeInBusiness as any);
     }
 
     return null;

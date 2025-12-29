@@ -285,7 +285,7 @@ export class ScorecardManager {
    */
   private scoreUccStatus(metrics: LeadMetrics): ScoreComponent {
     const uccFilings = metrics.uccFilings || [];
-    const activeFilings = uccFilings.filter(f => f.status === 'Active').length;
+    const activeFilings = uccFilings.filter(f => (f as any).status === 'Active').length;
     
     let score = 100;
     let explanation = '';
@@ -323,7 +323,7 @@ export class ScorecardManager {
    */
   private scoreKnownMcaFunder(metrics: LeadMetrics): ScoreComponent {
     const lead = metrics.lead;
-    const knownFunder = lead.matchedFunder || metrics.enrichmentData?.matchedFunder;
+    const knownFunder = (lead as any).matchedFunder || metrics.enrichmentData?.matchedFunder;
     
     const score = knownFunder ? 100 : 30;
     const explanation = knownFunder ? 
@@ -429,8 +429,8 @@ export class ScorecardManager {
    */
   private scoreContactValidity(metrics: LeadMetrics): ScoreComponent {
     const lead = metrics.lead;
-    const emailVerified = lead.emailVerificationStatus === 'valid';
-    const phoneVerified = lead.phoneVerificationStatus === 'valid';
+    const emailVerified = (lead as any).emailVerificationStatus === 'valid';
+    const phoneVerified = (lead as any).phoneVerificationStatus === 'valid';
     
     let score = 0;
     if (emailVerified && phoneVerified) score = 100;
@@ -639,8 +639,8 @@ export class ScorecardManager {
    */
   private scoreVerificationConfidence(metrics: LeadMetrics): ScoreComponent {
     const lead = metrics.lead;
-    const verificationScore = lead.verificationScore || 0;
-    const aiConfidence = lead.aiVerificationConfidence || 0;
+    const verificationScore = (lead as any).verificationScore || 0;
+    const aiConfidence = (lead as any).aiVerificationConfidence || 0;
     
     const combinedScore = (verificationScore + aiConfidence * 100) / 2;
 

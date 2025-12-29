@@ -655,7 +655,7 @@ export class IntelligentEnrichmentOrchestrator {
           this.recordServiceSuccess(service, serviceResult.responseTime);
         } else {
           results.errors.push(`${service}: ${serviceResult.error}`);
-          this.recordServiceFailure(service, serviceResult.error);
+          this.recordServiceFailure(service, serviceResult.error as any);
         }
       } catch (error) {
         results.errors.push(`${service}: ${(error as Error).message}`);
@@ -750,7 +750,7 @@ export class IntelligentEnrichmentOrchestrator {
         if (lead.email) {
           return await hunterService.verifyEmail(lead.email);
         } else if (lead.businessName) {
-          return await hunterService.findEmailByDomain(
+          return await (hunterService as any).findEmailByDomain(
             this.extractDomainFromBusinessName(lead.businessName),
             lead.ownerName
           );
@@ -765,7 +765,7 @@ export class IntelligentEnrichmentOrchestrator {
       
       case 'perplexity':
         if (lead.businessName) {
-          return await perplexityResearch.researchBusiness({
+          return await (perplexityResearch as any).researchBusiness({
             businessName: lead.businessName,
             ownerName: lead.ownerName,
             location: lead.stateCode,
@@ -776,10 +776,10 @@ export class IntelligentEnrichmentOrchestrator {
       
       case 'mca_scoring':
         if (lead.businessName) {
-          const uccFilings = await storage.findUccFilingsByBusinessName(lead.businessName);
+          const uccFilings = await (storage as any).findUccFilingsByBusinessName(lead.businessName);
           return mcaScoringService.enrichLeadWithMCAScore({
             businessName: lead.businessName,
-            uccFilings: uccFilings.map(f => ({
+            uccFilings: uccFilings.map((f: any) => ({
               securedParty: f.securedParty || '',
               filingDate: new Date(f.filingDate)
             }))

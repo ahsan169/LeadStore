@@ -168,7 +168,7 @@ class MetricsTracker {
         shortCircuits: metrics.shortCircuits,
         avgCostPerLead: metrics.avgCostPerLead,
         timestamp: new Date()
-      });
+      } as any);
     } catch (error) {
       console.error('[MetricsTracker] Failed to persist metrics:', error);
     }
@@ -228,7 +228,7 @@ class DeterministicTier {
       }
       
       // Try validation rules
-      if (context.field && FIELD_VALIDATORS[context.field as CanonicalField]) {
+      if (context.field && (FIELD_VALIDATORS as any)[context.field as CanonicalField]) {
         const validationResult = this.validateField(context);
         if (validationResult.confidence > confidence) {
           extractedValue = validationResult.value;
@@ -268,7 +268,7 @@ class DeterministicTier {
     // Limit cache size
     if (this.cachedResults.size > 10000) {
       const firstKey = this.cachedResults.keys().next().value;
-      this.cachedResults.delete(firstKey);
+      if (firstKey) this.cachedResults.delete(firstKey);
     }
     
     return result;
@@ -317,7 +317,7 @@ class DeterministicTier {
   
   private validateField(context: IntelligenceContext): { value: any; confidence: number } {
     const field = context.field as CanonicalField;
-    const validator = FIELD_VALIDATORS[field];
+    const validator = (FIELD_VALIDATORS as any)[field];
     
     if (!validator) {
       return { value: context.data, confidence: 0 };

@@ -147,9 +147,9 @@ export default function TaskManagerPage() {
     }
   };
 
-  const getLeadName = (leadId?: number | null) => {
+  const getLeadName = (leadId?: string | number | null) => {
     if (!leadId) return null;
-    const lead = leads.find(l => l.id === leadId);
+    const lead = leads.find(l => l.id === (leadId as any));
     return lead?.businessName || `Lead #${leadId}`;
   };
 

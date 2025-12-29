@@ -339,7 +339,7 @@ class NormalizeStage extends BaseStage {
       
       if (canonicalField) {
         // Apply validators
-        const validator = FIELD_VALIDATORS[canonicalField];
+        const validator = (FIELD_VALIDATORS as Record<string, any>)[canonicalField];
         if (validator) {
           const validatedValue = validator.normalize ? 
             validator.normalize(value) : value;
@@ -457,11 +457,11 @@ class ResolveStage extends BaseStage {
       conditions.push(eq(leads.phone, data.phone));
     }
     
-    if (data.businessName && data.zipCode) {
+    if (data.businessName && data.stateCode) {
       conditions.push(
         and(
           eq(leads.businessName, data.businessName),
-          eq(leads.zipCode, data.zipCode)
+          eq(leads.stateCode, data.stateCode)
         )
       );
     }
@@ -536,8 +536,9 @@ class EnrichStage extends BaseStage {
       const { tieredIntelligence } = await import('./tiered-intelligence');
       
       // Define fields to extract/enrich based on missing fields
-      const fieldsToExtract = analysis.missingFields.length > 0 ? 
-        analysis.missingFields : 
+      const missingFieldNames = analysis.missingFields.map((f: any) => typeof f === 'string' ? f : f.field);
+      const fieldsToExtract: string[] = missingFieldNames.length > 0 ? 
+        missingFieldNames : 
         ['businessName', 'ownerName', 'email', 'phone', 'industry', 'annualRevenue'];
       
       // Use tiered intelligence for field extraction
@@ -573,12 +574,12 @@ class EnrichStage extends BaseStage {
       console.log('[EnrichStage] Tiered intelligence results:', tierStats);
       
       // Build enriched data from extraction results
-      const enrichedData: any = {};
+      let enrichedData: any = {};
       const enrichedFields: string[] = [];
       
       for (const [field, result] of Object.entries(extractionResult.fields)) {
-        if (result.extractedValue !== null && result.confidence > 0.5) {
-          enrichedData[field] = result.extractedValue;
+        if ((result as any).extractedValue !== null && (result as any).confidence > 0.5) {
+          enrichedData[field] = (result as any).extractedValue;
           enrichedFields.push(field);
         }
       }
@@ -589,18 +590,18 @@ class EnrichStage extends BaseStage {
         const traditionalResult = await this.enricher.enrichLead(
           context.normalizedData,
           {
-            usePerplexity: analysis.missingFields.includes('industry'),
-            useHunter: analysis.missingFields.includes('email'),
-            useNumverify: analysis.missingFields.includes('phone'),
+            usePerplexity: missingFieldNames.includes('industry'),
+            useHunter: missingFieldNames.includes('email'),
+            useNumverify: missingFieldNames.includes('phone'),
             maxRetries: 2
           }
         );
         
-        if (traditionalResult.success && traditionalResult.enrichedData) {
+        if (traditionalResult) {
           // Merge results, preferring tiered intelligence data
-          Object.assign(traditionalResult.enrichedData, enrichedData);
-          enrichedData = traditionalResult.enrichedData;
-          enrichedFields.push(...Object.keys(traditionalResult.enrichedData));
+          Object.assign(traditionalResult, enrichedData);
+          enrichedData = traditionalResult;
+          enrichedFields.push(...Object.keys(traditionalResult));
         }
         
         context.enrichmentData = {
@@ -623,22 +624,25 @@ class EnrichStage extends BaseStage {
         } as any;
       }
       
-      if (context.enrichmentData && context.enrichmentData.enrichedData) {
-        // Merge enriched data
-        context.normalizedData = {
-          ...context.normalizedData,
-          ...context.enrichmentData.enrichedData
-        };
-        
-        // Add lineage
-        const sources = context.enrichmentData.sources || [];
-        context.lineage.push({
-          stage: this.name,
-          inputFields: Object.keys(context.normalizedData),
-          outputFields: enrichedFields,
-          transformations: sources.map((s: string) => `Enriched via ${s}`),
-          confidence: context.enrichmentData.confidence
-        });
+      if (context.enrichmentData) {
+        const enrichData = context.enrichmentData as any;
+        if (enrichData.enrichedData || enrichData) {
+          // Merge enriched data
+          context.normalizedData = {
+            ...context.normalizedData,
+            ...(enrichData.enrichedData || enrichData)
+          };
+          
+          // Add lineage
+          const sources = enrichData.enrichmentMetadata?.sources || [];
+          context.lineage.push({
+            stage: this.name,
+            inputFields: Object.keys(context.normalizedData),
+            outputFields: enrichedFields,
+            transformations: sources.map((s: string) => `Enriched via ${s}`),
+            confidence: enrichData.confidenceScores?.overall || enrichData.confidence || 70
+          });
+        }
       }
       
     } catch (error) {
@@ -655,19 +659,23 @@ class EnrichStage extends BaseStage {
   }
   
   calculateConfidence(context: StageContext): number {
-    return context.enrichmentData?.confidence || 60;
+    const enrichData = context.enrichmentData as any;
+    return enrichData?.confidenceScores?.overall || enrichData?.confidence || 60;
   }
   
   getDecision(context: StageContext): string {
-    const enrichedCount = context.enrichmentData?.enrichedFields?.length || 0;
+    const enrichData = context.enrichmentData as any;
+    const enrichedCount = enrichData?.enrichmentMetadata?.fieldsEnriched?.length || 0;
     return `Enriched ${enrichedCount} fields`;
   }
   
   getExplanation(context: StageContext): string {
     if (!context.enrichmentData) return 'Enrichment skipped or failed';
     
-    const sources = context.enrichmentData.sources.join(', ');
-    return `Enhanced lead data using ${sources} with ${context.enrichmentData.confidence}% confidence`;
+    const enrichData = context.enrichmentData as any;
+    const sources = (enrichData.enrichmentMetadata?.sources || []).join(', ') || 'various sources';
+    const confidence = enrichData.confidenceScores?.overall || enrichData.confidence || 0;
+    return `Enhanced lead data using ${sources} with ${confidence}% confidence`;
   }
 }
 
@@ -686,35 +694,35 @@ class UccAggregateStage extends BaseStage {
     }
     
     try {
-      // Search for UCC filings
-      const uccFilings = await db.select()
-        .from(uccFilings)
+      // Search for UCC filings (renamed to avoid conflict with imported table)
+      const uccFilingsTable = uccFilings;
+      const uccFilingsResult = await db.select()
+        .from(uccFilingsTable)
         .where(
           or(
-            eq(uccFilings.debtorName, normalizedData.businessName),
-            eq(uccFilings.debtorEmail, normalizedData.email || ''),
-            eq(uccFilings.debtorPhone, normalizedData.phone || '')
+            eq(uccFilingsTable.debtorName, normalizedData.businessName),
+            sql`${uccFilingsTable.debtorName} ILIKE ${normalizedData.businessName}`
           )
         )
         .limit(20);
       
-      if (uccFilings.length > 0) {
-        context.uccData = uccFilings;
+      if (uccFilingsResult.length > 0) {
+        context.uccData = uccFilingsResult;
         
         // Analyze UCC data
-        const analysis = await this.analyzeUccData(uccFilings, normalizedData);
+        const analysis = await this.analyzeUccData(uccFilingsResult, normalizedData);
         context.uccAnalysis = analysis;
         
-        // Update normalized data with UCC insights
-        context.normalizedData.currentPositions = analysis.activePositions;
-        context.normalizedData.totalUccAmount = analysis.totalDebt;
+        // Update normalized data with UCC insights (use type assertions for dynamic properties)
+        (context.normalizedData as any).currentPositions = analysis.activePositions;
+        (context.normalizedData as any).totalUccAmount = analysis.totalDebt;
         context.normalizedData.stackingRisk = analysis.stackingRisk;
         
         context.lineage.push({
           stage: this.name,
           inputFields: ['businessName', 'email', 'phone'],
           outputFields: ['currentPositions', 'totalUccAmount', 'stackingRisk'],
-          transformations: [`Found ${uccFilings.length} UCC filings`, 'Calculated risk metrics'],
+          transformations: [`Found ${uccFilingsResult.length} UCC filings`, 'Calculated risk metrics'],
           confidence: 85
         });
         
@@ -738,13 +746,13 @@ class UccAggregateStage extends BaseStage {
   }
   
   private async analyzeUccData(filings: UccFiling[], lead: Partial<Lead>): Promise<any> {
-    // Calculate active positions
+    // Calculate active positions (use filingType to determine if active)
     const activeFilings = filings.filter(f => 
-      !f.terminationDate || new Date(f.terminationDate) > new Date()
+      f.filingType !== 'termination' && f.filingType !== 'terminated'
     );
     
-    // Calculate total debt
-    const totalDebt = filings.reduce((sum, f) => sum + (f.filingAmount || 0), 0);
+    // Calculate total debt (use loanAmount if available)
+    const totalDebt = filings.reduce((sum, f) => sum + (f.loanAmount || 0), 0);
     
     // Determine stacking risk
     let stackingRisk = 'low';
@@ -753,7 +761,7 @@ class UccAggregateStage extends BaseStage {
     else if (activeFilings.length >= 2) stackingRisk = 'moderate';
     
     // Get unique lenders
-    const lenders = [...new Set(filings.map(f => f.securedParty).filter(Boolean))];
+    const lenders = Array.from(new Set(filings.map(f => f.securedParty).filter(Boolean)));
     
     return {
       totalFilings: filings.length,
@@ -818,10 +826,10 @@ class RulesStage extends BaseStage {
       // Apply transformations to normalized data
       Object.assign(normalizedData, ruleContext.transformations);
       
-      // Store rule execution results
-      context.metadata.ruleExecutionResults = results;
-      context.metadata.ruleScores = ruleContext.scores;
-      context.metadata.ruleAlerts = ruleContext.alerts;
+      // Store rule execution results (use type assertion for extended metadata)
+      (context.metadata as any).ruleExecutionResults = results;
+      (context.metadata as any).ruleScores = ruleContext.scores;
+      (context.metadata as any).ruleAlerts = ruleContext.alerts;
       
       // Add alerts as flags
       ruleContext.alerts.forEach(alert => {
@@ -868,18 +876,18 @@ class RulesStage extends BaseStage {
   }
   
   calculateConfidence(context: StageContext): number {
-    const results = context.metadata.ruleExecutionResults as any[] || [];
+    const results = (context.metadata as any).ruleExecutionResults as any[] || [];
     const matchedCount = results.filter((r: any) => r.matched).length;
     return Math.min(95, 70 + (matchedCount * 2));
   }
   
   getDecision(context: StageContext): string {
-    const results = context.metadata.ruleExecutionResults as any[] || [];
+    const results = (context.metadata as any).ruleExecutionResults as any[] || [];
     return `Executed ${results.length} rules, ${results.filter((r: any) => r.matched).length} matched`;
   }
   
   getExplanation(context: StageContext): string {
-    const alerts = context.metadata.ruleAlerts as any[] || [];
+    const alerts = (context.metadata as any).ruleAlerts as any[] || [];
     return alerts.length > 0 ? 
       `Generated ${alerts.length} alerts` : 
       'No alerts generated';
@@ -900,7 +908,7 @@ class ScoreStage extends BaseStage {
       lead: normalizedData as Lead,
       uccFilings: uccData,
       enrichmentData: enrichmentData as any,
-      verificationResults: context.metadata.verificationResults as any
+      verificationResults: (context.metadata as any).verificationResults as any
     };
     
     // Calculate score using scorecard manager
@@ -918,12 +926,12 @@ class ScoreStage extends BaseStage {
     context.recommendations.push(...scoreResult.recommendations);
     
     // Match with funders
-    const funderMatches = funderMatcher.findMatches(normalizedData);
+    const funderMatchResult = funderMatcher.matchFunders(normalizedData);
     
     // Add funder recommendations
-    if (funderMatches.length > 0) {
+    if (funderMatchResult.recommended.length > 0) {
       context.recommendations.push(
-        `Recommended funders: ${funderMatches.slice(0, 3).map(f => f.name).join(', ')}`
+        `Recommended funders: ${funderMatchResult.recommended.slice(0, 3).map((f: any) => f.name).join(', ')}`
       );
     }
     
@@ -978,9 +986,9 @@ class ExportStage extends BaseStage {
       score: context.score,
       scoreBreakdown: context.scoreBreakdown,
       enrichment: {
-        sources: context.enrichmentData?.sources || [],
-        confidence: context.enrichmentData?.confidence || 0,
-        fieldsEnriched: context.enrichmentData?.enrichedFields || []
+        sources: (context.enrichmentData as any)?.enrichmentMetadata?.sources || [],
+        confidence: (context.enrichmentData as any)?.confidenceScores?.overall || 0,
+        fieldsEnriched: (context.enrichmentData as any)?.enrichmentMetadata?.fieldsEnriched || []
       },
       ucc: {
         filings: context.uccData?.length || 0,
@@ -1315,6 +1323,3 @@ export class BrainPipeline {
 
 // Export singleton instance
 export const brainPipeline = new BrainPipeline();
-
-// Export types for use in other modules
-export type { StageContext, AuditEntry, LineageEntry, ErrorEntry, StageResult };

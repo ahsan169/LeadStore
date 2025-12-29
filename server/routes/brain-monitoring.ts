@@ -17,21 +17,18 @@ export function registerBrainMonitoringRoutes(app: Express) {
    */
   app.get('/api/brain/intelligence-stats', async (req, res) => {
     try {
-      // Import services
       const { tieredIntelligence } = await import('../intelligence/tiered-intelligence');
       const { fieldExtractor } = await import('../intelligence/field-extractor');
       const { executionPolicy } = await import('../intelligence/execution-policy');
       
-      // Get current metrics from services
       const tierMetrics = tieredIntelligence.getMetrics();
       const extractorStats = fieldExtractor.getStatistics();
       const policyStats = executionPolicy.getStatistics();
       
-      // Query database for historical metrics
       const startDate = req.query.startDate as string;
       const endDate = req.query.endDate as string;
       
-      let query = db.select({
+      const baseQuery = db.select({
         totalCost: sql`SUM(${intelligenceMetrics.totalCost})::numeric`,
         avgCost: sql`AVG(${intelligenceMetrics.avgCostPerLead})::numeric`,
         totalLeads: sql`COUNT(DISTINCT ${intelligenceMetrics.leadId})`,
@@ -43,16 +40,19 @@ export function registerBrainMonitoringRoutes(app: Express) {
                          ELSE 0 END)::numeric`
       }).from(intelligenceMetrics);
       
+      let dbMetrics: any[];
       if (startDate && endDate) {
-        query = query.where(
+        dbMetrics = await (baseQuery as any).where(
           and(
             gte(intelligenceMetrics.timestamp, new Date(startDate)),
             lte(intelligenceMetrics.timestamp, new Date(endDate))
           )
         );
+      } else {
+        dbMetrics = await baseQuery;
       }
       
-      const [dbMetrics] = await query;
+      const result = dbMetrics[0];
       
       res.json({
         success: true,
@@ -62,15 +62,15 @@ export function registerBrainMonitoringRoutes(app: Express) {
           policyConfig: policyStats.config
         },
         historical: {
-          totalCost: parseFloat(dbMetrics?.totalCost || '0'),
-          averageCostPerLead: parseFloat(dbMetrics?.avgCost || '0'),
-          totalLeadsProcessed: parseInt(dbMetrics?.totalLeads || '0'),
-          averageConfidence: parseFloat(dbMetrics?.avgConfidence || '0'),
-          escalationRate: dbMetrics?.totalEscalations && dbMetrics?.totalLeads ? 
-            (parseInt(dbMetrics.totalEscalations) / parseInt(dbMetrics.totalLeads)) : 0,
-          shortCircuitRate: dbMetrics?.totalShortCircuits && dbMetrics?.totalLeads ?
-            (parseInt(dbMetrics.totalShortCircuits) / parseInt(dbMetrics.totalLeads)) : 0,
-          cacheHitRate: parseFloat(dbMetrics?.cacheHitRate || '0')
+          totalCost: parseFloat(String(result?.totalCost || '0')),
+          averageCostPerLead: parseFloat(String(result?.avgCost || '0')),
+          totalLeadsProcessed: parseInt(String(result?.totalLeads || '0')),
+          averageConfidence: parseFloat(String(result?.avgConfidence || '0')),
+          escalationRate: result?.totalEscalations && result?.totalLeads ? 
+            (parseInt(String(result.totalEscalations)) / parseInt(String(result.totalLeads))) : 0,
+          shortCircuitRate: result?.totalShortCircuits && result?.totalLeads ?
+            (parseInt(String(result.totalShortCircuits)) / parseInt(String(result.totalLeads))) : 0,
+          cacheHitRate: parseFloat(String(result?.cacheHitRate || '0'))
         }
       });
       
@@ -91,7 +91,6 @@ export function registerBrainMonitoringRoutes(app: Express) {
       const period = req.query.period as string || 'daily';
       const limit = parseInt(req.query.limit as string) || 30;
       
-      // Get tier-wise cost breakdown
       const tierCosts = await db.select({
         date: sql`DATE(${intelligenceMetrics.timestamp})`,
         tier0Cost: sql`SUM(COALESCE((${intelligenceMetrics.costByTier}->>'0')::numeric, 0))`,
@@ -105,7 +104,6 @@ export function registerBrainMonitoringRoutes(app: Express) {
       .orderBy(desc(sql`DATE(${intelligenceMetrics.timestamp})`))
       .limit(limit);
       
-      // Get aggregated metrics
       const aggregatedMetrics = await db.select({
         period: processingMetrics.period,
         periodStart: processingMetrics.periodStart,
@@ -119,25 +117,24 @@ export function registerBrainMonitoringRoutes(app: Express) {
       .orderBy(desc(processingMetrics.periodStart))
       .limit(limit);
       
-      // Calculate cost trends
       const trends = {
-        dailyAverage: tierCosts.reduce((sum, day) => sum + parseFloat(day.totalCost || '0'), 0) / Math.max(1, tierCosts.length),
+        dailyAverage: tierCosts.reduce((sum, day: any) => sum + parseFloat(String(day.totalCost || '0')), 0) / Math.max(1, tierCosts.length),
         tier0Percentage: 0,
         tier1Percentage: 0,
         tier2Percentage: 0
       };
       
-      const totalCostAllTiers = tierCosts.reduce((sum, day) => {
+      const totalCostAllTiers = tierCosts.reduce((sum, day: any) => {
         return sum + 
-          parseFloat(day.tier0Cost || '0') + 
-          parseFloat(day.tier1Cost || '0') + 
-          parseFloat(day.tier2Cost || '0');
+          parseFloat(String(day.tier0Cost || '0')) + 
+          parseFloat(String(day.tier1Cost || '0')) + 
+          parseFloat(String(day.tier2Cost || '0'));
       }, 0);
       
       if (totalCostAllTiers > 0) {
-        const tier0Total = tierCosts.reduce((sum, day) => sum + parseFloat(day.tier0Cost || '0'), 0);
-        const tier1Total = tierCosts.reduce((sum, day) => sum + parseFloat(day.tier1Cost || '0'), 0);
-        const tier2Total = tierCosts.reduce((sum, day) => sum + parseFloat(day.tier2Cost || '0'), 0);
+        const tier0Total = tierCosts.reduce((sum, day: any) => sum + parseFloat(String(day.tier0Cost || '0')), 0);
+        const tier1Total = tierCosts.reduce((sum, day: any) => sum + parseFloat(String(day.tier1Cost || '0')), 0);
+        const tier2Total = tierCosts.reduce((sum, day: any) => sum + parseFloat(String(day.tier2Cost || '0')), 0);
         
         trends.tier0Percentage = (tier0Total / totalCostAllTiers) * 100;
         trends.tier1Percentage = (tier1Total / totalCostAllTiers) * 100;
@@ -146,23 +143,23 @@ export function registerBrainMonitoringRoutes(app: Express) {
       
       res.json({
         success: true,
-        costBreakdown: tierCosts.map(row => ({
+        costBreakdown: tierCosts.map((row: any) => ({
           date: row.date,
           costs: {
-            tier0: parseFloat(row.tier0Cost || '0'),
-            tier1: parseFloat(row.tier1Cost || '0'),
-            tier2: parseFloat(row.tier2Cost || '0'),
-            total: parseFloat(row.totalCost || '0')
+            tier0: parseFloat(String(row.tier0Cost || '0')),
+            tier1: parseFloat(String(row.tier1Cost || '0')),
+            tier2: parseFloat(String(row.tier2Cost || '0')),
+            total: parseFloat(String(row.totalCost || '0'))
           },
-          leadsProcessed: parseInt(row.leadCount || '0'),
-          avgCostPerLead: row.leadCount && parseInt(row.leadCount) > 0 ? 
-            parseFloat(row.totalCost || '0') / parseInt(row.leadCount) : 0
+          leadsProcessed: parseInt(String(row.leadCount || '0')),
+          avgCostPerLead: row.leadCount && parseInt(String(row.leadCount)) > 0 ? 
+            parseFloat(String(row.totalCost || '0')) / parseInt(String(row.leadCount)) : 0
         })),
         aggregatedMetrics: aggregatedMetrics.map(metric => ({
           period: metric.period,
           startDate: metric.periodStart,
-          totalCost: parseFloat(metric.totalCost || '0'),
-          avgCostPerLead: parseFloat(metric.avgCostPerLead || '0'),
+          totalCost: parseFloat(String(metric.totalCost || '0')),
+          avgCostPerLead: parseFloat(String(metric.avgCostPerLead || '0')),
           costBySource: metric.costBySource,
           totalLeads: metric.totalLeadsProcessed
         })),
@@ -196,14 +193,12 @@ export function registerBrainMonitoringRoutes(app: Express) {
       const { embeddingsService } = await import('../intelligence/embeddings-service');
       const { llmService } = await import('../intelligence/llm-service');
       
-      // Get current service stats
       const currentStats = {
         tieredIntelligence: tieredIntelligence.getMetrics(),
         embeddings: embeddingsService.getStats(),
         llm: llmService.getStats()
       };
       
-      // Get latency metrics from database
       const latencyMetrics = await db.select({
         avgLatency: sql`AVG(${intelligenceMetrics.totalLatency})::numeric`,
         tier0AvgLatency: sql`AVG(COALESCE((${intelligenceMetrics.latencyByTier}->>'0')::numeric, 0))`,
@@ -213,9 +208,8 @@ export function registerBrainMonitoringRoutes(app: Express) {
         minLatency: sql`MIN(${intelligenceMetrics.totalLatency})`
       })
       .from(intelligenceMetrics)
-      .where(gte(intelligenceMetrics.timestamp, new Date(Date.now() - 24 * 60 * 60 * 1000))); // Last 24 hours
+      .where(gte(intelligenceMetrics.timestamp, new Date(Date.now() - 24 * 60 * 60 * 1000)));
       
-      // Get processing time percentiles
       const processingTimeMetrics = await db.select({
         avgProcessingTime: processingMetrics.avgProcessingTime,
         p95ProcessingTime: processingMetrics.p95ProcessingTime,
@@ -226,21 +220,21 @@ export function registerBrainMonitoringRoutes(app: Express) {
       .from(processingMetrics)
       .where(eq(processingMetrics.period, 'hourly'))
       .orderBy(desc(processingMetrics.periodStart))
-      .limit(24); // Last 24 hours
+      .limit(24);
       
-      const [latencyData] = latencyMetrics;
+      const latencyData = latencyMetrics[0] as any;
       
       res.json({
         success: true,
         performance: {
           latency: {
-            average: parseFloat(latencyData?.avgLatency || '0'),
-            min: parseInt(latencyData?.minLatency || '0'),
-            max: parseInt(latencyData?.maxLatency || '0'),
+            average: parseFloat(String(latencyData?.avgLatency || '0')),
+            min: parseInt(String(latencyData?.minLatency || '0')),
+            max: parseInt(String(latencyData?.maxLatency || '0')),
             byTier: {
-              tier0: parseFloat(latencyData?.tier0AvgLatency || '0'),
-              tier1: parseFloat(latencyData?.tier1AvgLatency || '0'),
-              tier2: parseFloat(latencyData?.tier2AvgLatency || '0')
+              tier0: parseFloat(String(latencyData?.tier0AvgLatency || '0')),
+              tier1: parseFloat(String(latencyData?.tier1AvgLatency || '0')),
+              tier2: parseFloat(String(latencyData?.tier2AvgLatency || '0'))
             }
           },
           processingTime: {

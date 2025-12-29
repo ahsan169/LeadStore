@@ -12,6 +12,9 @@ import type { MarketInsightResult } from "./market-insights";
 import { uccDataHelper } from "./ucc-data-helper";
 import { eventBus, ServiceEventType } from "./event-bus";
 
+// Type alias for verification result used in metadata generation
+type VerificationResult = EnhancedVerificationResult;
+
 // Define UccIntelligenceAnalysis here instead of importing from ucc-intelligence
 export interface UccIntelligenceAnalysis {
   leadId?: string;
@@ -505,10 +508,11 @@ export class LeadIntelligenceService {
     // Enrichment quality (30 points)
     if (enrichment) {
       let enrichmentScore = 0;
-      if (enrichment.linkedinUrl) enrichmentScore += 10;
-      if (enrichment.websiteUrl) enrichmentScore += 10;
-      if (enrichment.companySize) enrichmentScore += 5;
-      if (enrichment.yearFounded) enrichmentScore += 5;
+      const enrichedData = enrichment.enrichedData as any || {};
+      if (enrichedData.linkedinUrl || lead.linkedinUrl) enrichmentScore += 10;
+      if (enrichedData.websiteUrl || lead.websiteUrl) enrichmentScore += 10;
+      if (enrichedData.companySize || lead.companySize) enrichmentScore += 5;
+      if (enrichedData.yearFounded || lead.yearFounded) enrichmentScore += 5;
       score += enrichmentScore;
     } else if (lead.isEnriched) {
       // Partial credit for enriched leads without detailed data
@@ -728,9 +732,10 @@ export class LeadIntelligenceService {
 
     // Enrichment confidence (30 points)
     if (enrichment) {
-      if (enrichment.dataConfidence === 'high') score += 30;
-      else if (enrichment.dataConfidence === 'medium') score += 20;
-      else if (enrichment.dataConfidence === 'low') score += 10;
+      const dataConfidence = (enrichment as any).dataConfidence || (enrichment.enrichedData as any)?.dataConfidence;
+      if (dataConfidence === 'high') score += 30;
+      else if (dataConfidence === 'medium') score += 20;
+      else if (dataConfidence === 'low') score += 10;
     } else if (lead.isEnriched) {
       // Partial credit for enriched status
       score += 15;
@@ -998,9 +1003,9 @@ export class LeadIntelligenceService {
     if (verification) {
       factors.push({
         name: 'Verification Score',
-        value: verification.verificationScore || 0,
+        value: (verification as any).verificationScore || verification.overallConfidenceScore || 0,
         impact: 30,
-        description: `Lead verified with ${verification.status} status`
+        description: `Lead verified with ${(verification as any).status || verification.verificationStatus} status`
       });
     }
 
@@ -1044,7 +1049,7 @@ export class LeadIntelligenceService {
     }
 
     if (lead.urgencyLevel) {
-      const urgencyScores = {
+      const urgencyScores: Record<string, number> = {
         'immediate': 100,
         'this_week': 75,
         'this_month': 50,
@@ -1073,16 +1078,16 @@ export class LeadIntelligenceService {
 
     // Verification risk
     if (verification) {
-      const statusScores = {
+      const statusScores: Record<string, number> = {
         'verified': 10,
         'warning': 50,
         'failed': 90
       };
       factors.push({
         name: 'Verification Status',
-        value: statusScores[verification.status] || 50,
+        value: statusScores[(verification as any).status] || 50,
         impact: 40,
-        description: `Verification ${verification.status}`
+        description: `Verification ${(verification as any).status}`
       });
     }
 
@@ -1138,7 +1143,7 @@ export class LeadIntelligenceService {
     });
 
     if (lead.companySize) {
-      const sizeScores = {
+      const sizeScores: Record<string, number> = {
         '500+': 100,
         '201-500': 80,
         '51-200': 60,
@@ -1175,25 +1180,27 @@ export class LeadIntelligenceService {
     const factors = [];
 
     if (verification) {
+      const confScore = (verification as any).confidenceScore || verification.overallConfidenceScore || 50;
       factors.push({
         name: 'Verification Confidence',
-        value: verification.confidenceScore || 50,
+        value: confScore,
         impact: 50,
-        description: `${verification.confidenceScore || 50}% verification confidence`
+        description: `${confScore}% verification confidence`
       });
     }
 
     if (enrichment) {
-      const confidenceScores = {
+      const confidenceScores: Record<string, number> = {
         'high': 100,
         'medium': 60,
         'low': 30
       };
+      const dataConfidence = (enrichment as any).dataConfidence || (enrichment.enrichedData as any)?.dataConfidence || 'medium';
       factors.push({
         name: 'Data Confidence',
-        value: confidenceScores[enrichment.dataConfidence || 'medium'] || 50,
+        value: confidenceScores[dataConfidence] || 50,
         impact: 30,
-        description: `${enrichment.dataConfidence || 'medium'} confidence in enriched data`
+        description: `${dataConfidence} confidence in enriched data`
       });
     }
 
@@ -1371,7 +1378,7 @@ export class LeadIntelligenceService {
     const warnings = [];
 
     // Verification warnings
-    if (verification && verification.status === 'failed') {
+    if (verification && ((verification as any).status === 'failed' || verification.verificationStatus === 'failed')) {
       warnings.push('Lead failed verification - data may be inaccurate');
     }
 
@@ -1534,35 +1541,36 @@ export class LeadIntelligenceService {
       if (!data) return null;
       
       // Convert database record to UccIntelligenceAnalysis format
+      const anyData = data as any;
       return {
         leadId,
-        filingData: data.filingData as any[] || [],
+        filingData: anyData.filingData || [],
         businessIntelligence: {
-          debtStackingScore: data.debtStackingScore || 0,
-          refinancingProbability: data.refinancingProbability || 0,
-          businessGrowthIndicator: data.businessGrowthIndicator as any || 'stable',
-          riskLevel: data.riskLevel as any || 'moderate',
-          estimatedTotalDebt: data.estimatedTotalDebt || 0,
-          debtToRevenueRatio: data.debtToRevenueRatio,
-          mcaApprovalLikelihood: data.mcaApprovalLikelihood || 0,
-          businessHealthScore: data.businessHealthScore || 50
+          debtStackingScore: Number(anyData.debtStackingScore) || 0,
+          refinancingProbability: Number(anyData.refinancingProbability) || 0,
+          businessGrowthIndicator: anyData.businessGrowthIndicator || 'stable',
+          riskLevel: anyData.riskLevel || 'moderate',
+          estimatedTotalDebt: Number(anyData.estimatedTotalDebt) || 0,
+          debtToRevenueRatio: anyData.debtToRevenueRatio ? Number(anyData.debtToRevenueRatio) : undefined,
+          mcaApprovalLikelihood: Number(anyData.mcaApprovalLikelihood) || 0,
+          businessHealthScore: Number(anyData.businessHealthScore) || 50
         },
         insights: {
-          financingType: data.financingType || 'unknown',
-          industrySpecific: data.industrySpecific as string[] || [],
-          patterns: data.patterns as string[] || [],
-          anomalies: data.anomalies as string[] || [],
-          recommendations: data.recommendations as string[] || [],
-          warningFlags: data.warningFlags as string[] || []
+          financingType: anyData.financingType || 'unknown',
+          industrySpecific: anyData.industrySpecific || [],
+          patterns: anyData.patterns || [],
+          anomalies: anyData.anomalies || [],
+          recommendations: anyData.recommendations || [],
+          warningFlags: anyData.warningFlags || []
         },
         relationships: {
-          entities: data.relatedEntities as any[] || [],
+          entities: anyData.relatedEntities || [],
           ownership: [],
-          lenderNetwork: data.lenderNetwork as any[] || []
+          lenderNetwork: anyData.lenderNetwork || []
         },
         confidence: {
-          analysisConfidence: data.analysisConfidence || 0,
-          dataQuality: data.dataQuality || 0
+          analysisConfidence: Number(anyData.analysisConfidence) || 0,
+          dataQuality: Number(anyData.dataQuality) || 0
         }
       };
     } catch (error) {

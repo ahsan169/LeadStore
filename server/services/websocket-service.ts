@@ -112,7 +112,7 @@ export class WebSocketService extends EventEmitter {
    */
   private initializeEventListeners(): void {
     // Listen to service events and broadcast to clients
-    eventBus.onEvent(ServiceEventType.LEAD_UPDATED, (event) => {
+    eventBus.onEvent('lead:updated' as any, (event: any) => {
       this.broadcastToSubscribers(`lead:${event.leadId}`, {
         type: WebSocketEventType.LEAD_UPDATED,
         payload: event,
@@ -120,7 +120,7 @@ export class WebSocketService extends EventEmitter {
       });
     });
     
-    eventBus.onEvent(ServiceEventType.LEAD_VERIFIED, (event) => {
+    eventBus.onEvent('lead:verified' as any, (event: any) => {
       this.broadcastToSubscribers(`lead:${event.leadId}`, {
         type: WebSocketEventType.LEAD_VERIFIED,
         payload: event,
@@ -128,7 +128,7 @@ export class WebSocketService extends EventEmitter {
       });
     });
     
-    eventBus.onEvent(ServiceEventType.LEAD_ENRICHED, (event) => {
+    eventBus.onEvent('lead:enriched' as any, (event: any) => {
       this.broadcastToSubscribers(`lead:${event.leadId}`, {
         type: WebSocketEventType.LEAD_ENRICHED,
         payload: event,
@@ -136,7 +136,7 @@ export class WebSocketService extends EventEmitter {
       });
     });
     
-    eventBus.onEvent(ServiceEventType.LEAD_SCORED, (event) => {
+    eventBus.onEvent('lead:scored' as any, (event: any) => {
       this.broadcastToSubscribers(`lead:${event.leadId}`, {
         type: WebSocketEventType.LEAD_SCORED,
         payload: event,

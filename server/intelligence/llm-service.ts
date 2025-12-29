@@ -211,8 +211,8 @@ class LLMCache {
         if (age < LLM_CONFIG.cacheTTL) {
           const llmResult: LLMResult = {
             value: dbCached.response,
-            confidence: dbCached.confidence || 0,
-            explanation: dbCached.metadata?.explanation,
+            confidence: Number(dbCached.confidence) || 0,
+            explanation: (dbCached.metadata as any)?.explanation,
             model: dbCached.model,
             inputTokens: dbCached.inputTokens || 0,
             outputTokens: dbCached.outputTokens || 0,
@@ -250,23 +250,23 @@ class LLMCache {
         model: result.model,
         inputTokens: result.inputTokens,
         outputTokens: result.outputTokens,
-        cost: result.cost,
-        confidence: result.confidence,
+        cost: String(result.cost),
+        confidence: String(result.confidence),
         metadata: {
           explanation: result.explanation,
           structuredOutput: result.structuredOutput
         },
         createdAt: new Date()
-      }).onConflictDoUpdate({
+      } as any).onConflictDoUpdate({
         target: llmCache.cacheKey,
         set: {
           response: result.value,
           inputTokens: result.inputTokens,
           outputTokens: result.outputTokens,
-          cost: result.cost,
-          confidence: result.confidence,
+          cost: String(result.cost),
+          confidence: String(result.confidence),
           createdAt: new Date()
-        }
+        } as any
       });
     } catch (error) {
       console.error('[LLMCache] Database store error:', error);
@@ -279,7 +279,9 @@ class LLMCache {
   private addToMemoryCache(key: string, result: LLMResult): void {
     if (this.memoryCache.size >= this.maxMemoryItems) {
       const firstKey = this.memoryCache.keys().next().value;
-      this.memoryCache.delete(firstKey);
+      if (firstKey) {
+        this.memoryCache.delete(firstKey);
+      }
     }
     
     this.memoryCache.set(key, result);
@@ -630,7 +632,7 @@ export class LLMService {
    */
   getStats() {
     return {
-      cacheSize: this.cache.memoryCache?.size || 0,
+      cacheSize: (this.cache as any).memoryCache?.size || 0,
       requestCount: this.requestCount,
       resetTime: new Date(this.resetTime)
     };

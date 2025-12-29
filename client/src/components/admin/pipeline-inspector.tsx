@@ -314,7 +314,7 @@ export default function PipelineInspector() {
                   <TabsContent value="timeline" className="mt-4">
                     <ScrollArea className="h-[480px]">
                       <div className="space-y-3">
-                        {leadHistory.stages?.map((stage, idx) => (
+                        {leadHistory.stages?.map((stage: any, idx: number) => (
                           <Collapsible key={idx}>
                             <div className={cn(
                               "border rounded-lg p-4",
@@ -368,7 +368,7 @@ export default function PipelineInspector() {
                                     <div>
                                       <p className="text-xs font-medium text-red-600">Errors:</p>
                                       <ul className="text-xs text-red-600 list-disc list-inside">
-                                        {stage.errors.map((e, i) => (
+                                        {stage.errors.map((e: any, i: number) => (
                                           <li key={i}>{e}</li>
                                         ))}
                                       </ul>
@@ -526,7 +526,7 @@ export default function PipelineInspector() {
                           </CardHeader>
                           <CardContent>
                             <div className="space-y-1">
-                              {leadHistory.flags.map((flag, idx) => (
+                              {leadHistory.flags.map((flag: any, idx: number) => (
                                 <Badge key={idx} variant="outline" className="mr-2">
                                   {flag}
                                 </Badge>

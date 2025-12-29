@@ -80,10 +80,7 @@ export default function RulesManager() {
       const url = rule.id ? `/api/rules/${rule.id}` : '/api/rules';
       const method = rule.id ? 'PUT' : 'POST';
       
-      return apiRequest(url, {
-        method,
-        body: JSON.stringify(rule),
-      });
+      return apiRequest(method, url, rule);
     },
     onSuccess: () => {
       toast({ title: "Rule saved successfully" });
@@ -100,9 +97,7 @@ export default function RulesManager() {
   // Delete rule mutation
   const deleteRuleMutation = useMutation({
     mutationFn: async (ruleId: string) => {
-      return apiRequest(`/api/rules/${ruleId}`, {
-        method: 'DELETE',
-      });
+      return apiRequest('DELETE', `/api/rules/${ruleId}`);
     },
     onSuccess: () => {
       toast({ title: "Rule deleted successfully" });
@@ -117,10 +112,8 @@ export default function RulesManager() {
   // Dry run mutation
   const dryRunMutation = useMutation({
     mutationFn: async ({ ruleIds, testData }: { ruleIds?: string[]; testData: any }) => {
-      return apiRequest('/api/rules/dry-run', {
-        method: 'POST',
-        body: JSON.stringify({ ruleIds, testData }),
-      });
+      const response = await apiRequest('POST', '/api/rules/dry-run', { ruleIds, testData });
+      return response.json() as Promise<DryRunResult>;
     },
     onSuccess: (data) => {
       setDryRunResult(data);
@@ -421,7 +414,7 @@ export default function RulesManager() {
                         size="sm"
                         onClick={() => {
                           if (confirm("Are you sure you want to delete this rule?")) {
-                            deleteRuleMutation.mutate(selectedRule.id);
+                            deleteRuleMutation.mutate(selectedRule!.id);
                           }
                         }}
                         data-testid="button-delete-rule"

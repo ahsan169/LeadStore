@@ -33,7 +33,7 @@ export class MLEnhancedDecisionService {
   private modelVersion = '2.1.0';
   
   // Feature weights learned from historical data
-  private featureWeights = {
+  private featureWeights: Record<string, number> = {
     hasUccFiling: 0.25,
     recentFiling: 0.15,
     multiplePositions: 0.20,
@@ -68,7 +68,7 @@ export class MLEnhancedDecisionService {
 
   // Cache for predictions
   private predictionCache = memoizee(
-    (lead: Lead) => this.generateMLPrediction(lead),
+    (lead: Lead) => this.predictLeadQuality(lead),
     { maxAge: 300000, primitive: true } // 5 minute cache
   );
 
@@ -134,10 +134,10 @@ export class MLEnhancedDecisionService {
     features.multiplePositions = (lead.activePositions || 0) > 1 ? 1 : 0;
     
     // Industry features
-    features.industryTier = this.getIndustryScore(lead.industry);
+    features.industryTier = this.getIndustryScore(lead.industry ?? undefined);
     
     // Geographic features
-    features.stateQuality = this.getStateScore(lead.state);
+    features.stateQuality = this.getStateScore(lead.stateCode ?? undefined);
     
     // Data completeness features
     features.dataCompleteness = this.calculateDataCompleteness(lead);
@@ -192,7 +192,7 @@ export class MLEnhancedDecisionService {
 
   private calculateYearsInBusiness(lead: Lead): number {
     if (lead.yearFounded) {
-      return Math.min(new Date().getFullYear() - parseInt(lead.yearFounded), 50) / 50;
+      return Math.min(new Date().getFullYear() - lead.yearFounded, 50) / 50;
     }
     if (lead.timeInBusiness) {
       return Math.min(parseFloat(lead.timeInBusiness) || 0, 50) / 50;
@@ -279,7 +279,7 @@ export class MLEnhancedDecisionService {
     }
     
     // Industry premium
-    const industryScore = this.getIndustryScore(lead.industry);
+    const industryScore = this.getIndustryScore(lead.industry ?? undefined);
     if (industryScore > 0.85) {
       basePrice += 20;
     } else if (industryScore > 0.75) {
@@ -287,7 +287,7 @@ export class MLEnhancedDecisionService {
     }
     
     // State premium
-    const stateScore = this.getStateScore(lead.state);
+    const stateScore = this.getStateScore(lead.stateCode ?? undefined);
     if (stateScore > 0.85) {
       basePrice += 15;
     } else if (stateScore > 0.75) {
@@ -412,7 +412,7 @@ export class MLEnhancedDecisionService {
     // Adjust based on existing data
     if (lead.businessName) rate += 0.05;
     if (lead.websiteUrl) rate += 0.10;
-    if (lead.state) rate += 0.03;
+    if (lead.stateCode) rate += 0.03;
     
     return Math.min(rate, 0.95);
   }
@@ -449,7 +449,7 @@ export class MLEnhancedDecisionService {
     }
     
     // Geographic clustering pattern
-    const stateCount = this.countByField(leads, 'state');
+    const stateCount = this.countByField(leads, 'stateCode');
     const topStates = this.getTopEntries(stateCount, 3);
     if (topStates.length > 0 && topStates[0].count / leads.length > 0.2) {
       patterns.push({
@@ -673,9 +673,9 @@ export class MLEnhancedDecisionService {
     // Update lead with ML scores
     await storage.updateLead(data.lead.id, {
       qualityScore: prediction.qualityScore,
-      mlScore: prediction.conversionProbability * 100,
-      suggestedPrice: prediction.optimalPrice
-    });
+      mlQualityScore: Math.round(prediction.conversionProbability * 100),
+      conversionProbability: String(prediction.conversionProbability)
+    } as any);
   }
 
   private async handleEnrichedLead(data: { leadId: string, enrichmentData: any }): Promise<void> {
@@ -685,8 +685,8 @@ export class MLEnhancedDecisionService {
       const prediction = await this.predictLeadQuality(lead);
       await storage.updateLead(lead.id, {
         qualityScore: prediction.qualityScore,
-        mlScore: prediction.conversionProbability * 100
-      });
+        mlQualityScore: Math.round(prediction.conversionProbability * 100)
+      } as any);
     }
   }
 

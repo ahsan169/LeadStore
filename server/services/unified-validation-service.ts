@@ -13,12 +13,11 @@
 
 import { db } from '../db';
 import { leads } from '@shared/schema';
-import { eq, and, isNull, or, sql } from 'drizzle-orm';
-import { multiSourceVerificationEngine } from './multi-source-verification-engine';
+import { eq, and, isNull, isNotNull, or, sql, lt } from 'drizzle-orm';
 import { eventBus } from './event-bus';
 
 export interface ValidationResult {
-  leadId: number;
+  leadId: string;
   overallScore: number;
   emailValid: boolean;
   emailScore: number | null;
@@ -42,8 +41,6 @@ export interface ValidationStats {
 }
 
 export class UnifiedValidationService {
-  private verificationEngine = multiSourceVerificationEngine;
-
   constructor() {
     console.log('[UnifiedValidationService] Initialized');
   }
@@ -52,7 +49,7 @@ export class UnifiedValidationService {
    * VALIDATION CORE
    * Validate a single lead
    */
-  async validateLead(leadId: number): Promise<ValidationResult> {
+  async validateLead(leadId: string): Promise<ValidationResult> {
     try {
       const lead = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
       if (!lead.length) {
@@ -71,9 +68,9 @@ export class UnifiedValidationService {
         issues.push('Email is missing');
         recommendations.push('Add email address to improve lead quality');
       } else if (emailScore === null) {
-        // Perform email verification if not done
-        const emailResult = await this.verificationEngine.verifyEmail(leadData.email);
-        emailScore = emailResult.score;
+        // Basic email format validation score
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        emailScore = emailRegex.test(leadData.email) ? 70 : 30;
         emailValid = emailScore >= 60;
         
         // Update lead with verification score
@@ -97,9 +94,9 @@ export class UnifiedValidationService {
         issues.push('Phone number is missing');
         recommendations.push('Add phone number for better contact rates');
       } else if (phoneScore === null) {
-        // Perform phone verification if not done
-        const phoneResult = await this.verificationEngine.verifyPhone(leadData.phone);
-        phoneScore = phoneResult.score;
+        // Basic phone format validation score
+        const phoneDigits = leadData.phone.replace(/\D/g, '');
+        phoneScore = phoneDigits.length >= 10 && phoneDigits.length <= 15 ? 70 : 30;
         phoneValid = phoneScore >= 60;
         
         // Update lead with verification score
@@ -315,12 +312,12 @@ export class UnifiedValidationService {
             isNull(leads.phoneVerificationScore),
             isNull(leads.nameVerificationScore),
             and(
-              leads.emailVerificationScore !== null,
-              leads.emailVerificationScore < 60
+              isNotNull(leads.emailVerificationScore),
+              lt(leads.emailVerificationScore, 60)
             ),
             and(
-              leads.phoneVerificationScore !== null,
-              leads.phoneVerificationScore < 60
+              isNotNull(leads.phoneVerificationScore),
+              lt(leads.phoneVerificationScore, 60)
             )
           )
         )

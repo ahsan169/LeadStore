@@ -649,7 +649,7 @@ export class EnrichmentQueueService extends EventEmitter {
    * Start queue processors
    */
   private startQueueProcessors() {
-    for (const [queueName, queue] of this.queues) {
+    for (const [queueName, queue] of Array.from(this.queues)) {
       // Process queue every 2 seconds
       const interval = setInterval(() => {
         this.processQueue(queueName);
@@ -732,14 +732,14 @@ export class EnrichmentQueueService extends EventEmitter {
   getQueueMetrics(): QueueMetrics[] {
     const metrics: QueueMetrics[] = [];
     
-    for (const [queueName, queue] of this.queues) {
+    for (const [queueName, queue] of Array.from(this.queues)) {
       const queueMetrics = this.metrics.get(queueName)!;
       const elapsedMinutes = (Date.now() - queueMetrics.startTime.getTime()) / 60000;
       
       metrics.push({
         queueName,
-        pendingJobs: queue.jobs.filter(j => j.status === 'pending').length,
-        processingJobs: queue.jobs.filter(j => j.status === 'processing').length,
+        pendingJobs: queue.jobs.filter((j: QueuedJob) => j.status === 'pending').length,
+        processingJobs: queue.jobs.filter((j: QueuedJob) => j.status === 'processing').length,
         completedJobs: queueMetrics.completed,
         failedJobs: queueMetrics.failed,
         avgProcessingTime: queueMetrics.completed > 0 
@@ -774,8 +774,8 @@ export class EnrichmentQueueService extends EventEmitter {
     }
     
     // Remove from queue
-    for (const queue of this.queues.values()) {
-      const index = queue.jobs.findIndex(j => j.id === jobId);
+    for (const queue of Array.from(this.queues.values())) {
+      const index = queue.jobs.findIndex((j: QueuedJob) => j.id === jobId);
       if (index > -1) {
         queue.jobs.splice(index, 1);
         break;
@@ -806,12 +806,12 @@ export class EnrichmentQueueService extends EventEmitter {
    * Clear completed jobs
    */
   clearCompletedJobs() {
-    for (const queue of this.queues.values()) {
-      queue.jobs = queue.jobs.filter(j => j.status !== 'completed' && j.status !== 'failed');
+    for (const queue of Array.from(this.queues.values())) {
+      queue.jobs = queue.jobs.filter((j: QueuedJob) => j.status !== 'completed' && j.status !== 'failed');
     }
     
     // Clear from active jobs map
-    for (const [id, job] of this.activeJobs) {
+    for (const [id, job] of Array.from(this.activeJobs)) {
       if (job.status === 'completed' || job.status === 'failed') {
         this.activeJobs.delete(id);
       }
@@ -822,7 +822,7 @@ export class EnrichmentQueueService extends EventEmitter {
    * Cleanup
    */
   destroy() {
-    for (const interval of this.processingIntervals.values()) {
+    for (const interval of Array.from(this.processingIntervals.values())) {
       clearInterval(interval);
     }
   }

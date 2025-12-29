@@ -2089,7 +2089,6 @@ export const insertSearchSuggestionSchema = createInsertSchema(searchSuggestions
 export const insertSavedSearchSchema = createInsertSchema(savedSearches).omit({
   id: true,
   createdAt: true,
-  lastUsedAt: true,
 }).extend({
   searchName: z.string().min(1).max(100),
   filters: z.object({
