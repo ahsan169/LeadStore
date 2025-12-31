@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
+import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { insertUserSchema, insertLeadBatchSchema, insertPurchaseSchema, insertContactSubmissionSchema, type InsertLead, type InsertVerificationSession, type InsertVerificationResult } from "@shared/schema";
 import bcrypt from "bcrypt";
 import Stripe from "stripe";
@@ -1131,6 +1132,10 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const server = createServer(app);
+  
+  // Setup Replit Auth (MUST be before other routes)
+  await setupAuth(app);
+  registerAuthRoutes(app);
   
   // Initialize Command Center WebSocket server
   commandCenterService.initializeWebSocketServer(server);

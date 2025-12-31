@@ -3,6 +3,9 @@ import { pgTable, text, varchar, integer, timestamp, boolean, jsonb, decimal } f
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Re-export auth models for Replit Auth integration
+export * from "./models/auth";
+
 // ========================================
 // FUNDING PRODUCTS SYSTEM
 // ========================================

@@ -186,3 +186,12 @@ Super admin control center for AI Brain and analytics:
   - Removing duplicate export declarations
   - Converting axios imports to `const axios = require('axios') as any` to avoid type declaration issues
 - Note: The `apiRequest` function signature is `apiRequest(method, url, data?)` returning `Promise<Response>`
+
+### Replit Auth Integration (December 2025)
+- Integrated Replit Auth using OpenID Connect provider
+- Auth module files: `server/replit_integrations/auth/` (replitAuth.ts, storage.ts, routes.ts, index.ts)
+- Schema: `shared/models/auth.ts` (users and sessions tables)
+- Client hooks: `client/src/hooks/use-auth.ts` and `client/src/lib/auth-utils.ts`
+- Auth routes: `/api/login`, `/api/logout`, `/api/auth/user`
+- Supports: Google, GitHub, X, Apple, and email/password login
+- Session storage: PostgreSQL via connect-pg-simple
