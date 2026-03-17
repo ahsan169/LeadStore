@@ -33,7 +33,7 @@ export default function AuthPage() {
         title: "Welcome back!",
         description: "You have successfully logged in to your account.",
       });
-      setLocation("/dashboard");
+      setLocation("/company-search");
     },
     onError: () => {
       toast({
@@ -54,7 +54,7 @@ export default function AuthPage() {
         title: "Welcome to Land of Leads!",
         description: "Your account has been created successfully.",
       });
-      setLocation("/dashboard");
+      setLocation("/company-search");
     },
     onError: (error: any) => {
       toast({

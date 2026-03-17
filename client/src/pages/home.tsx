@@ -27,6 +27,7 @@ import {
   Lock,
   FileCheck,
   Mail,
+  Phone,
   DollarSign,
   ArrowRight,
   Brain,
@@ -279,7 +280,7 @@ export default function Home() {
         title: "Welcome back!",
         description: "You have successfully logged in.",
       });
-      setLocation("/dashboard");
+      setLocation("/company-search");
     },
     onError: (error: any) => {
       toast({
@@ -302,7 +303,7 @@ export default function Home() {
         title: "Account created!",
         description: "Welcome to Land of Leads.",
       });
-      setLocation("/dashboard");
+      setLocation("/company-search");
     },
     onError: (error: any) => {
       toast({
@@ -549,7 +550,7 @@ export default function Home() {
               <Button 
                 size="lg"
                 className="btn-kingdom"
-                onClick={() => setLocation("/dashboard")}
+                onClick={() => setLocation("/analytics")}
                 data-testid="button-go-to-dashboard"
               >
                 Go to Dashboard
@@ -957,6 +958,57 @@ export default function Home() {
               </AccordionItem>
             ))}
           </Accordion>
+        </div>
+      </section>
+
+      {/* Elegant Divider */}
+      <div className="divider-elegant w-full"></div>
+
+      {/* Contact Information Section */}
+      <section className="py-16 bg-muted/30 border-b animate-fade-in">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center space-y-4 mb-8">
+            <h2 className="text-3xl md:text-4xl font-bold text-foreground font-serif" data-testid="heading-contact-info">
+              <span className="text-gradient-royal">Get in Touch</span>
+            </h2>
+            <p className="text-lg text-muted-foreground">
+              Need custom pricing or have questions? Contact us directly
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <Card className="card-kingdom text-center">
+              <CardContent className="pt-6">
+                <div className="p-3 rounded-full bg-primary/10 inline-block mb-4">
+                  <Phone className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">Call Us</h3>
+                <a href="tel:+1-555-123-4567" className="text-2xl font-bold text-primary hover:underline">
+                  +1 (555) 123-4567
+                </a>
+                <p className="text-sm text-muted-foreground mt-2">Mon-Fri 9am-5pm EST</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="card-kingdom text-center">
+              <CardContent className="pt-6">
+                <div className="p-3 rounded-full bg-primary/10 inline-block mb-4">
+                  <Mail className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">Email Us</h3>
+                <a href="mailto:contact@landofleads.com" className="text-lg font-medium text-primary hover:underline break-all">
+                  contact@landofleads.com
+                </a>
+                <p className="text-sm text-muted-foreground mt-2">We respond within 24 hours</p>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="text-center">
+            <Badge className="badge-gold text-lg px-4 py-2">
+              Custom Pricing Available - Call or Email for Enterprise Solutions
+            </Badge>
+          </div>
         </div>
       </section>
 

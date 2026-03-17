@@ -1,5 +1,4 @@
-import * as dotenv from 'dotenv';
-dotenv.config();
+import 'dotenv/config';
 
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
@@ -44,7 +43,8 @@ app.use(
     cookie: {
       maxAge: 1000 * 60 * 60 * 24 * 7, // 1 week
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Set to false for HTTP, true only for HTTPS
+      sameSite: 'lax',
     },
   })
 );
@@ -72,19 +72,24 @@ declare global {
 passport.use(
   new LocalStrategy(async (username, password, done) => {
     try {
+      console.log("[Passport] Authenticating user:", username);
       const user = await storage.getUserByUsername(username);
       if (!user) {
+        console.log("[Passport] User not found:", username);
         return done(null, false, { message: "Invalid username or password" });
       }
 
       // Compare hashed password
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) {
+        console.log("[Passport] Invalid password for user:", username);
         return done(null, false, { message: "Invalid username or password" });
       }
 
+      console.log("[Passport] Authentication successful for user:", username);
       return done(null, user as any);
     } catch (error) {
+      console.error("[Passport] Authentication error:", error);
       return done(error);
     }
   })
@@ -107,7 +112,14 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // Login route (before other routes) - with multi-tenant support
-app.post("/api/auth/login", passport.authenticate("local"), async (req, res) => {
+app.post("/api/auth/login", (req, res, next) => {
+  // Log login attempt for debugging
+  console.log("[Auth] Login attempt:", { username: req.body.username, hasPassword: !!req.body.password });
+  next();
+}, passport.authenticate("local", { 
+  failureMessage: true,
+  failureFlash: false 
+}), async (req, res) => {
   if (req.user) {
     const user = req.user as User;
     
@@ -129,9 +141,11 @@ app.post("/api/auth/login", passport.authenticate("local"), async (req, res) => 
       // Non-critical, don't fail login
     }
     
+    console.log("[Auth] Login successful for user:", user.username);
     const { password, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
   } else {
+    console.log("[Auth] Login failed - no user in request");
     res.status(401).json({ error: "Authentication failed" });
   }
 });
@@ -192,11 +206,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
     
     // Start the lead freshness auto-update service

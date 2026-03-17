@@ -310,7 +310,7 @@ export function CommandPalette() {
       id: "view-profile",
       label: "View Profile",
       icon: User,
-      action: () => navigateTo("/dashboard"),
+      action: () => navigateTo("/company-search"),
       category: "User",
     },
     {

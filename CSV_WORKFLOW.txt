@@ -1,0 +1,158 @@
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                      CSV FEATURES - VISUAL WORKFLOW                           ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        FEATURE 1: DOWNLOAD CSV                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  User Action                  System Processing              Result
+  ───────────                  ─────────────────              ──────
+       
+  1. Search                    SeamlessAI API                 
+     "Tesla" ────────────────▶ Fetch companies ────────────▶ 20 companies
+                               with executives                displayed
+       │                                                          │
+       │                                                          │
+       ▼                                                          ▼
+  2. Click                     Backend formats                Download
+     "Download CSV" ──────────▶ to CSV structure ──────────▶ companies_
+                               (Papa.unparse)                2025-01-09.csv
+                                                             
+                                                             ┌─────────────────┐
+                                                             │ Company, Exec   │
+                                                             │ Name, Email,    │
+                                                             │ Phone, LinkedIn │
+                                                             └─────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    FEATURE 2: BULK UPLOAD & ENRICH                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  User Action                  System Processing              Result
+  ───────────                  ─────────────────              ──────
+
+  1. Create CSV                Parse CSV
+     ┌──────────┐              (Papa.parse)                  Validate format
+     │company   │ ────────────▶ Extract company    ────────▶ ✓ Valid
+     │name      │              names list                     
+     │HubSpot   │
+     │Salesforce│
+     └──────────┘
+         │
+         │
+         ▼
+  2. Upload File               For each company:             Enrichment
+     "Bulk Upload"             ┌────────────────┐            Progress
+     tab ─────────────────────▶│1. Call SeamlessAI│───────▶  Processing...
+                               │2. Get executives │          "Enriching 
+                               │3. Get contacts   │          2/3..."
+                               │4. Wait 1 sec     │
+                               └────────────────┘
+         │                              │
+         │                              │
+         ▼                              ▼
+  3. View Results              Merge all data                Display
+     ┌──────────────┐          into structured   ──────────▶ enriched
+     │✅ Enriched   │          format                        companies
+     │3/3 companies │                                        with contacts
+     └──────────────┘
+         │
+         │
+         ▼
+  4. Download                  Format to CSV                 Download
+     "Download                 (Papa.unparse)                enriched_
+     Enriched CSV" ───────────▶ All company +    ──────────▶ 2025-01-09.csv
+                               executive data
+                                                             ┌─────────────────┐
+                                                             │ 3 Companies     │
+                                                             │ 15 Executives   │
+                                                             │ All contacts!   │
+                                                             └─────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          DATA FLOW DIAGRAM                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+                          ┌─────────────────┐
+                          │   User Browser  │
+                          │ (Company Search │
+                          │      Page)      │
+                          └────────┬────────┘
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │                             │
+                    ▼                             ▼
+          ┌─────────────────┐          ┌─────────────────┐
+          │ Search/Download │          │  Bulk Upload    │
+          │    Workflow     │          │    Workflow     │
+          └────────┬────────┘          └────────┬────────┘
+                   │                            │
+                   ▼                            ▼
+          ┌─────────────────────────────────────────────┐
+          │      Backend API Routes                     │
+          │  /api/company-search/export                 │
+          │  /api/company-search/bulk-enrich            │
+          └─────────────────┬───────────────────────────┘
+                            │
+                            ▼
+          ┌─────────────────────────────────────────────┐
+          │      SeamlessAI Service                     │
+          │  - searchCompanies()                        │
+          │  - enrichCompany()                          │
+          │  - getCompanyExecutives()                   │
+          └─────────────────┬───────────────────────────┘
+                            │
+                            ▼
+          ┌─────────────────────────────────────────────┐
+          │      SeamlessAI API                         │
+          │  (External - Real company data)             │
+          │  POST /search/contacts                      │
+          └─────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          CSV OUTPUT FORMAT                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+   Each COMPANY gets multiple rows (one per EXECUTIVE):
+
+   Row 1: Company A │ Executive 1 │ Email 1 │ Phone 1 │ LinkedIn 1
+   Row 2: Company A │ Executive 2 │ Email 2 │ Phone 2 │ LinkedIn 2
+   Row 3: Company A │ Executive 3 │ Email 3 │ Phone 3 │ LinkedIn 3
+   Row 4: Company B │ Executive 1 │ Email 1 │ Phone 1 │ LinkedIn 1
+   ...
+
+   ✨ This allows you to:
+      • Contact multiple people at each company
+      • Import all contacts into CRM at once
+      • Sort/filter by executive title in Excel
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         EXAMPLE USE CASE                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+   Sales Team Workflow:
+
+   1. Marketing identifies 50 target companies
+      └─▶ Creates CSV: target_companies.csv
+
+   2. Upload to LeadStorefrontAI
+      └─▶ Bulk enrichment via SeamlessAI
+      └─▶ Gets 250+ executive contacts (5 per company average)
+
+   3. Download enriched CSV
+      └─▶ enriched_targets_2025-01-09.csv
+
+   4. Import to Salesforce
+      └─▶ 50 companies + 250 contacts
+      └─▶ Ready for outreach!
+
+   5. Sales team starts calling/emailing
+      └─▶ Using real, verified contact info
+      └─▶ Higher connection rates!
+
+
+═══════════════════════════════════════════════════════════════════════════════

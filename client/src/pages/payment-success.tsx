@@ -171,7 +171,7 @@ export default function PaymentSuccessPage() {
           <Button 
             size="lg" 
             variant="outline" 
-            onClick={() => setLocation("/dashboard")}
+            onClick={() => setLocation("/company-search")}
             className="min-w-[200px]"
             data-testid="button-dashboard"
           >

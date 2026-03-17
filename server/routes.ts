@@ -77,8 +77,10 @@ import multiTenantRoutes from "./routes/multi-tenant";
 import buyerFeedbackRoutes from "./routes/buyer-feedback";
 import godModeRoutes from "./routes/god-mode";
 import pipelineRoutes from "./routes/pipeline-routes";
+import companySearchRoutes from "./routes/company-search-routes";
+import { registerAnalyticsRoutes } from "./routes/analytics-routes";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_dummy_key_for_development', {
   apiVersion: "2025-09-30.clover",
 });
 
@@ -1185,6 +1187,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Lead generation pipeline routes
   app.use('/api/pipelines', pipelineRoutes);
   
+  // Company search routes (SeamlessAI-like)
+  app.use('/api/company-search', companySearchRoutes);
+  
+  // Register analytics routes
+  registerAnalyticsRoutes(app);
+  
   // Register CRM routes
   registerCrmRoutes(app);
   
@@ -1232,10 +1240,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/auth/login", async (req, res, next) => {
-    // Passport handles this via the strategy
-    next();
-  });
+  // Login route is handled in server/index.ts - don't override it here
 
   app.post("/api/auth/logout", (req, res) => {
     req.logout((err) => {

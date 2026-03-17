@@ -1,0 +1,218 @@
+import { db } from "./db";
+import { leads } from "../shared/schema";
+
+const sampleCompanies = [
+  {
+    businessName: "Acme Manufacturing Corp",
+    ownerName: "John Smith",
+    email: "john@acmemfg.com",
+    phone: "(555) 123-4567",
+    industry: "manufacturing",
+    annualRevenue: 5000000,
+    monthlyRevenue: 416667,
+    timeInBusiness: 120,
+    creditScore: 720,
+    state: "CA",
+    city: "Los Angeles",
+    address: "123 Industrial Blvd",
+    website: "https://acmemfg.com",
+    employeeCount: 50,
+    qualityScore: 85,
+    companyDescription: "Leading manufacturer of industrial components and machinery",
+  },
+  {
+    businessName: "TechStart Solutions Inc",
+    ownerName: "Sarah Johnson",
+    email: "sarah@techstart.io",
+    phone: "(555) 234-5678",
+    industry: "technology",
+    annualRevenue: 2500000,
+    monthlyRevenue: 208333,
+    timeInBusiness: 60,
+    creditScore: 680,
+    state: "TX",
+    city: "Austin",
+    address: "456 Tech Drive",
+    website: "https://techstart.io",
+    employeeCount: 25,
+    qualityScore: 78,
+    companyDescription: "Innovative software solutions for small businesses",
+  },
+  {
+    businessName: "Green Energy Partners LLC",
+    ownerName: "Michael Chen",
+    email: "michael@greenenergy.com",
+    phone: "(555) 345-6789",
+    industry: "energy",
+    annualRevenue: 8000000,
+    monthlyRevenue: 666667,
+    timeInBusiness: 96,
+    creditScore: 750,
+    state: "NY",
+    city: "New York",
+    address: "789 Park Avenue",
+    website: "https://greenenergy.com",
+    employeeCount: 75,
+    qualityScore: 92,
+    companyDescription: "Renewable energy solutions and solar panel installations",
+  },
+  {
+    businessName: "Bella's Italian Restaurant",
+    ownerName: "Maria Rossi",
+    email: "maria@bellas.com",
+    phone: "(555) 456-7890",
+    industry: "restaurant",
+    annualRevenue: 1200000,
+    monthlyRevenue: 100000,
+    timeInBusiness: 84,
+    creditScore: 690,
+    state: "IL",
+    city: "Chicago",
+    address: "321 Main Street",
+    website: "https://bellas.com",
+    employeeCount: 15,
+    qualityScore: 75,
+    companyDescription: "Authentic Italian cuisine in the heart of Chicago",
+  },
+  {
+    businessName: "FastTrack Logistics",
+    ownerName: "David Martinez",
+    email: "david@fasttrack.com",
+    phone: "(555) 567-8901",
+    industry: "trucking",
+    annualRevenue: 3500000,
+    monthlyRevenue: 291667,
+    timeInBusiness: 72,
+    creditScore: 710,
+    state: "FL",
+    city: "Miami",
+    address: "555 Highway 1",
+    website: "https://fasttrack.com",
+    employeeCount: 40,
+    qualityScore: 82,
+    companyDescription: "Reliable freight and logistics services nationwide",
+  },
+  {
+    businessName: "Prime Dental Care",
+    ownerName: "Dr. Emily Wilson",
+    email: "emily@primedental.com",
+    phone: "(555) 678-9012",
+    industry: "healthcare",
+    annualRevenue: 1800000,
+    monthlyRevenue: 150000,
+    timeInBusiness: 108,
+    creditScore: 740,
+    state: "WA",
+    city: "Seattle",
+    address: "777 Medical Plaza",
+    website: "https://primedental.com",
+    employeeCount: 12,
+    qualityScore: 88,
+    companyDescription: "Comprehensive dental care with state-of-the-art technology",
+  },
+  {
+    businessName: "Elite Construction Group",
+    ownerName: "Robert Thompson",
+    email: "robert@eliteconstruction.com",
+    phone: "(555) 789-0123",
+    industry: "construction",
+    annualRevenue: 6500000,
+    monthlyRevenue: 541667,
+    timeInBusiness: 144,
+    creditScore: 730,
+    state: "AZ",
+    city: "Phoenix",
+    address: "999 Builder Lane",
+    website: "https://eliteconstruction.com",
+    employeeCount: 60,
+    qualityScore: 86,
+    companyDescription: "Commercial and residential construction specialists",
+  },
+  {
+    businessName: "Fashion Forward Boutique",
+    ownerName: "Jennifer Lee",
+    email: "jennifer@fashionforward.com",
+    phone: "(555) 890-1234",
+    industry: "retail",
+    annualRevenue: 950000,
+    monthlyRevenue: 79167,
+    timeInBusiness: 48,
+    creditScore: 670,
+    state: "GA",
+    city: "Atlanta",
+    address: "222 Fashion Ave",
+    website: "https://fashionforward.com",
+    employeeCount: 8,
+    qualityScore: 72,
+    companyDescription: "Trendy clothing and accessories for modern women",
+  },
+  {
+    businessName: "CloudNet Services",
+    ownerName: "Kevin Park",
+    email: "kevin@cloudnet.io",
+    phone: "(555) 901-2345",
+    industry: "technology",
+    annualRevenue: 4200000,
+    monthlyRevenue: 350000,
+    timeInBusiness: 36,
+    creditScore: 700,
+    state: "CO",
+    city: "Denver",
+    address: "444 Cloud Street",
+    website: "https://cloudnet.io",
+    employeeCount: 35,
+    qualityScore: 80,
+    companyDescription: "Cloud infrastructure and managed IT services",
+  },
+  {
+    businessName: "Summit Financial Advisors",
+    ownerName: "Patricia Adams",
+    email: "patricia@summitfinancial.com",
+    phone: "(555) 012-3456",
+    industry: "financial services",
+    annualRevenue: 2800000,
+    monthlyRevenue: 233333,
+    timeInBusiness: 156,
+    creditScore: 760,
+    state: "MA",
+    city: "Boston",
+    address: "888 Financial District",
+    website: "https://summitfinancial.com",
+    employeeCount: 20,
+    qualityScore: 90,
+    companyDescription: "Comprehensive wealth management and financial planning",
+  },
+];
+
+async function seedCompanies() {
+  console.log("Seeding sample companies...");
+
+  try {
+    for (const company of sampleCompanies) {
+      await db.insert(leads).values({
+        ...company,
+        status: "new",
+        mcaInterest: "exploring",
+        availableForSale: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      console.log(`✓ Added company: ${company.businessName}`);
+    }
+
+    console.log("\n✓ Successfully seeded", sampleCompanies.length, "companies");
+  } catch (error) {
+    console.error("Error seeding companies:", error);
+    throw error;
+  }
+
+  process.exit(0);
+}
+
+seedCompanies();
+
+
+
+
+
+

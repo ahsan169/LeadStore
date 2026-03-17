@@ -8,17 +8,12 @@ import { Button } from "@/components/ui/button";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth";
 import HomePage from "@/pages/home";
-import SimplifiedAdminPage from "@/pages/admin/simplified-admin";
-import ValidationCenter from "@/pages/validation-center";
-import LeadManagementPage from "@/pages/lead-management";
-import PipelineBoardPage from "@/pages/pipeline-board";
-import TaskManagerPage from "@/pages/task-manager";
-import ContactManagerPage from "@/pages/contact-manager";
-import ActivityTimelinePage from "@/pages/activity-timeline";
-import CrmDashboardPage from "@/pages/crm-dashboard";
-import MyLeadsPage from "@/pages/my-leads";
-import GodModePage from "@/pages/god-mode";
-import { Home, Upload, LogOut, Shield, Database, Kanban, CheckSquare, Users, Activity, LayoutDashboard, Building2, Briefcase, Brain } from "lucide-react";
+import AnalyticsPage from "@/pages/analytics";
+import CompanySearchPage from "@/pages/CompanySearchPage";
+import RevenueCalculatorPage from "@/pages/revenue-calculator";
+import ContactPage from "@/pages/contact";
+import Redirect from "@/components/Redirect";
+import { Home, LogOut, BarChart3, Search, Calculator, Phone } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { User, Company } from "@/../../shared/schema";
@@ -62,59 +57,19 @@ function AppSidebar() {
   const isBuyer = role === "buyer";
 
   const getMenuItems = () => {
-    const crmPages = [
-      { title: "CRM Dashboard", url: "/", icon: LayoutDashboard },
-      { title: "Pipeline Board", url: "/pipeline", icon: Kanban },
-      { title: "Task Manager", url: "/tasks", icon: CheckSquare },
-      { title: "Contacts", url: "/contacts", icon: Users },
-      { title: "Activity Timeline", url: "/activity", icon: Activity },
+    // Simplified menu for lead finder app
+    return [
+      { title: "Analytics", url: "/analytics", icon: BarChart3 },
+      { title: "Company Search", url: "/company-search", icon: Search },
+      { title: "Revenue Calculator", url: "/calculator", icon: Calculator },
+      { title: "Contact", url: "/contact", icon: Phone },
     ];
-
-    const adminPages = [
-      { title: "Lead Management", url: "/lead-management", icon: Database },
-      { title: "Upload Leads", url: "/admin", icon: Upload },
-      { title: "Validation", url: "/validation", icon: Shield },
-    ];
-
-    const companyManagement = [
-      { title: "Company Management", url: "/companies", icon: Building2 },
-    ];
-
-    const godModePages = [
-      { title: "God Mode", url: "/god-mode", icon: Brain },
-    ];
-
-    if (isSuperAdmin) {
-      return [...crmPages, ...adminPages, ...companyManagement, ...godModePages];
-    }
-
-    if (isCompanyAdmin || isLegacyAdmin) {
-      return [...crmPages, ...adminPages];
-    }
-
-    if (isAgent) {
-      return crmPages;
-    }
-
-    if (isBuyer) {
-      return [
-        { title: "Dashboard", url: "/", icon: Home },
-        { title: "My Leads", url: "/my-leads", icon: Briefcase },
-      ];
-    }
-
-    return [{ title: "Dashboard", url: "/", icon: Home }];
   };
 
   const menuItems = getMenuItems();
 
   const getRoleLabel = () => {
-    if (isSuperAdmin) return "Super Admin";
-    if (isCompanyAdmin) return "Company Admin";
-    if (isAgent) return "Agent Portal";
-    if (isLegacyAdmin) return "Admin Portal";
-    if (isBuyer) return "Premium Funding Leads";
-    return "Portal";
+    return "Lead Finder";
   };
 
   return (
@@ -218,14 +173,6 @@ function Router() {
     );
   }
 
-  const role = user.role;
-  const isSuperAdmin = role === "super_admin";
-  const isCompanyAdmin = role === "company_admin";
-  const isAgent = role === "agent";
-  const isLegacyAdmin = role === "admin";
-  const canAccessCRM = isSuperAdmin || isCompanyAdmin || isAgent || isLegacyAdmin;
-  const canAccessAdmin = isSuperAdmin || isCompanyAdmin || isLegacyAdmin;
-
   const sidebarStyle = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -241,31 +188,14 @@ function Router() {
           </header>
           <main className="flex-1 overflow-auto">
             <Switch>
-              <Route path="/" component={CrmDashboardPage} />
-              
-              {canAccessCRM && (
-                <>
-                  <Route path="/pipeline" component={PipelineBoardPage} />
-                  <Route path="/tasks" component={TaskManagerPage} />
-                  <Route path="/contacts" component={ContactManagerPage} />
-                  <Route path="/activity" component={ActivityTimelinePage} />
-                </>
-              )}
-              
-              {canAccessAdmin && (
-                <>
-                  <Route path="/admin" component={SimplifiedAdminPage} />
-                  <Route path="/lead-management" component={LeadManagementPage} />
-                  <Route path="/validation" component={ValidationCenter} />
-                </>
-              )}
-
-              {/* Buyer routes */}
-              <Route path="/my-leads" component={MyLeadsPage} />
-
-              {/* Super admin routes */}
-              <Route path="/god-mode" component={GodModePage} />
-
+              <Route path="/" component={AnalyticsPage} />
+              <Route path="/analytics" component={AnalyticsPage} />
+              <Route path="/company-search" component={CompanySearchPage} />
+              <Route path="/calculator" component={RevenueCalculatorPage} />
+              <Route path="/contact" component={ContactPage} />
+              <Route path="/dashboard">
+                <Redirect to="/company-search" />
+              </Route>
               <Route component={NotFound} />
             </Switch>
           </main>
