@@ -102,7 +102,6 @@ export class EnrichmentQueue {
   
   private getMasterOrchestrator(): MasterEnrichmentOrchestrator {
     if (!this.masterOrchestrator) {
-      const { MasterEnrichmentOrchestrator } = require('./master-enrichment-orchestrator');
       this.masterOrchestrator = new MasterEnrichmentOrchestrator({ 
         enableUccIntelligence: true,
         enableLeadIntelligence: true,
@@ -115,7 +114,6 @@ export class EnrichmentQueue {
   
   private getIntelligenceBrain(): IntelligenceBrain {
     if (!this.intelligenceBrain) {
-      const { IntelligenceBrain } = require('./intelligence-brain');
       this.intelligenceBrain = new IntelligenceBrain();
     }
     return this.intelligenceBrain!;
