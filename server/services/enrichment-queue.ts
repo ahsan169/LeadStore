@@ -5,7 +5,6 @@ import { eq, and, or, desc, asc, lte, gte } from "drizzle-orm";
 import { leadCompletionAnalyzer } from "./lead-completion-analyzer";
 import { ComprehensiveLeadEnricher, EnrichmentResult, EnrichmentOptions } from "./comprehensive-lead-enricher";
 import { MasterEnrichmentOrchestrator } from "./master-enrichment-orchestrator";
-import { IntelligenceBrain } from "./intelligence-brain";
 import { eventBus } from "./event-bus";
 import { brainPipeline } from "../intelligence/brain-pipeline";
 import { webSocketService, WebSocketEventType } from "./websocket-service";
@@ -112,8 +111,9 @@ export class EnrichmentQueue {
     return this.masterOrchestrator!;
   }
   
-  private getIntelligenceBrain(): IntelligenceBrain {
+  private async getIntelligenceBrain(): Promise<InstanceType<typeof import("./intelligence-brain").IntelligenceBrain>> {
     if (!this.intelligenceBrain) {
+      const { IntelligenceBrain } = await import("./intelligence-brain");
       this.intelligenceBrain = new IntelligenceBrain();
     }
     return this.intelligenceBrain!;
@@ -326,7 +326,8 @@ export class EnrichmentQueue {
         usedOrchestrator = true;
         console.log(`[EnrichmentQueue] Using Intelligence Brain for lead ${item.leadId}`);
         
-        const brainDecision = await this.getIntelligenceBrain().analyzeAndDecide(item.leadData as Lead);
+        const brain = await this.getIntelligenceBrain();
+        const brainDecision = await brain.analyzeAndDecide(item.leadData as Lead);
         
         await this.storeBrainDecision(item.leadId, brainDecision);
         
@@ -897,7 +898,8 @@ export class EnrichmentQueue {
     
     console.log(`[EnrichmentQueue] Processing batch upload of ${leads.length} leads`);
     
-    const batchEvaluation = await this.getIntelligenceBrain().evaluateBatch(
+    const brain = await this.getIntelligenceBrain();
+    const batchEvaluation = await brain.evaluateBatch(
       leads.map((lead: Lead) => ({ lead })),
       { batchId, strategy: 'balanced' }
     );

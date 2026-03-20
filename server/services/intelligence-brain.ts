@@ -10,7 +10,8 @@ import memoizee from 'memoizee';
 import { db } from "../db";
 import { uccFilings, uccIntelligence, intelligenceDecisions } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
-import { EnrichmentQueue } from "./enrichment-queue";
+import type { EnrichmentQueue } from "./enrichment-queue";
+import { enrichmentQueue } from "./enrichment-queue";
 import { MasterEnrichmentOrchestrator } from "./master-enrichment-orchestrator";
 import type { AnalysisReport, DataQualityMetrics, EnrichmentPlan } from "./data-completeness-analyzer";
 
@@ -93,7 +94,7 @@ export class IntelligenceBrain {
     }
     this.orchestrator = new WaterfallEnrichmentOrchestrator();
     this.masterEnrichmentOrchestrator = new MasterEnrichmentOrchestrator();
-    this.enrichmentQueue = new EnrichmentQueue();
+    this.enrichmentQueue = enrichmentQueue;
     this.scoringService = new MLScoringService();
     this.entityGraph = new EntityGraphBuilder();
     this.masterDb = new MasterDatabaseService();
