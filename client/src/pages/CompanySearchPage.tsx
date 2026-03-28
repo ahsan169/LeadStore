@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
 import { Search, Building2, Mail, Phone, Globe, MapPin, Users, DollarSign, Sparkles, X, ExternalLink, Briefcase, Download, Upload, FileSpreadsheet, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +37,12 @@ interface EnrichedCompany {
     companyPhone?: string;
     linkedin?: string;
   }>;
+  creditUsage?: {
+    contactSearches: number;
+    researchRequests: number;
+    estimatedCredits: number;
+    note: string;
+  };
 }
 
 export default function CompanySearchPage() {
@@ -48,6 +56,13 @@ export default function CompanySearchPage() {
   const [activeTab, setActiveTab] = useState<string>("search");
   const [bulkResults, setBulkResults] = useState<EnrichedCompany[]>([]);
   const [uploadProgress, setUploadProgress] = useState<string>("");
+  const [bulkIncludeOwnerPhones, setBulkIncludeOwnerPhones] = useState(false);
+  const [bulkCreditsSummary, setBulkCreditsSummary] = useState<{
+    estimatedCredits: number;
+    contactSearches?: number;
+    researchRequests?: number;
+    note?: string;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Phone bulk research state
@@ -122,6 +137,11 @@ export default function CompanySearchPage() {
         }
       } else {
         setSingleEnrichment(data);
+        const cu = data.creditUsage;
+        if (cu) {
+          setUploadProgress(`~${cu.estimatedCredits} est. credits (owner/C-level search only)`);
+          setTimeout(() => setUploadProgress(""), 5000);
+        }
       }
     } catch (err: any) {
       setError("Enrichment failed: " + err.message);
@@ -173,7 +193,11 @@ export default function CompanySearchPage() {
         };
         setSingleEnrichment(enrichedCompany);
         const contactsWithPhones = data.contacts.filter((c: any) => c.phone || c.contactPhone1).length;
-        setUploadProgress(`✅ Found ${contactsWithPhones} contacts with phone numbers!`);
+        const cu = data.creditUsage;
+        setUploadProgress(
+          `✅ ${contactsWithPhones} owner/C-level with phones` +
+            (cu ? ` — ~${cu.estimatedCredits} est. credits` : "")
+        );
         setTimeout(() => setUploadProgress(""), 3000);
       }
     } catch (err: any) {
@@ -263,12 +287,18 @@ export default function CompanySearchPage() {
     setError("");
     setUploadProgress("Uploading CSV...");
     setBulkResults([]);
+    setBulkCreditsSummary(null);
 
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('includePhoneResearch', bulkIncludeOwnerPhones ? 'true' : 'false');
 
-      setUploadProgress("Enriching companies via SeamlessAI...");
+      setUploadProgress(
+        bulkIncludeOwnerPhones
+          ? "Enriching owner/C-level + phone research (more credits)…"
+          : "Enriching owner/C-level only (minimal credits)…"
+      );
       
       const response = await fetch('/api/company-search/bulk-enrich', {
         method: 'POST',
@@ -281,7 +311,20 @@ export default function CompanySearchPage() {
         setError(data.error + ": " + (data.message || ""));
       } else {
         setBulkResults(data.companies || []);
-        setUploadProgress(`✅ Enriched ${data.enriched}/${data.processed} companies`);
+        const cs = data.creditsSummary;
+        if (cs) {
+          setBulkCreditsSummary({
+            estimatedCredits: cs.estimatedCredits,
+            contactSearches: cs.contactSearches,
+            researchRequests: cs.researchRequests,
+            note: cs.note,
+          });
+          setUploadProgress(
+            `✅ Enriched ${data.enriched}/${data.processed} companies — ~${cs.estimatedCredits} estimated credits (${cs.contactSearches ?? "?"} searches, ${cs.researchRequests ?? 0} research)`
+          );
+        } else {
+          setUploadProgress(`✅ Enriched ${data.enriched}/${data.processed} companies`);
+        }
         
         // Track bulk upload for analytics
         try {
@@ -336,7 +379,11 @@ export default function CompanySearchPage() {
       } else {
         setPhoneBulkResults(data.contacts || []);
         const withPhones = (data.contacts || []).filter((c: any) => c.phone).length;
-        setPhoneBulkProgress(`✅ Found ${withPhones} contacts with phones from ${data.processed} companies`);
+        const est = data.creditsSummary?.estimatedCredits;
+        setPhoneBulkProgress(
+          `✅ ${withPhones} owner/C-level contacts with phones from ${data.processed} companies` +
+            (est != null ? ` — ~${est} est. credits total` : "")
+        );
       }
     } catch (err: any) {
       setError("Upload failed: " + err.message);
@@ -594,9 +641,19 @@ export default function CompanySearchPage() {
                 <div className="border-2 border-dashed rounded-lg p-6 text-center">
                   <FileSpreadsheet className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
                   <h3 className="font-semibold mb-2">Bulk Company Enrichment</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Upload a CSV with company names. We'll enrich each one via SeamlessAI and return a downloadable CSV with all data.
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Upload a CSV with company names. We only return <strong>owners and C-suite</strong> (CEO, President, Founder, Owner, Chair, Chief …)—not managers or ICs. Each row uses about <strong>1 search credit</strong> by default.
                   </p>
+                  <div className="flex items-center justify-center gap-2 mb-4 text-left max-w-md mx-auto">
+                    <Checkbox
+                      id="bulk-owner-phones"
+                      checked={bulkIncludeOwnerPhones}
+                      onCheckedChange={(c) => setBulkIncludeOwnerPhones(c === true)}
+                    />
+                    <Label htmlFor="bulk-owner-phones" className="text-sm font-normal cursor-pointer">
+                      Also run <strong>phone research</strong> for up to 3 owner/C-level people per company (adds ~1 credit per researched contact; slower).
+                    </Label>
+                  </div>
                   <p className="text-xs text-muted-foreground mb-4">
                     CSV must have a column: <code className="bg-muted px-2 py-1 rounded">company_name</code> or <code className="bg-muted px-2 py-1 rounded">Company Name</code>
                   </p>
@@ -628,6 +685,11 @@ export default function CompanySearchPage() {
                   {uploadProgress && (
                     <p className="text-sm text-muted-foreground mt-3">{uploadProgress}</p>
                   )}
+                  {bulkCreditsSummary && (
+                    <p className="text-xs text-muted-foreground mt-2 max-w-lg mx-auto">
+                      Credit estimate: {bulkCreditsSummary.estimatedCredits} total (searches + research). Confirm usage in your SeamlessAI dashboard—plans vary.
+                    </p>
+                  )}
                 </div>
 
                 {/* ── Section 2: Bulk Phone Number Research ── */}
@@ -635,7 +697,7 @@ export default function CompanySearchPage() {
                   <Phone className="h-12 w-12 text-green-600 mx-auto mb-3" />
                   <h3 className="font-semibold mb-1 text-green-800 dark:text-green-400">Bulk Phone Number Research ⭐</h3>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Upload a CSV with company names or phone numbers. We'll find contacts and verified phone numbers for each.
+                    Same as above but optimized for phones: only <strong>owner / C-level</strong> contacts are researched (fewer credits than researching everyone).
                   </p>
                   <p className="text-xs text-muted-foreground mb-4">
                     CSV should have a column like: <code className="bg-muted px-2 py-1 rounded">company_name</code> or <code className="bg-muted px-2 py-1 rounded">phone_number</code>

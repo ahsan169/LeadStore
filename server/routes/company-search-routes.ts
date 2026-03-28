@@ -113,8 +113,13 @@ router.post("/enrich", async (req: Request, res: Response) => {
       });
     }
 
+    const ownerOnly = req.body.ownerOnly !== false;
+    const maxSearchResults = Math.min(Number(req.body.maxSearchResults) || 15, 50);
     console.log(`[CompanySearch] Enriching company via SeamlessAI: ${companyName}`);
-    const enrichedData = await seamlessAI.enrichCompany(companyName, domain);
+    const enrichedData = await seamlessAI.enrichCompany(companyName, domain, {
+      ownerOnly,
+      maxSearchResults,
+    });
 
     if (!enrichedData) {
       return res.status(404).json({ 
@@ -312,32 +317,87 @@ router.post("/bulk-enrich", upload.single('file'), async (req: Request, res: Res
       });
     }
 
-    console.log(`[CompanySearch] Enriching ${companyNames.length} companies...`);
+    const includePhoneResearch =
+      String(req.body.includePhoneResearch || req.query.includePhoneResearch || "") === "true";
+    const maxCompaniesCap = Math.min(
+      Number(req.body.maxCompanies || req.query.maxCompanies) || 50,
+      75
+    );
+    const maxCompanies = Math.min(companyNames.length, maxCompaniesCap);
 
-    // Enrich each company (limit to prevent timeout)
-    const maxCompanies = Math.min(companyNames.length, 50); // Limit to 50 companies per request
-    const enrichedCompanies = [];
+    let totalContactSearches = 0;
+    let totalResearchRequests = 0;
+
+    console.log(
+      `[CompanySearch] Enriching ${maxCompanies} companies (includePhoneResearch=${includePhoneResearch})…`
+    );
+
+    const enrichedCompanies: any[] = [];
 
     for (let i = 0; i < maxCompanies; i++) {
+      const name = companyNames[i];
       try {
-        console.log(`[CompanySearch] Enriching ${i + 1}/${maxCompanies}: ${companyNames[i]}`);
-        const enriched = await seamlessAI.enrichCompany(companyNames[i]);
-        
-        if (enriched) {
-          enrichedCompanies.push(enriched);
+        console.log(`[CompanySearch] ${i + 1}/${maxCompanies}: ${name}`);
+        if (includePhoneResearch) {
+          const { contacts, creditUsage } = await seamlessAI.researchContactsWithPhones(name, 15, {
+            ownersOnly: true,
+            maxResearchContacts: 3,
+          });
+          totalContactSearches += creditUsage.contactSearches;
+          totalResearchRequests += creditUsage.researchRequests;
+          const first = contacts[0];
+          const companyMeta = first
+            ? {
+                businessName: first.company || name,
+                city: first.companyCity,
+                state: first.companyState,
+                website: first.domain ? `https://${first.domain}` : undefined,
+                linkedinUrl: first.companyLIProfileUrl,
+              }
+            : { businessName: name };
+          enrichedCompanies.push({
+            ...companyMeta,
+            confidence: 95,
+            sources: ["SeamlessAI", "owner-phone-research"],
+            executives: contacts.map((c: any) => ({
+              name: c.name || `${c.firstName || ""} ${c.lastName || ""}`.trim(),
+              title: c.title || "",
+              email: c.email || c.email1,
+              phone: c.contactPhone1 || c.phone,
+              phoneConfidence: c.contactPhone1TotalAI,
+              linkedin: c.liUrl || c.linkedinUrl,
+            })),
+            creditUsage,
+          });
+        } else {
+          const enriched = await seamlessAI.enrichCompany(name, undefined, {
+            ownerOnly: true,
+            maxSearchResults: 15,
+            maxExecutives: 5,
+          });
+          if (enriched?.creditUsage) {
+            totalContactSearches += enriched.creditUsage.contactSearches;
+            totalResearchRequests += enriched.creditUsage.researchRequests;
+          }
+          if (enriched) enrichedCompanies.push(enriched);
         }
 
-        // Rate limiting - wait between requests
         if (i < maxCompanies - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+          await new Promise((r) => setTimeout(r, includePhoneResearch ? 2000 : 1000));
         }
       } catch (error: any) {
-        console.error(`[CompanySearch] Error enriching ${companyNames[i]}:`, error.message);
-        // Continue with next company
+        console.error(`[CompanySearch] Error enriching ${name}:`, error.message);
       }
     }
 
-    console.log(`[CompanySearch] ✅ Successfully enriched ${enrichedCompanies.length}/${maxCompanies} companies`);
+    const creditsSummary = {
+      contactSearches: totalContactSearches,
+      researchRequests: totalResearchRequests,
+      estimatedCredits: totalContactSearches + totalResearchRequests,
+      note: "Each company used 1 contact search" + (includePhoneResearch ? " plus up to 3 owner/C-level research requests." : " (owner/C-level only, no phone research)."),
+    };
+
+    console.log(`[CompanySearch] ✅ Done ${enrichedCompanies.length}/${maxCompanies} — ~${creditsSummary.estimatedCredits} est. credits`);
 
     res.json({
       success: true,
@@ -345,6 +405,8 @@ router.post("/bulk-enrich", upload.single('file'), async (req: Request, res: Res
       processed: maxCompanies,
       enriched: enrichedCompanies.length,
       companies: enrichedCompanies,
+      includePhoneResearch,
+      creditsSummary,
     });
 
   } catch (error: any) {
@@ -382,15 +444,21 @@ router.post("/research-contacts", async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`[CompanySearch] Researching contacts with phones for: ${companyName}`);
+    const ownersOnly = req.body.ownersOnly !== false;
+    const maxResearchContacts = Math.min(Number(req.body.maxResearchContacts) || 3, 10);
+    console.log(`[CompanySearch] Researching owner/C-level contacts with phones for: ${companyName}`);
 
-    // Use the full research flow (search → research → poll)
-    const contacts = await seamlessAI.researchContactsWithPhones(companyName, limit);
+    const { contacts, creditUsage } = await seamlessAI.researchContactsWithPhones(
+      companyName,
+      Math.min(Number(limit) || 10, 25),
+      { ownersOnly, maxResearchContacts }
+    );
 
     if (contacts.length === 0) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: "No contacts found",
-        message: `No contacts with phone numbers found for ${companyName}` 
+        message: `No owner/C-level contacts with phone research results for ${companyName}`,
+        creditUsage,
       });
     }
 
@@ -429,6 +497,7 @@ router.post("/research-contacts", async (req: Request, res: Response) => {
       companyName,
       total: formattedContacts.length,
       contacts: formattedContacts,
+      creditUsage,
     });
   } catch (error: any) {
     console.error("[CompanySearch] Research contacts error:", error);
@@ -529,7 +598,11 @@ router.post("/bulk-research-phones", upload.single('file'), async (req: Request,
       const { phone, companyName } = uniqueRows[i];
       try {
         console.log(`[CompanySearch] [${i + 1}/${maxRows}] Researching: ${companyName}`);
-        const raw = await seamlessAI.researchContactsWithPhones(companyName, 10);
+        const { contacts: raw, creditUsage: rowCredits } = await seamlessAI.researchContactsWithPhones(
+          companyName,
+          15,
+          { ownersOnly: true, maxResearchContacts: 5 }
+        );
 
         const formatted = raw.map((contact: any) => ({
           inputPhone: phone,
@@ -548,6 +621,7 @@ router.post("/bulk-research-phones", upload.single('file'), async (req: Request,
           city: contact.city || '',
           state: contact.state || '',
           linkedinUrl: contact.liUrl || contact.lIProfileUrl || contact.linkedinUrl || '',
+          _creditUsage: rowCredits,
         }));
 
         allContacts.push(...formatted);
@@ -561,6 +635,13 @@ router.post("/bulk-research-phones", upload.single('file'), async (req: Request,
       }
     }
 
+    let estCredits = 0;
+    for (const c of allContacts) {
+      const u = c._creditUsage;
+      if (u) estCredits += u.estimatedCredits;
+      delete c._creditUsage;
+    }
+
     console.log(`[CompanySearch] ✅ Bulk phone research complete: ${allContacts.length} contacts from ${maxRows} companies`);
 
     res.json({
@@ -568,6 +649,10 @@ router.post("/bulk-research-phones", upload.single('file'), async (req: Request,
       totalRows: rows.length,
       processed: maxRows,
       contacts: allContacts,
+      creditsSummary: {
+        estimatedCredits: estCredits,
+        note: "Sum of per-company: 1 search + owner/C-level research requests.",
+      },
     });
 
   } catch (error: any) {

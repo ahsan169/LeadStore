@@ -73,6 +73,69 @@ interface CompanyEnrichmentResult {
     phone?: string;
     linkedin?: string;
   }>;
+  /** Estimated SeamlessAI-style usage for this operation (actual billing may vary by plan) */
+  creditUsage?: SeamlessCreditUsage;
+}
+
+/** What we count so you can track spend; Seamless may bill differently per plan */
+export interface SeamlessCreditUsage {
+  contactSearches: number;
+  researchRequests: number;
+  /** Typical model: 1 per search + 1 per researched contact */
+  estimatedCredits: number;
+  note: string;
+}
+
+const CREDITS_NOTE =
+  "Estimated credits: each contact search counts as 1; each phone/email research request counts as 1. Your SeamlessAI plan may differ—check your dashboard.";
+
+/** True for CEO / owner / founder / President / Chair / C-suite only—not managers or ICs */
+export function isOwnerOrCLevelTitle(title?: string | null, seniority?: string | null): boolean {
+  const s = (seniority || "").toLowerCase();
+  if (s.includes("c_suite") || s === "owner") return true;
+  const t = (title || "").trim();
+  if (!t) return false;
+  const tl = t.toLowerCase();
+  if (/\b(assistant|intern|coordinator|specialist|analyst|associate)\b/i.test(tl) && !/\bchief\b/i.test(tl))
+    return false;
+  if (/\b(vp|vice president|director|manager|head of)\b/i.test(tl) && !/\b(chief|president|founder|owner)\b/i.test(tl))
+    return false;
+  const patterns = [
+    /\bceo\b|\bchief executive\b/,
+    /\bcfo\b|\bchief financial\b/,
+    /\bcoo\b|\bchief operating\b/,
+    /\bcto\b|\bchief technology\b|\bchief technical\b/,
+    /\bcmo\b|\bchief marketing\b/,
+    /\bcio\b|\bchief information\b/,
+    /\bcro\b|\bchief revenue\b/,
+    /\bcpo\b|\bchief product\b/,
+    /\bcdo\b|\bchief data\b/,
+    /\bchief\b/,
+    /\bpresident\b/,
+    /\bfounder\b|\bco-founder\b|\bcofounder\b/,
+    /\bowner\b/,
+    /\bchair(man|woman|person)?\b|\bexecutive chair\b/,
+    /\bmanaging director\b/,
+    /\bgeneral partner\b/,
+  ];
+  return patterns.some((p) => p.test(tl));
+}
+
+function sortContactsByOwnerPriority(contacts: SeamlessContact[]): SeamlessContact[] {
+  const rank = (c: SeamlessContact): number => {
+    const t = ((c.title || "") + " " + (c.seniority || "")).toLowerCase();
+    if (/\bceo\b|\bchief executive\b/.test(t)) return 0;
+    if (/\bowner\b|\bfounder\b|\bco-founder\b/.test(t)) return 1;
+    if (/\bpresident\b/.test(t)) return 2;
+    if (/\bchair/.test(t)) return 3;
+    if (/\bchief\b/.test(t)) return 4;
+    return 5;
+  };
+  return [...contacts].sort((a, b) => rank(a) - rank(b));
+}
+
+function filterOwnerOrCLevelContacts(contacts: SeamlessContact[]): SeamlessContact[] {
+  return contacts.filter((c) => isOwnerOrCLevelTitle(c.title, c.seniority));
 }
 
 export class SeamlessAIService {
@@ -196,82 +259,88 @@ export class SeamlessAIService {
   }
 
   /**
-   * Enrich a single company with full details
+   * Enrich a single company — owners / C-level only by default (fewer credits than pulling all roles).
    */
-  async enrichCompany(companyName: string, domain?: string): Promise<CompanyEnrichmentResult | null> {
+  async enrichCompany(
+    companyName: string,
+    domain?: string,
+    options?: {
+      /** If true (default), only CEO / founder / owner / President / Chair / C-suite */
+      ownerOnly?: boolean;
+      /** Cap contact search size (lower = fewer credits, may miss rare titles) */
+      maxSearchResults?: number;
+      /** Max owner/C-level rows returned */
+      maxExecutives?: number;
+    }
+  ): Promise<CompanyEnrichmentResult | null> {
     if (!this.apiKey) {
       console.log('[SeamlessAI] API not configured, returning null');
       return null;
     }
 
+    const ownerOnly = options?.ownerOnly !== false;
+    const maxSearch = Math.min(Math.max(options?.maxSearchResults ?? 15, 5), 50);
+    const maxExec = Math.min(Math.max(options?.maxExecutives ?? 5, 1), 15);
+
     try {
-      // Search for contacts at this company to get detailed info
-      const contactData = await this.searchContactsByCompany(companyName, 50);
+      const contactData = await this.searchContactsByCompany(companyName, maxSearch);
+
+      const creditUsage: SeamlessCreditUsage = {
+        contactSearches: 1,
+        researchRequests: 0,
+        estimatedCredits: 1,
+        note: CREDITS_NOTE,
+      };
 
       if (!contactData.data || contactData.data.length === 0) {
         console.log(`[SeamlessAI] No data found for: ${companyName}`);
         return null;
       }
 
-      // Extract company and executive information
-      const firstContact = contactData.data[0];
-      
-      // Log first contact to see what data is available
-      console.log(`[SeamlessAI] Sample contact data:`, {
-        name: firstContact.name,
-        email: firstContact.email,
-        phone: firstContact.phone,
-        hasEmail: !!firstContact.email,
-        hasPhone: !!firstContact.phone,
-      });
-      
-      const executives = contactData.data
-        .filter(c => c.title && (
-          c.title.toLowerCase().includes('ceo') ||
-          c.title.toLowerCase().includes('president') ||
-          c.title.toLowerCase().includes('founder') ||
-          c.title.toLowerCase().includes('owner') ||
-          c.title.toLowerCase().includes('chief') ||
-          c.seniority === 'c_suite'
-        ))
-        .map(c => ({
-          name: c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim(),
-          title: c.title || 'Executive',
-          email: c.email,
-          phone: c.phone,
-          linkedin: c.liUrl,
-        }));
-      
-      console.log(`[SeamlessAI] Executives with email/phone:`, 
-        executives.filter(e => e.email || e.phone).length + '/' + executives.length);
+      const pool = ownerOnly
+        ? filterOwnerOrCLevelContacts(contactData.data)
+        : contactData.data;
+      const ranked = sortContactsByOwnerPriority(pool.length ? pool : contactData.data);
+      const firstContact = ranked[0] || contactData.data[0];
 
-      // Parse employee range
-      const employeeRange = firstContact.employeeSizeRange || '';
+      const executives = ranked.slice(0, maxExec).map((c) => ({
+        name: c.name || `${c.firstName || ""} ${c.lastName || ""}`.trim(),
+        title: c.title || "Executive",
+        email: c.email,
+        phone: c.phone,
+        linkedin: c.liUrl,
+      }));
+
+      const primary = executives[0];
+      const employeeRange = firstContact.employeeSizeRange || "";
       const employeeCount = this.parseEmployeeCount(employeeRange);
 
       const result: CompanyEnrichmentResult = {
         businessName: firstContact.company || companyName,
-        ownerName: executives[0]?.name,
-        email: executives[0]?.email || contactData.data[0]?.email,
-        phone: contactData.data[0]?.phone,
-        industry: firstContact.industries?.join(', '),
+        ownerName: primary?.name,
+        email: primary?.email,
+        phone: primary?.phone,
+        industry: firstContact.industries?.join(", "),
         website: firstContact.domain ? `https://${firstContact.domain}` : undefined,
         city: firstContact.companyCity,
         state: firstContact.companyState,
         employeeCount,
-        founded: firstContact.companyFoundedOn ? parseInt(firstContact.companyFoundedOn) : undefined,
+        founded: firstContact.companyFoundedOn ? parseInt(firstContact.companyFoundedOn, 10) : undefined,
         linkedinUrl: firstContact.companyLIProfileUrl,
-        description: `${firstContact.company} - ${firstContact.industries?.join(', ') || 'Company'}`,
-        confidence: 95, // High confidence from real API
-        sources: ['SeamlessAI', 'LiveData'],
-        executives: executives.slice(0, 5), // Top 5 executives
+        description: `${firstContact.company} - ${firstContact.industries?.join(", ") || "Company"}`,
+        confidence: 95,
+        sources: ownerOnly ? ["SeamlessAI", "owners-c-suite-only"] : ["SeamlessAI", "LiveData"],
+        executives,
         socialMedia: {
           linkedin: firstContact.companyLIProfileUrl,
         },
+        creditUsage,
       };
 
-      console.log(`[SeamlessAI] ✅ Enriched: ${result.businessName} (${executives.length} executives found)`);
-      
+      console.log(
+        `[SeamlessAI] ✅ Enriched: ${result.businessName} (${executives.length} owner/C-level) ~${creditUsage.estimatedCredits} est. credits`
+      );
+
       return result;
     } catch (error: any) {
       console.error(`[SeamlessAI] Error enriching ${companyName}:`, error.message);
@@ -515,52 +584,84 @@ export class SeamlessAIService {
   }
 
   /**
-   * Full research flow: Search → Research → Poll → Get contacts with phone numbers
-   * This is the complete flow from the Python script
+   * Full research flow: Search → Research → Poll → Get contacts with phone numbers.
+   * When ownersOnly (default true), only C-suite / owners are researched — saves credits vs researching every contact.
    */
-  async researchContactsWithPhones(companyName: string, limit: number = 10): Promise<SeamlessContact[]> {
+  async researchContactsWithPhones(
+    companyName: string,
+    limit: number = 10,
+    options?: { ownersOnly?: boolean; maxResearchContacts?: number }
+  ): Promise<{ contacts: SeamlessContact[]; creditUsage: SeamlessCreditUsage }> {
     if (!this.apiKey) {
-      throw new Error('SeamlessAI API key not configured');
+      throw new Error("SeamlessAI API key not configured");
     }
 
-    console.log(`[SeamlessAI] 🔍 Starting full research flow for: ${companyName}`);
+    const ownersOnly = options?.ownersOnly !== false;
+    const maxResearch = Math.min(Math.max(options?.maxResearchContacts ?? 3, 1), 10);
 
-    // Step 1: Search contacts
+    console.log(`[SeamlessAI] 🔍 Research flow for: ${companyName} (ownersOnly=${ownersOnly}, maxResearch=${maxResearch})`);
+
     const searchResponse = await this.searchContactsByCompany(companyName, limit);
-    
-    if (!searchResponse.data || searchResponse.data.length === 0) {
-      console.log(`[SeamlessAI] ❌ No contacts found for: ${companyName}`);
-      return [];
+
+    let pool = searchResponse.data || [];
+    if (ownersOnly) {
+      const filtered = filterOwnerOrCLevelContacts(pool);
+      if (filtered.length > 0) pool = sortContactsByOwnerPriority(filtered);
+    } else {
+      pool = sortContactsByOwnerPriority([...pool]);
     }
 
-    // Extract search result IDs
-    const searchResultIds = searchResponse.data
-      .map(item => (item as any).searchResultId)
-      .filter((id): id is string => !!id);
+    if (pool.length === 0) {
+      console.log(`[SeamlessAI] ❌ No contacts found for: ${companyName}`);
+      return {
+        contacts: [],
+        creditUsage: {
+          contactSearches: 1,
+          researchRequests: 0,
+          estimatedCredits: 1,
+          note: CREDITS_NOTE,
+        },
+      };
+    }
+
+    const withIds = pool
+      .map((item) => ({ item, id: (item as any).searchResultId as string | undefined }))
+      .filter((x): x is { item: SeamlessContact; id: string } => !!x.id)
+      .slice(0, maxResearch);
+
+    const searchResultIds = withIds.map((x) => x.id);
 
     if (searchResultIds.length === 0) {
-      console.warn(`[SeamlessAI] ⚠️ No search result IDs found`);
-      return [];
+      console.warn(`[SeamlessAI] ⚠️ No search result IDs (need searchResultId on contacts)`);
+      return {
+        contacts: [],
+        creditUsage: {
+          contactSearches: 1,
+          researchRequests: 0,
+          estimatedCredits: 1,
+          note: CREDITS_NOTE,
+        },
+      };
     }
 
-    console.log(`[SeamlessAI] ✅ Found ${searchResultIds.length} search result IDs`);
+    console.log(`[SeamlessAI] ✅ Researching ${searchResultIds.length} owner/C-level contact(s) (not ${searchResponse.data?.length ?? 0} total)`);
 
-    // Step 2: Create research requests
     const researchIds = await this.createResearchRequests(searchResultIds);
+    const contacts =
+      researchIds.length > 0 ? await this.pollResearchResults(researchIds) : [];
 
-    if (researchIds.length === 0) {
-      console.warn(`[SeamlessAI] ⚠️ No research IDs created`);
-      return [];
-    }
+    const creditUsage: SeamlessCreditUsage = {
+      contactSearches: 1,
+      researchRequests: researchIds.length,
+      estimatedCredits: 1 + researchIds.length,
+      note: CREDITS_NOTE,
+    };
 
-    console.log(`[SeamlessAI] 🚀 Research jobs created: ${researchIds.length}`);
+    console.log(
+      `[SeamlessAI] 📦 ${contacts.length} contacts with research data ~${creditUsage.estimatedCredits} est. credits`
+    );
 
-    // Step 3: Poll for results (this is where phone numbers come from)
-    const contacts = await this.pollResearchResults(researchIds);
-
-    console.log(`[SeamlessAI] 📦 Final results: ${contacts.length} contacts with phone numbers`);
-
-    return contacts;
+    return { contacts, creditUsage };
   }
 }
 
