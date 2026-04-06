@@ -159,12 +159,14 @@ echo -e "${YELLOW}Step 12: Creating .env file...${NC}"
 read -p "Enter SeamlessAI API key: " SEAMLESS_KEY
 read -p "Enter SESSION_SECRET (or press Enter for random): " SESSION_SECRET
 SESSION_SECRET=${SESSION_SECRET:-$(openssl rand -hex 32)}
+ENCRYPTION_KEY=$(openssl rand -hex 32)
 
 ENV_CONTENT="DATABASE_URL=postgresql://leaduser:$DB_PASSWORD@localhost:5432/leadstorefront
 PORT=3000
 NODE_ENV=production
 SEAMLESS_API_KEY=$SEAMLESS_KEY
-SESSION_SECRET=$SESSION_SECRET"
+SESSION_SECRET=$SESSION_SECRET
+ENCRYPTION_KEY=$ENCRYPTION_KEY"
 
 remote_exec "sudo -u leadapp bash -c 'cat > /home/leadapp/LeadStorefrontAI/.env << EOF
 $ENV_CONTENT
@@ -179,7 +181,7 @@ echo -e "${GREEN}✅ Database migrations completed${NC}"
 
 echo ""
 echo -e "${YELLOW}Step 14: Starting application with PM2...${NC}"
-remote_exec "cd /home/leadapp/LeadStorefrontAI && sudo -u leadapp pm2 start ecosystem.config.js"
+remote_exec "cd /home/leadapp/LeadStorefrontAI && sudo -u leadapp pm2 start ecosystem.config.cjs"
 remote_exec "sudo -u leadapp pm2 save"
 remote_exec "sudo -u leadapp pm2 startup | tail -1 | bash" || echo "PM2 startup already configured"
 echo -e "${GREEN}✅ Application started${NC}"

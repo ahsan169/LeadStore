@@ -1,6 +1,8 @@
 import * as schema from "@shared/schema";
-import { Pool as PgPool } from 'pg';
-import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
+import { Pool as PgPool } from "pg";
+import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
+import { neon } from "@neondatabase/serverless";
+import { drizzle as drizzleNeon } from "drizzle-orm/neon-http";
 
 if (!process.env.DATABASE_URL) {
   throw new Error(
@@ -8,24 +10,9 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Use Neon serverless for Neon databases, regular pg for local PostgreSQL
-const isNeonDatabase = process.env.DATABASE_URL.includes('neon.tech');
+const url = process.env.DATABASE_URL;
+const isNeonDatabase = url.includes("neon.tech");
 
-let db: ReturnType<typeof drizzlePg>;
-
-if (isNeonDatabase) {
-  // Use Neon serverless driver for Neon databases
-  const { Pool, neonConfig } = await import('@neondatabase/serverless');
-  const { drizzle } = await import('drizzle-orm/neon-serverless');
-  const ws = await import("ws");
-  
-  neonConfig.webSocketConstructor = ws.default;
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  db = drizzle({ client: pool, schema });
-} else {
-  // Use regular PostgreSQL driver for local/other databases
-  const pool = new PgPool({ connectionString: process.env.DATABASE_URL });
-  db = drizzlePg({ client: pool, schema });
-}
-
-export { db };
+export const db = isNeonDatabase
+  ? drizzleNeon(neon(url), { schema })
+  : drizzlePg({ client: new PgPool({ connectionString: url }), schema });

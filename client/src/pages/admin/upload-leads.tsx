@@ -21,8 +21,6 @@ import {
   Clock,
   Activity,
   Loader2,
-  Wifi,
-  WifiOff,
   Cloud,
   Link,
   Download
@@ -75,11 +73,17 @@ export default function UploadLeadsPage() {
   const [strictnessLevel, setStrictnessLevel] = useState<'strict' | 'moderate' | 'lenient'>('moderate');
   const [useEnrichment, setUseEnrichment] = useState(false);
   const [verificationProgress, setVerificationProgress] = useState<VerificationProgress | null>(null);
-  const [wsConnected, setWsConnected] = useState(false);
   const [driveLink, setDriveLink] = useState('');
   const [driveProgress, setDriveProgress] = useState<any>(null);
   const [googleDriveConnected, setGoogleDriveConnected] = useState<boolean | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const uploadPollMetaRef = useRef<{
+    useAiVerification: boolean;
+    summary: {
+      totalLeads: number;
+      aiPowered?: boolean;
+      averageConfidenceScore?: number;
+    };
+  } | null>(null);
   const { toast } = useToast();
 
   // Check Google Drive connection status on mount
@@ -97,63 +101,84 @@ export default function UploadLeadsPage() {
     });
   }, []);
 
-  // Setup WebSocket connection for real-time progress
   useEffect(() => {
-    if (!uploading) return;
+    if (!sessionId || currentStep !== "process") return;
+    let cancelled = false;
+    const fallbackTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        window.location.href = `/admin/verify-leads?session=${sessionId}`;
+      }
+    }, 120000);
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    
-    ws.onopen = () => {
-      console.log('WebSocket connected for verification progress');
-      setWsConnected(true);
+    const mapSession = (session: {
+      totalLeads: number;
+      verifiedCount: number;
+      warningCount: number;
+      failedCount: number;
+      duplicateCount: number;
+      status: string;
+    }): VerificationProgress => {
+      const total = Math.max(session.totalLeads, 1);
+      const processed =
+        session.verifiedCount +
+        session.warningCount +
+        session.failedCount +
+        session.duplicateCount;
+      const pct = Math.min(100, Math.round((processed / total) * 100));
+      return {
+        totalLeads: session.totalLeads,
+        processedLeads: processed,
+        percentage: pct,
+        currentBatch: 1,
+        totalBatches: 1,
+        estimatedTimeRemaining: 0,
+        status: session.status === "completed" ? "done" : "processing",
+        message:
+          session.status === "completed"
+            ? "Verification complete"
+            : `Verifying leads… (${processed}/${total})`,
+      };
     };
-    
-    ws.onmessage = (event) => {
+
+    const tick = async () => {
       try {
-        const message = JSON.parse(event.data);
-        if (message.type === 'verification-progress' && message.sessionId === sessionId) {
-          setVerificationProgress(message.data);
-          
-          // Show stage transitions
-          if (message.data.status === 'done') {
-            toast({
-              title: "✅ Verification Complete!",
-              description: `Successfully verified ${message.data.totalLeads} leads`,
-            });
-          } else if (message.data.status === 'error') {
-            toast({
-              title: "❌ Verification Error",
-              description: message.data.message,
-              variant: "destructive",
-            });
-          }
-        } else if (message.type === 'google-drive-progress') {
-          setDriveProgress(message.data);
+        const res = await fetch(`/api/admin/verification-session/${sessionId}`, {
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        const session = json.session;
+        setVerificationProgress(mapSession(session));
+        if (session.status === "completed" && !cancelled) {
+          window.clearTimeout(fallbackTimer);
+          const meta = uploadPollMetaRef.current;
+          const aiDescription =
+            meta?.summary?.aiPowered && meta.summary.averageConfidenceScore != null
+              ? ` AI confidence: ${meta.summary.averageConfidenceScore}%.`
+              : "";
+          toast({
+            title: meta?.useAiVerification ? "AI Verification complete" : "Verification complete",
+            description: `${session.totalLeads} leads verified.${aiDescription} Redirecting to review…`,
+          });
+          uploadPollMetaRef.current = null;
+          setUploading(false);
+          window.setTimeout(() => {
+            window.location.href = `/admin/verify-leads?session=${sessionId}`;
+          }, 800);
         }
-      } catch (error) {
-        console.error('Failed to parse WebSocket message:', error);
+      } catch {
+        /* ignore */
       }
     };
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setWsConnected(false);
-    };
-    
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setWsConnected(false);
-    };
-    
-    wsRef.current = ws;
-    
+
+    tick();
+    const interval = window.setInterval(tick, 1500);
     return () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
+      cancelled = true;
+      window.clearInterval(interval);
+      window.clearTimeout(fallbackTimer);
     };
-  }, [uploading, sessionId, toast]);
+  }, [sessionId, currentStep, toast]);
 
   const steps: WizardStep[] = ['upload', 'validate', 'process', 'complete'];
   const stepLabels = {
@@ -328,8 +353,6 @@ export default function UploadLeadsPage() {
         let errorMessage = error.error || 'Upload failed';
         if (errorMessage.includes('File format')) {
           errorMessage = 'Invalid file format. Please upload a CSV or Excel file.';
-        } else if (errorMessage.includes('WebSocket')) {
-          errorMessage = 'Connection error. Please try again.';
         } else if (errorMessage.includes('OpenAI')) {
           errorMessage = 'AI verification service temporarily unavailable. Please try again.';
         }
@@ -352,41 +375,12 @@ export default function UploadLeadsPage() {
         }
       };
       
-      // Store session ID for WebSocket tracking
+      uploadPollMetaRef.current = {
+        useAiVerification,
+        summary: data.summary,
+      };
       setSessionId(data.sessionId);
-      
-      // Show verification in progress
-      setCurrentStep('process');
-      
-      // Wait for WebSocket completion or timeout after 60 seconds
-      const redirectTimeout = setTimeout(() => {
-        if (verificationProgress?.status !== 'done') {
-          // Redirect even if WebSocket didn't complete
-          window.location.href = `/admin/verify-leads?session=${data.sessionId}`;
-        }
-      }, 60000);
-      
-      // Watch for completion via WebSocket
-      const checkInterval = setInterval(() => {
-        if (verificationProgress?.status === 'done') {
-          clearInterval(checkInterval);
-          clearTimeout(redirectTimeout);
-          
-          setTimeout(() => {
-            const aiDescription = data.summary.aiPowered 
-              ? ` AI confidence: ${data.summary.averageConfidenceScore}%.`
-              : '';
-            
-            toast({
-              title: useAiVerification ? "AI Verification complete" : "Verification complete",
-              description: `${data.summary.totalLeads} leads verified.${aiDescription} Redirecting to review page...`,
-            });
-            
-            // Redirect to verification preview page with session ID
-            window.location.href = `/admin/verify-leads?session=${data.sessionId}`;
-          }, 1000);
-        }
-      }, 500);
+      setCurrentStep("process");
 
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -404,6 +398,9 @@ export default function UploadLeadsPage() {
     setCurrentStep('upload');
     setFile(null);
     setBatchId('');
+    setSessionId('');
+    setVerificationProgress(null);
+    uploadPollMetaRef.current = null;
     setSummary(null);
   };
 
@@ -973,12 +970,10 @@ export default function UploadLeadsPage() {
               <Brain className="w-5 h-5 text-purple-600 animate-pulse" />
               Step 3: AI Verification in Progress
             </h2>
-            {wsConnected && (
-              <Badge variant="outline" className="w-fit gap-1 border-green-500 text-green-600">
-                <Wifi className="w-3 h-3" />
-                Live Updates
-              </Badge>
-            )}
+            <Badge variant="outline" className="w-fit gap-1 border-green-500 text-green-600">
+              <Activity className="w-3 h-3" />
+              Polling status
+            </Badge>
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Enhanced Progress Bar Section */}
@@ -1098,12 +1093,10 @@ export default function UploadLeadsPage() {
                 <p className="text-sm text-muted-foreground mt-2">
                   Connecting to verification service
                 </p>
-                {!wsConnected && (
-                  <Badge variant="outline" className="mt-4 gap-1 border-yellow-500 text-yellow-600">
-                    <WifiOff className="w-3 h-3" />
-                    Establishing connection...
-                  </Badge>
-                )}
+                <Badge variant="outline" className="mt-4 gap-1 border-muted-foreground/50 text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Fetching session status…
+                </Badge>
               </div>
             )}
           </CardContent>

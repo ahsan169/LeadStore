@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -129,116 +129,10 @@ export default function IntelligenceCenter() {
     phone: "",
     address: ""
   });
-  const [wsConnected, setWsConnected] = useState(false);
-
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: NodeJS.Timeout;
-
-    const connectWebSocket = () => {
-      // Use the same WebSocket endpoint as the Command Center
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${protocol}://${window.location.host}/ws`;
-      
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        setWsConnected(true);
-        console.log('Intelligence Center WebSocket connected');
-        
-        // Subscribe to enrichment updates
-        ws?.send(JSON.stringify({
-          type: 'subscribe',
-          channel: 'enrichment_updates'
-        }));
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          
-          switch (data.type) {
-            case 'enrichment_started':
-              toast({
-                title: "Enrichment Started",
-                description: `Enriching ${data.leadName || 'lead'} with ${data.source}`,
-              });
-              refetchStats();
-              refetchLeads();
-              break;
-              
-            case 'enrichment_completed':
-              toast({
-                title: "Enrichment Complete",
-                description: `${data.leadName || 'Lead'} enriched successfully`,
-              });
-              refetchStats();
-              refetchLeads();
-              break;
-              
-            case 'enrichment_failed':
-              toast({
-                title: "Enrichment Failed",
-                description: data.error || "Failed to enrich lead",
-                variant: "destructive",
-              });
-              refetchStats();
-              break;
-              
-            case 'queue_update':
-              refetchStats();
-              break;
-              
-            case 'batch_progress':
-              // Update batch progress in real-time
-              if (data.progress && data.total) {
-                const percentage = Math.round((data.progress / data.total) * 100);
-                toast({
-                  title: "Batch Progress",
-                  description: `Processing: ${data.progress} of ${data.total} (${percentage}%)`,
-                });
-              }
-              break;
-          }
-        } catch (error) {
-          console.error('WebSocket message parsing error:', error);
-        }
-      };
-
-      ws.onclose = () => {
-        setWsConnected(false);
-        console.log('Intelligence Center WebSocket disconnected');
-        
-        // Attempt to reconnect after 3 seconds
-        reconnectTimeout = setTimeout(() => {
-          if (ws?.readyState === WebSocket.CLOSED) {
-            connectWebSocket();
-          }
-        }, 3000);
-      };
-
-      ws.onerror = (error) => {
-        console.error('Intelligence Center WebSocket error:', error);
-        setWsConnected(false);
-      };
-    };
-
-    connectWebSocket();
-
-    // Cleanup on unmount
-    return () => {
-      clearTimeout(reconnectTimeout);
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      }
-    };
-  }, [toast]);
-
   // Query for intelligence statistics
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery<IntelligenceStats>({
     queryKey: ['/api/master/analytics'],
-    refetchInterval: 5000, // Poll every 5 seconds for real-time updates
+    refetchInterval: import.meta.env.DEV ? 4000 : 8000,
   });
 
   // Query for enriched leads with intelligence data
@@ -273,6 +167,7 @@ export default function IntelligenceCenter() {
       
       return { leads: enrichedLeads, totalCount: data.totalCount || enrichedLeads.length };
     },
+    refetchInterval: import.meta.env.DEV ? 6000 : 12000,
   });
 
   // Query for system status
@@ -529,11 +424,11 @@ export default function IntelligenceCenter() {
         </div>
         <div className="flex items-center gap-2">
           <Badge 
-            variant={wsConnected ? "outline" : "destructive"} 
+            variant="outline" 
             className="flex items-center gap-1"
           >
-            <Activity className={cn("w-3 h-3", wsConnected && "animate-pulse")} />
-            {wsConnected ? 'Live Updates' : 'Connecting...'}
+            <Activity className={cn("w-3 h-3 animate-pulse")} />
+            Polling
           </Badge>
           <Badge variant="outline" className="flex items-center gap-1">
             <Shield className="w-3 h-3" />

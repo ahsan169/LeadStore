@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import type { InsertVerificationResult } from "@shared/schema";
 import { storage } from "./storage";
-import { WebSocket } from "ws";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "default",
@@ -67,7 +66,6 @@ interface BatchVerificationRequest {
 export class OptimizedAIVerificationEngine {
   private strictnessLevel: 'strict' | 'moderate' | 'lenient';
   private progressCallback?: (progress: VerificationProgress) => void;
-  private wsClients: Set<WebSocket> = new Set();
   private existingLeads: Map<string, any> = new Map();
   private abortController: AbortController;
   private startTime: number = 0;
@@ -82,30 +80,12 @@ export class OptimizedAIVerificationEngine {
     this.abortController = new AbortController();
   }
 
-  /**
-   * Add WebSocket client for real-time updates
-   */
-  addWebSocketClient(ws: WebSocket) {
-    this.wsClients.add(ws);
-    ws.on('close', () => this.wsClients.delete(ws));
-  }
+  addWebSocketClient(_ws: unknown): void {}
 
-  /**
-   * Send progress update to all connected clients
-   */
   private sendProgress(progress: VerificationProgress) {
-    // Call the callback if provided
     if (this.progressCallback) {
       this.progressCallback(progress);
     }
-
-    // Send to all WebSocket clients
-    const message = JSON.stringify({ type: 'verification-progress', data: progress });
-    this.wsClients.forEach(client => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
-    });
   }
 
   /**

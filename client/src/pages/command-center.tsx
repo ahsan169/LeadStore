@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -288,9 +288,6 @@ export default function CommandCenter() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
-  const [isConnected, setIsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-
   // Get URL params for tab navigation
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -303,13 +300,12 @@ export default function CommandCenter() {
   // Fetch unified dashboard data
   const { data: dashboardData, isLoading: dashboardLoading } = useQuery<any>({
     queryKey: ["/api/command-center/dashboard"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: import.meta.env.DEV ? 8000 : 15000,
   });
 
-  // Fetch activity log
   const { data: activities = [], isLoading: activitiesLoading } = useQuery<any[]>({
     queryKey: ["/api/command-center/activity"],
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: import.meta.env.DEV ? 5000 : 12000,
   });
 
   // Fetch API keys
@@ -321,86 +317,6 @@ export default function CommandCenter() {
   const { data: webhooks = [], isLoading: webhooksLoading } = useQuery<any[]>({
     queryKey: ["/api/v1/webhooks"],
   });
-
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    const connectWebSocket = () => {
-      try {
-        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = `${wsProtocol}//${window.location.host}/ws/command-center`;
-        
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          console.log("Command Center WebSocket connected");
-          setIsConnected(true);
-          toast({
-            title: "Connected",
-            description: "Real-time updates enabled",
-          });
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            handleRealtimeUpdate(data);
-          } catch (error) {
-            console.error("Error parsing WebSocket message:", error);
-          }
-        };
-
-        ws.onerror = (error) => {
-          console.error("WebSocket error:", error);
-          setIsConnected(false);
-        };
-
-        ws.onclose = () => {
-          console.log("WebSocket disconnected");
-          setIsConnected(false);
-          // Reconnect after 3 seconds
-          setTimeout(connectWebSocket, 3000);
-        };
-      } catch (error) {
-        console.error("Failed to connect WebSocket:", error);
-        setIsConnected(false);
-      }
-    };
-
-    connectWebSocket();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, []);
-
-  const handleRealtimeUpdate = (data: any) => {
-    switch (data.type) {
-      case "metrics-update":
-        queryClient.setQueryData(["/api/command-center/dashboard"], (old: any) => ({
-          ...old,
-          metrics: data.metrics,
-        }));
-        break;
-      case "activity":
-        queryClient.setQueryData(["/api/command-center/activity"], (old: any) => {
-          const newActivities = [data.activity, ...(old || [])].slice(0, 100);
-          return newActivities;
-        });
-        break;
-      case "alert":
-        toast({
-          title: data.title,
-          description: data.description,
-          variant: data.variant || "default",
-        });
-        break;
-      default:
-        console.log("Unknown WebSocket message type:", data.type);
-    }
-  };
 
   const handleQuickAction = async (action: string) => {
     switch (action) {
@@ -443,12 +359,11 @@ export default function CommandCenter() {
       <header className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-bold">Command Center</h1>
-          <Badge variant={isConnected ? "default" : "secondary"} className="gap-1">
+          <Badge variant="secondary" className="gap-1">
             <div className={cn(
-              "w-2 h-2 rounded-full",
-              isConnected ? "bg-green-500 animate-pulse" : "bg-gray-400"
+              "w-2 h-2 rounded-full bg-green-500 animate-pulse"
             )} />
-            {isConnected ? "Live" : "Offline"}
+            Polling
           </Badge>
         </div>
         <div className="flex items-center gap-2">
@@ -689,10 +604,10 @@ export default function CommandCenter() {
                   <Label>Real-time Updates</Label>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
-                      Enable WebSocket connection for live data
+                      Dashboard refreshes automatically via HTTP polling
                     </span>
-                    <Badge variant={isConnected ? "default" : "secondary"}>
-                      {isConnected ? "Connected" : "Disconnected"}
+                    <Badge variant="secondary">
+                      HTTP polling
                     </Badge>
                   </div>
                 </div>

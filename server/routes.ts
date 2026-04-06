@@ -30,8 +30,7 @@ import { LeadVerificationEngine, StrictnessLevel } from "./lead-verification";
 import { AIVerificationEngine } from "./ai-verification";
 import { OptimizedAIVerificationEngine } from "./ai-verification-optimized";
 import { uccIntelligenceExtractor } from "./services/ucc-intelligence-extractor";
-import { WebSocketServer, WebSocket } from 'ws';
-import { leadAlertService, addAlertClient } from "./services/lead-alerts";
+import { leadAlertService } from "./services/lead-alerts";
 import { leadEnrichmentService } from "./services/lead-enrichment";
 import { qualityGuaranteeService } from "./services/quality-guarantee";
 import { comprehensiveLeadEnricher } from "./services/comprehensive-lead-enricher";
@@ -1139,9 +1138,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
   
-  // Initialize Command Center WebSocket server
   commandCenterService.initializeWebSocketServer(server);
-  
+
   // Register enrichment queue management routes
   registerEnrichmentQueueRoutes(app);
   
@@ -2400,43 +2398,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // batchStats is already initialized outside try block
       
-      // Get WebSocket server for progress updates
-      const wss = app.get('wss') as WebSocketServer;
-      
-      // Create optimized AI verification engine with progress callback
       const aiVerificationEngine = new OptimizedAIVerificationEngine(
         strictnessLevel,
         (progress) => {
-          // Send progress to all connected WebSocket clients
-          const progressMessage = JSON.stringify({ 
-            type: 'verification-progress', 
-            sessionId: createdSession.id,
-            data: {
-              ...progress,
-              savedLeads: batchStats.totalImported, // Add saved count to progress
-              message: progress.message + ` (${batchStats.totalImported} leads saved)`
-            }
-          });
-          
-          const innerWss = app.get('wss') as WebSocketServer;
-          if (innerWss && innerWss.clients) {
-            innerWss.clients.forEach((client: WebSocket) => {
-              if (client.readyState === 1) { // WebSocket.OPEN = 1
-                client.send(progressMessage);
-              }
-            });
-          }
-        }
+          void progress;
+        },
       );
-      
-      // Add WebSocket clients that are connected
-      if (wss && wss.clients) {
-        wss.clients.forEach((client: WebSocket) => {
-          if (client.readyState === 1) { // WebSocket.OPEN = 1
-            aiVerificationEngine.addWebSocketClient(client);
-          }
-        });
-      }
       
       console.log(`Starting AI verification for ${normalizedLeads.length} leads with ${strictnessLevel} strictness`);
       
@@ -2560,49 +2527,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           batchStats.lastBatchSaved = batchIndex;
           batchSaveStatus[batchIndex].saved = true;
           
-          // Send progress update with actual saved counts
-          const wss = app.get('wss') as WebSocketServer;
-          if (wss && wss.clients) {
-            wss.clients.forEach(client => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'batch-save-complete',
-                  data: {
-                    batchIndex: batchIndex + 1,
-                    totalBatches,
-                    leadsSaved: batchSaveStatus[batchIndex].leadsSaved,
-                    totalSaved: batchStats.totalImported,
-                    totalProcessed: (batchIndex + 1) * batchResults.length
-                  }
-                }));
-              }
-            });
-          }
-          
         } catch (saveError: any) {
           // Record the error for this batch
           batchSaveStatus[batchIndex].error = saveError.message;
           
           console.error(`[AI Verification] CRITICAL ERROR saving batch ${batchIndex + 1}:`, saveError);
           console.error(`[AI Verification] Batch ${batchIndex + 1} status: verificationResults=${verificationResultsSaved}, leads=${leadsSaved.length}, batchUpdate=${batchUpdated}`);
-          
-          // Send error notification via WebSocket
-          const wss = app.get('wss') as WebSocketServer;
-          if (wss && wss.clients) {
-            wss.clients.forEach(client => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'batch-save-error',
-                  data: {
-                    batchIndex: batchIndex + 1,
-                    totalBatches,
-                    error: saveError.message,
-                    partialSave: verificationResultsSaved || leadsSaved.length > 0
-                  }
-                }));
-              }
-            });
-          }
           
           // Re-throw the error to abort further processing
           // The AI engine will catch this and stop processing remaining batches
@@ -2665,20 +2595,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const leadsToEnrich = await storage.getLeadsByBatchId(leadBatch.id);
           const enrichmentProgress = { current: 0, total: leadsToEnrich.length };
           
-          // Send enrichment progress updates via WebSocket
-          const enrichWss = app.get('wss') as WebSocketServer;
-          if (enrichWss && enrichWss.clients) {
-            const progressMsg = JSON.stringify({
-              type: 'enrichment-progress',
-              sessionId: createdSession.id,
-              message: 'Starting lead enrichment...',
-              progress: 0
-            });
-            enrichWss.clients.forEach((client: WebSocket) => {
-              if (client.readyState === 1) client.send(progressMsg);
-            });
-          }
-          
           for (let i = 0; i < leadsToEnrich.length; i++) {
             const lead = leadsToEnrich[i];
             
@@ -2720,23 +2636,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               enrichmentProgress.current++;
               
-              // Send progress update every 5 leads or on completion
-              if (enrichmentProgress.current % 5 === 0 || enrichmentProgress.current === enrichmentProgress.total) {
-                const progressPercent = Math.round((enrichmentProgress.current / enrichmentProgress.total) * 100);
-                
-                const progressWss = app.get('wss') as WebSocketServer;
-                if (progressWss && progressWss.clients) {
-                  const progressMsg = JSON.stringify({
-                    type: 'enrichment-progress',
-                    sessionId: createdSession.id,
-                    message: `Enriching leads: ${enrichmentProgress.current}/${enrichmentProgress.total}`,
-                    progress: progressPercent
-                  });
-                  progressWss.clients.forEach((client: WebSocket) => {
-                    if (client.readyState === 1) client.send(progressMsg);
-                  });
-                }
-              }
             } catch (enrichError) {
               console.error(`[Lead Enrichment] Error enriching lead ${lead.id}:`, enrichError);
               // Continue with other leads even if one fails
@@ -2898,25 +2797,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`Processing Google Drive resource: ${fileId}`);
 
-      // Create a WebSocket connection for progress updates
-      const progressCallback = (progress: any) => {
-        // Send progress via WebSocket if connected
-        // Note: WebSocket server is optional and may not be initialized
-        try {
-          const wss = app.get('wss') as WebSocketServer;
-          if (wss && wss.clients) {
-            wss.clients.forEach(client => {
-              if (client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'google-drive-progress',
-                  data: progress
-                }));
-              }
-            });
-          }
-        } catch (e) {
-          // WebSocket not available, continue without progress updates
-          console.log('Progress update:', progress);
+      const progressCallback = (progress: unknown) => {
+        if (process.env.NODE_ENV === "development") {
+          console.log("[Google Drive] progress:", progress);
         }
       };
 
@@ -3003,23 +2886,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (timeoutHandle) {
             clearTimeout(timeoutHandle);
           }
-        }
-        
-        // Send progress update
-        const wss = app.get('wss') as WebSocketServer;
-        if (wss && wss.clients) {
-          wss.clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({
-                type: 'ucc-processing-complete',
-                data: {
-                  filesProcessed: processingResult.summary.filesProcessed,
-                  totalRecords: processingResult.summary.totalRecords,
-                  uniqueBusinesses: processingResult.summary.uniqueDebtors
-                }
-              }));
-            }
-          });
         }
         
         // Create response with comprehensive results
@@ -3997,21 +3863,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const intelligenceService = new (leadIntelligenceModule.leadIntelligenceService as any)();
       const updatedIntelligence = await intelligenceService.calculateIntelligenceScore(lead, true);
 
-      // Send real-time update via WebSocket if available
-      const wss = app.get('wss') as WebSocketServer;
-      if (wss && wss.clients) {
-        wss.clients.forEach((client: WebSocket) => {
-          if (client.readyState === 1) { // WebSocket.OPEN = 1
-            client.send(JSON.stringify({
-              type: 'verification_complete',
-              leadId,
-              verificationResult,
-              intelligenceScore: updatedIntelligence.intelligenceScore
-            }));
-          }
-        });
-      }
-
       res.json({
         success: true,
         leadId,
@@ -4099,26 +3950,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         estimatedTimeSeconds: leadIds.length * 2 // Rough estimate
       });
 
-      // Process verification in background and send WebSocket updates
-      verificationPromise.then(results => {
-        const wss = app.get('wss') as WebSocketServer;
-        if (wss && wss.clients) {
-          wss.clients.forEach((client: WebSocket) => {
-            if (client.readyState === 1) { // WebSocket.OPEN = 1
-              client.send(JSON.stringify({
-                type: 'batch_verification_complete',
-                totalLeads: leadIds.length,
-                successCount: Array.from(results.values()).filter(r => r.verificationStatus !== 'failed').length,
-                results: Array.from(results.entries()).map(([id, result]) => ({
-                  leadId: id,
-                  status: result.verificationStatus,
-                  confidenceScore: result.overallConfidenceScore
-                }))
-              }));
-            }
-          });
-        }
-      }).catch(error => {
+      verificationPromise.then(() => {}).catch(error => {
         console.error('Batch verification failed:', error);
       });
     } catch (error) {
@@ -10626,6 +10458,5 @@ Time: ${preferredTime || 'Any time'}`);
     }
   });
 
-  // Return the server instance for WebSocket setup
   return server;
 }

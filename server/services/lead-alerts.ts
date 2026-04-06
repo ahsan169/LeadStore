@@ -4,7 +4,6 @@ import { leads, alertHistory } from "@shared/schema";
 import { and, gte, lte, inArray, sql, or, eq } from "drizzle-orm";
 import { sendAlertNotification } from "../email";
 import type { Lead, LeadAlert, LeadBatch } from "@shared/schema";
-import { WebSocket } from "ws";
 
 export interface AlertCriteria {
   industries?: string[];
@@ -21,27 +20,9 @@ export interface AlertCriteria {
   urgencyLevel?: string[];
 }
 
-// WebSocket clients for real-time notifications
-const alertClients = new Map<string, WebSocket>();
+export function addAlertClient(_userId: string, _ws: unknown): void {}
 
-export function addAlertClient(userId: string, ws: WebSocket) {
-  alertClients.set(userId, ws);
-  
-  ws.on("close", () => {
-    alertClients.delete(userId);
-  });
-  
-  ws.on("error", () => {
-    alertClients.delete(userId);
-  });
-}
-
-export function sendRealTimeAlert(userId: string, message: any) {
-  const client = alertClients.get(userId);
-  if (client && client.readyState === WebSocket.OPEN) {
-    client.send(JSON.stringify(message));
-  }
-}
+export function sendRealTimeAlert(_userId: string, _message: unknown): void {}
 
 export class LeadAlertService {
   /**
@@ -206,7 +187,6 @@ export class LeadAlertService {
     const user = await storage.getUser(alert.userId);
     if (!user) return;
     
-    // Send real-time WebSocket notification
     sendRealTimeAlert(alert.userId, {
       type: "alert_triggered",
       alertId: alert.id,
