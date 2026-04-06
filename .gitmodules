@@ -1,0 +1,3 @@
+[submodule "SeamlessAi"]
+	path = SeamlessAi
+	url = https://github.com/uzieee/SeamlessAi.git
